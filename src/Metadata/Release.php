@@ -13,21 +13,22 @@ final class Release
         $type = SpotCategories::classify($spot['category'], $spot['subcategories'])['type'];
         if (!in_array($type, ['Films', 'Series'], true)) return null;
         $raw = str_replace('_', '.', $spot['title']);
+        $raw = preg_replace('/^\s*\d{1,2}\.\s+(?=\S)/', '', $raw);
         $season = null;
         $episode = null;
         $cut = strlen($raw);
-        $multi = false;
+        $multi = preg_match('/\b(?:trilogy|trilogie|collection|boxset)\b|\b[2-9]\s*x\s*BD(?:25|50|66|100)\b/i', $raw) === 1;
         if (preg_match('/\bS(\d{1,3})(?:[ ._-]*E(\d{1,4}))?/i', $raw, $match, PREG_OFFSET_CAPTURE)) {
             $season = (int) $match[1][0];
             $episode = isset($match[2]) ? (int) $match[2][0] : null;
             $cut = $match[0][1];
             $tail = substr($raw, $cut + strlen($match[0][0]));
-            $multi = preg_match('~^(?:[ ._&,+/-]*(?:E\d|S\d)|[ -]*\d{1,3}\b|[ ._-]*(?:to|tot|t/m)\b)~i', $tail) === 1;
+            $multi = $multi || preg_match('~^(?:[ ._&,+/-]*(?:E\d|S\d)|[ -]*\d{1,3}\b|[ ._-]*(?:to|tot|t/m)\b)~i', $tail) === 1;
         } elseif (preg_match('/\b(\d{1,2})x(\d{2,3})\b/i', $raw, $match, PREG_OFFSET_CAPTURE)) {
             $season = (int) $match[1][0];
             $episode = (int) $match[2][0];
             $cut = $match[0][1];
-            $multi = preg_match('/^(?:[ ._-]*\d+x\d|[ -]+\d{2}\b)/i', substr($raw, $cut + strlen($match[0][0]))) === 1;
+            $multi = $multi || preg_match('/^(?:[ ._-]*\d+x\d|[ -]+\d{2}\b)/i', substr($raw, $cut + strlen($match[0][0]))) === 1;
         }
         $kind = $type === 'Series' || $season !== null ? 'series' : 'movie';
         $name = substr($raw, 0, $cut);
@@ -41,7 +42,7 @@ final class Release
                 break;
             }
         }
-        $name = preg_split('/\b(?:2160p|1080[pi]|720p|480p|WEB[- .]?DL|WEBRip|BluRay|BDRip|BRRip|DVDRip|HDTV|x26[45]|h[ .]?26[45]|HEVC|REMUX|COMPLETE|REPACK|PROPER|MULTISUBS|NL[ ._-]?SUBS)\b/i', $name, 2)[0];
+        $name = preg_split('/\b(?:2160p|1080[pi]|720p|480p|4K|UHD|Ultra[ .-]?HD|WEB[- .]?DL|WEBRip|Blu[ .-]?Ray|BDRip|BRRip|DVDRip|HDTV|x26[45]|h[ .]?26[45]|HEVC|REMUX|COMPLETE|REPACK|PROPER|MULTISUBS|NL[ ._-]?(?:RETAIL)?SUBS|IMAX|Theatrical[ .-]+(?:Version|Cut)|Extended[ .-]+(?:Edition|Cut)|Director.?s[ .-]+Cut)\b/i', $name, 2)[0];
         $name = trim(preg_replace('/[._]+/', ' ', $name), " \t\n\r\0\x0B-()[]");
         if (strlen($name) < 2 || strlen($name) > 200) return null;
         return ['type' => $kind, 'query' => $name, 'year' => $year, 'season' => $season,
@@ -58,6 +59,7 @@ final class Release
     public static function select(array $release, array $candidates): ?array
     {
         $matches = [];
+        if ($release['type'] === 'movie' && ($release['multi'] ?? false)) return null;
         $title = self::normalized($release['query']);
         if ($title === '') return null;
         foreach ($candidates as $candidate) {

@@ -44,6 +44,9 @@ check($loaded['status'] === 200 && $data['state'] === 'matched' && str_contains(
     'HTTP-metadata levert veilige verrijkte hero en cast uit gedeelde databasecache');
 check(str_contains($data['html'], 'data-tvdb-open') && str_contains($data['html'], 'metadata-attribution')
     && !str_contains($data['html'], '<dialog'), 'Asynchrone vervanging behoudt heropenbare link en attributie zonder paneel te dupliceren');
+check(str_contains($data['html'], 'class="release-quality"') && str_contains($data['html'], '1080p')
+    && str_contains($page['body'], 'class="release-quality"') && str_contains($data['html'], 'Uit de releasetitel;'),
+    'HTTP-detail toont dezelfde bron-gelabelde releasekwaliteit voor en na asynchrone TVDB-verrijking');
 check(!str_contains(httpFixture($httpPort, '/admin', $cookie)['body'], 'fixture-http-tvdb-key')
     && !str_contains(httpFixture($httpPort, '/preferences', $readerCookie)['body'], 'fixture-http-tvdb-key')
     && !str_contains($loaded['body'], 'fixture-http-tvdb-key'), 'TVDB-key lekt niet via beheer, voorkeuren of metadata-JSON');

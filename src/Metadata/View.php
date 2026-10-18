@@ -99,11 +99,14 @@ final class View
         $copy = '<p class="text-body-secondary mb-2">TheTVDB &middot; ' . h(['movie' => 'Film', 'series' => 'Serie', 'episode' => 'Aflevering'][$metadata['type']]) . '</p>'
             . '<h1>' . h($metadata['title']) . '</h1>';
         if ($metadata['episode_title'] !== '') $copy .= '<h2 class="h4">' . h($metadata['episode_title']) . '</h2>';
-        if ($metadata['season'] !== null) $copy .= '<p>Seizoen ' . (int) $metadata['season'] . ($metadata['episode'] === null ? '' : ' &middot; Aflevering ' . (int) $metadata['episode']) . '</p>';
+        if ($metadata['season'] !== null && !$metadata['episode_missing']) $copy .= '<p>Seizoen ' . (int) $metadata['season'] . ($metadata['episode'] === null ? '' : ' &middot; Aflevering ' . (int) $metadata['episode']) . '</p>';
         $facts = array_filter([$metadata['date'], $metadata['runtime'] === null ? '' : $metadata['runtime'] . ' min', implode(', ', $metadata['genres'])]);
         $copy .= '<p class="metadata-facts">' . h(implode(' · ', $facts)) . '</p>';
         if ($metadata['overview'] !== '') $copy .= '<p class="metadata-overview">' . nl2br(h($metadata['overview'])) . '</p>';
-        if ($metadata['episode_missing']) $copy .= '<p class="small text-body-secondary">Serie gevonden; geen unieke aflevering. Er worden geen afleveringsgegevens verondersteld.</p>';
+        if ($metadata['episode_missing']) $copy .= '<p class="small text-body-secondary">Serie gevonden; seizoen ' . (int) $metadata['season']
+            . ', aflevering ' . (int) $metadata['requested_episode']
+            . ' is niet uniek beschikbaar in de officiële TVDB-nummering. Seizoen en aflevering zijn uit de releasetitel, niet door TVDB bevestigd. Er worden alleen seriemetadata getoond; corrigeer de koppeling via TVDB link.</p>';
+        $copy .= \NnSpotty\UI\SpotReleaseQuality::render($spot['title']);
         $typePath = $metadata['type'] === 'movie' ? 'movies/' : ($metadata['type'] === 'episode' ? 'episodes/' : 'series/');
         $copy .= '<a class="metadata-attribution small" href="https://thetvdb.com/dereferrer/' . $typePath . (int) $metadata['id']
             . '" target="_blank" rel="noopener noreferrer"><span>Metadata van TheTVDB</span>'
@@ -123,8 +126,9 @@ final class View
             $html .= '<section class="metadata-people mb-4" aria-label="Cast en crew"><h2 class="h4">Cast &amp; Crew</h2><div class="people-list">';
             foreach ($metadata['people'] as $person) {
                 $html .= '<article class="person-card">';
-                if ($images && $person['image'] !== '') {
-                    $html .= '<img src="' . h($person['image']) . '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">';
+                if ($images) {
+                    $html .= '<img src="' . h($person['image'] !== '' ? $person['image'] : '/assets/images/placeholder-small.png')
+                        . '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src=\'/assets/images/placeholder-small.png\'">';
                 }
                 $html .= '<strong>' . h($person['name']) . '</strong><span>' . h($person['role']) . '</span><small>' . h($person['type']) . '</small></article>';
             }

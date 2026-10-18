@@ -52,7 +52,7 @@ final class Service
         $release = Release::parse($spot);
         if ($release === null) return ['state' => 'unsupported'];
         $language = $this->repo->settings()['language'];
-        $hash = self::signature($spot, $language);
+        $hash = self::signature($spot, $language . ':release-v2');
         $old = $this->repo->match($spot['id']);
         if ($old !== null && $old['input_hash'] === $hash && $old['fresh'] && $old['result_json'] !== null) return $old['result_json'];
         if (!$this->repo->lock($spot['id'])) return ['state' => 'busy'];
@@ -103,7 +103,7 @@ final class Service
         if ($choice !== null) $choice['input'] = self::signature($spot, '');
         if (!$this->repo->lock($spot['id'])) throw new RuntimeException('De TVDB-match wordt al verwerkt. Probeer opnieuw.');
         try {
-            $this->repo->choose($spot['id'], self::signature($spot, $this->repo->settings()['language']), $choice);
+            $this->repo->choose($spot['id'], self::signature($spot, $this->repo->settings()['language'] . ':release-v2'), $choice);
         } finally {
             $this->repo->unlock($spot['id']);
         }
@@ -213,6 +213,7 @@ final class Service
             'title' => self::text($base['_translated_name'] ?? $base['name']),
             'episode_title' => $episode === null ? '' : self::text($data['_translated_name'] ?? $data['name']),
             'season' => $seasonNumber, 'episode' => $episode === null ? null : $episodeNumber, 'episode_missing' => $episodeMissing,
+            'requested_episode' => $episodeNumber,
             'overview' => self::text($data['_translated_overview'] ?? $data['overview'] ?? '', 12000),
             'date' => self::text($date, 20),
             'runtime' => is_numeric($runtime) ? (int) $runtime : null,

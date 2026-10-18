@@ -140,6 +140,11 @@
 [data-bs-theme="light"] .metadata-hero::after { background: linear-gradient(90deg, rgba(255,255,255,.5), rgba(255,255,255,.94)); }
 .metadata-overview { line-height: 1.7; white-space: normal; overflow-wrap: anywhere; }
 .metadata-facts, .metadata-release { overflow-wrap: anywhere; }
+.release-quality { margin-block: 16px; overflow-wrap: anywhere; }
+.release-quality dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); gap: 12px 20px; margin-bottom: 6px; }
+.release-quality dt { font-size: .8rem; color: var(--spot-muted); }
+.release-quality dd { margin: 3px 0 0; font-size: .9rem; }
+.release-quality > small { display: block; font-size: .7rem; }
 .episode-hero .spot-poster { height: auto; aspect-ratio: 16 / 9; }
 .episode-hero .poster-enlarge { height: auto; aspect-ratio: 16 / 9; }
 .metadata-people .people-list { display: flex; gap: 22px; overflow-x: auto; padding-block: 12px; }

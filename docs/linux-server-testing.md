@@ -62,6 +62,29 @@ curl -sS -o /dev/null -D - https://nnspotty.hopseflop.nl/
 
 Alle vier assets moeten HTTP 200 geven; root moet naar `/spots` verwijzen. Herlaad met Ctrl+F5 en controleer na uit-/inloggen dat direct het overzicht verschijnt, zonder de oude homepage. Test vervolgens de paneel-/attributiechecks hierboven. De bestaande servercredentials en persoonlijke TVDB-toestemming blijven behouden.
 
+### Titelherkenning, releasekwaliteit en cast-placeholders
+Geen nieuwe migratie bovenop 0013; voer vanuit de bestaande projectmap uit:
+
+```bash
+git status --short
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+composer check-platform-reqs
+php tests/run.php
+php bin/console db health
+curl -fsS https://nnspotty.hopseflop.nl/health
+curl -fsS -o /dev/null -w 'CSS: %{http_code}\n' https://nnspotty.hopseflop.nl/assets/spotty.css
+curl -fsS -o /dev/null -w 'Placeholder: %{http_code}\n' https://nnspotty.hopseflop.nl/assets/images/placeholder-small.png
+```
+
+Herlaad met Ctrl+F5 en controleer:
+- `03. The Dark Knight Rises (2012) IMAX 2160p AI-Enhanced, Rife 60fps Dolby True-HD`: zoekterm **The Dark Knight Rises**, jaar 2012; unieke exacte providerhit wordt gekoppeld. Kwaliteit toont 4K, IMAX, AI-enhanced, RIFE, 60 fps en TrueHD, niet een verzonnen audiotaal/HDR/codec.
+- Het opgegeven LOTR-pakket met Theatrical Version / 4K / `3 x BD100`: opgeschoonde zoekterm **The Lord of the Rings**, geen automatische keuze voor een enkele film. Video/audio/NL-retailondertiteling blijven zichtbaar, ook zonder match.
+- `De.Bondgenoten.S04E01.DUTCH.1080p.WEB.h264-KIJKDOOS`: exact seizoen 4/aflevering 1 wordt gevraagd; geen omrekening naar een ander seizoen. Ontbreekt dit paar bij TVDB, dan alleen seriedata en een expliciete melding met het aangevraagde nummer. Bij onderzoek bood de publieke pagina alleen officiele seizoenen 1-3. Controleer ook een werkelijk beschikbare aflevering van een andere serie.
+- Releasekwaliteit blijft aanwezig zonder persoonlijke TVDB-toestemming, na asynchrone verrijking en in de preview. Onbekende waarden ontbreken; de bronmelding vermeldt onbevestigde claims uit de releasetitel.
+- Cast/crew zonder foto en een gecontroleerd geblokkeerde fotorequest krijgen beide een ronde 120px-placeholder, niet een lege ruimte. Schakel afbeeldingen uit: geen castfoto-/placeholderverzoeken. Test donker/licht op 320/390/768/1440px, inclusief sluitbare TVDB-drawer en coverlightbox.
+- Oude matchresultaten worden bij detailbezoek opnieuw beoordeeld; handmatige keuzes/blokkeringen blijven staan. Providerrecords en afleveringlijsten behouden hun TTL van zeven dagen: deze update is geen geforceerde cacheflush of nieuwe retrieval.
+
 Lokale automatische regressies gebruiken synthetische TVDB-antwoorden en een echte aparte MariaDB; browsercontroles gebruiken voorgevulde cache en onderschepte testafbeeldingen, geen echte providerkey. Productieacceptatie hierboven blijft nodig voor jouw key/licentie, echte titels, artworkbeschikbaarheid en providerlimieten. Integratietests alleen met de afzonderlijke testdatabasecredentials volgens de bestaande sectie hieronder uitvoeren.
 
 `php bin/console db cleanup --days=90` ruimt naast de bestaande onderhoudsdata ook verlopen TVDB-providercache op (`tvdb_cache=` in de output). Dit commando verwijdert eveneens oude lokale reacties/runs/audit/loginpogingen; voer het alleen uit als die reguliere onderhoudsactie gewenst is. Het verwijdert geen geldige providerrecords of opgeslagen handmatige keuzes.

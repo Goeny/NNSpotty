@@ -5,6 +5,8 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Added
+- Verbeterde TVDB-zoektermen voor genummerde releases en editie-/kwaliteitssuffixen; filmcollecties en meerdere Blu-ray-discs blijven bewust zonder automatische enkelvoudige filmkeuze. Oude matchresultaten worden opnieuw beoordeeld met behoud van handmatige keuzes/blokkeringen. Ontbrekende officiele afleveringen noemen het gevraagde seizoen/nummer expliciet als onbevestigd.
+- Plex-geinspireerde releasekwaliteit in hero/preview (video, audio, taal, ondertiteling), uitsluitend uit herkende titelclaims en onafhankelijk van TVDB. Ronde lokale placeholders voor ontbrekende en defecte cast-/crewfoto's, met behoud van de globale afbeeldingsvoorkeur.
 - Zichtbare TVDB-attributie bij getoonde metadata: directe recordlink met klein origineel lokaal logo passend bij donker/licht. Compacte "TVDB link" linksboven in de hero opent matchstatus en admin-only handmatige opties in een rechts in-/uitschuivend toegankelijk paneel met Escape, zelfstandig scrollen en focusherstel na asynchrone correcties.
 - TheTVDB API V4-verrijking op volledige filmdetails en serie-/afleveringdetails, met centrale admin-key/optionele PIN, persoonlijke default-off toestemming, taal met Engelse fallback en asynchrone veilige weergave zonder wijziging van oorspronkelijke spotdata.
 - Conservatieve unieke titel-/jaarmatching, exacte officiële afleveringskoppeling en admin-only gedeelde zoek-/keuze-/reset-/blokkeeracties. Plex-geinspireerde hero met echte fanart/poster of afleveringstill, synopsis, genres, speelduur, cast/crew en studio/netwerk; bestaande reacties/NZB/SABnzbd/lightbox blijven werken.
