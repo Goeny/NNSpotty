@@ -140,6 +140,18 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
 40. **Duidelijkere tijdelijke fanart**
     Hero-blur verminderd van 24px naar 6px met aangepaste donker/licht-overlay. De cover blijft de tijdelijke uitgerekte achtergrond; echte fanart/metadata is nog niet geintegreerd. Posterframe en eigen vervaagde vulling blijven behouden.
 
+41. **Gegenereerde en lokale bestanden niet langer in Git**
+    Inspectie toonde gevolgde `.env` en volledige `vendor/`. Beide worden alleen uit de index verwijderd; lokale bestanden blijven bestaan. `.gitignore` sluit ook Composer-auth, logs/dumps/runtime/coverage uit. `composer.json`, `composer.lock`, `.env.example` en gedeelde VS Code-configuratie blijven gevolgd. De eenmalige serverpull vereist een configuratiebackup/restore en opnieuw Composer install; Git-historie wordt niet herschreven. Eventuele eerder vastgelegde echte credentials moeten worden geroteerd.
+
+42. **Admin bepaalt inhoud, ophalen en tonen blijven gescheiden**
+    Gebruiker koos schakelaars voor onderdelen, niet voor nieuwe metadata-integratie of een reactielimiet per spot. `retrieve_comments`, `show_comments`, `images_enabled` staan standaard aan. Uitgeschakelde commentretrieval benadert geen reactiegroepen en schuift geen cursors op. Weergave uit blokkeert bestaande/lokale reacties en beide schrijfinterfaces. Afbeeldingen uit blokkeert ook cache, externe covers, thumbnails en hero; er wordt niets verwijderd. Retentie en incrementele artikellimiet blijven de bestaande kwantiteitsinstellingen.
+
+43. **Afbeeldingvergroting zonder extra UI-afhankelijkheid**
+    Coverlink in detail en preview opent een native modale dialog, met Bootstrap-knoppen/alerts, focusherstel, Escape, buitenklik en viewportpassende afbeelding. De bestaande vaste posterframes blijven behouden. Gedelegeerde events werken ook na preview-fetch; Escape sluit niet tegelijk het onderliggende schuifpaneel. Zonder script blijft een gewone afbeeldingslink beschikbaar.
+
+44. **Spotnet-bracketcodes zijn opmaak, geen HTML**
+    De aangeleverde `[br]`-omschrijving bevestigt Spotnet/BBCode-inhoud. Een eigen begrensde tekstparser ondersteunt regeleinden, nadruk, citaten, code, lijsten en veilige links naast de bestaande DOM-allowlist. Kleur/font/grootte/uitlijning voeren geen remote stijlen uit. Onbekende tags blijven tekst, afbeeldingen/actieve inhoud worden niet toegestaan. Usenet-reacties delen de renderer; lokale reacties blijven tekst. Geen nieuwe retrieval nodig voor bestaande omschrijvingen.
+
 ## Open vragen (voor volgende stap)
 - Welk framework past het best bij verdere uitbreiding? De huidige basis gebruikt PHP 8.2+ en PDO/MySQL/MariaDB.
 - Welke metadata-provider krijgt prioriteit: IMDB, TVDB of beide vanaf start?

@@ -23,7 +23,7 @@ final class AdminPageRenderer
      * @param array<int, array{post_id: string, username: string, comment: string, created_at: string}> $comments
      * @param array<int, array{actor_username: string, action: string, target_type: string, target_id: string, details_json: string, ip_address: string, created_at: string}> $auditLogs
      */
-    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = []): string
+    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = [], array $spotContent = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true]): string
     {
         $retention = (int) $settings['retention'];
         $server = h($settings['server']);
@@ -43,10 +43,35 @@ final class AdminPageRenderer
         $safeCurrentUsername = h($currentUsername);
         $columnForm = SpotColumns::form($globalColumns !== [] ? $globalColumns : SpotColumns::defaults(), null, $csrfField);
         $eroticaChecked = $allowErotica ? 'checked' : '';
+        $contentOptions = '';
+        foreach (['retrieve_comments' => 'Usenet-reacties indexeren', 'show_comments' => 'Reacties weergeven en lokale reacties toestaan', 'images_enabled' => 'Afbeeldingen ophalen en tonen (op aanvraag)'] as $key => $label) {
+            $contentOptions .= '<div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="' . $key
+                . '" name="' . $key . '" value="1"' . ($spotContent[$key] ? ' checked' : '') . '><label class="form-check-label" for="' . $key . '">' . h($label) . '</label></div>';
+        }
 
         $whitelistItems = self::renderSimpleList($spotterLists['whitelist']);
         $blacklistItems = self::renderSimpleList($spotterLists['blacklist']);
         $commentRows = self::renderCommentRows($comments);
+        $commentPanel = !$spotContent['show_comments'] ? '<p class="text-body-secondary">Reacties zijn door de beheerder uitgeschakeld.</p>' : <<<HTML
+            <form method="post" action="/admin/comments" class="row g-2 mb-3">
+              {$csrfField}
+              <div class="col-md-6">
+                <input class="form-control" name="post_id" type="text" placeholder="Post ID" required>
+              </div>
+              <div class="col-md-6">
+                <button class="btn btn-primary w-100" type="submit">Comment toevoegen</button>
+              </div>
+              <div class="col-12">
+                <textarea class="form-control" name="comment" rows="3" placeholder="Comment tekst" required></textarea>
+              </div>
+            </form>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead><tr><th>Post</th><th>User</th><th>Comment</th><th>Tijd</th></tr></thead>
+                <tbody>{$commentRows}</tbody>
+              </table>
+            </div>
+HTML;
         $auditRows = self::renderAuditRows($auditLogs);
 
         $content = <<<HTML
@@ -64,6 +89,16 @@ final class AdminPageRenderer
     </div>
     {$statusAlert}
     {$columnForm}
+    <section class="card my-4" id="spot-content">
+      <div class="card-header fw-semibold">Op te halen inhoud</div>
+      <form method="post" action="/admin/spot-content" class="card-body">
+        {$csrfField}
+        {$contentOptions}
+        <p class="form-text">Spots en hun omschrijving blijven de basis. Reacties indexeren uit: geen reactiegroepen ophalen of cursors verplaatsen. Weergave uit: ook bestaande en lokale reacties verborgen. Afbeeldingen worden alleen bij bekijken geladen en in de database gecachet; uit blokkeert ook gecachte afbeeldingen. Opgeslagen inhoud wordt niet verwijderd.</p>
+        <p class="form-text">Retentie en max artikelen per incrementele run staan onder Usenet instellingen. Na opnieuw inschakelen van reacties haalt --since-last de achterstand vanaf de bestaande cursor op; --days of --all kan beschikbare historie aanvullen. Aanvullende IMDB/TVDB-metadata en NZB-downloads zijn nog niet beschikbaar.</p>
+        <button class="btn btn-primary" type="submit">Inhoudsinstellingen opslaan</button>
+      </form>
+    </section>
     <section class="card mb-4">
       <div class="card-header fw-semibold">Inhoud en zichtbaarheid</div>
       <form method="post" action="/admin/content" class="card-body">
@@ -170,33 +205,7 @@ final class AdminPageRenderer
         <div class="card">
           <div class="card-header fw-semibold">Comments op posts</div>
           <div class="card-body">
-            <form method="post" action="/admin/comments" class="row g-2 mb-3">
-              {$csrfField}
-              <div class="col-md-6">
-                <input class="form-control" name="post_id" type="text" placeholder="Post ID" required>
-              </div>
-              <div class="col-md-6">
-                <button class="btn btn-primary w-100" type="submit">Comment toevoegen</button>
-              </div>
-              <div class="col-12">
-                <textarea class="form-control" name="comment" rows="3" placeholder="Comment tekst" required></textarea>
-              </div>
-            </form>
-            <div class="table-responsive">
-              <table class="table table-sm align-middle">
-                <thead>
-                  <tr>
-                    <th>Post</th>
-                    <th>User</th>
-                    <th>Comment</th>
-                    <th>Tijd</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {$commentRows}
-                </tbody>
-              </table>
-            </div>
+            {$commentPanel}
           </div>
         </div>
       </div>

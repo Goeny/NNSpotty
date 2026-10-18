@@ -50,7 +50,18 @@ De preview is initieel verborgen en inert. Een klik op een regel of toetsenborda
 
 `SpotPresentation` deelt dezelfde bron tussen cover, vervaagde poster-vulling en hero-achtergrond. Het detailframe is 230 x 345 CSS-pixels op desktop, 105 x 158 op mobiel; previewframes zijn 110 x 165, op mobiel 90 x 135. De voorgrond behoudt verhouding en vergroot kleine beelden niet; de decoratieve laag vult de resterende ruimte. De hero-achtergrond wordt afzonderlijk uitgerekt en licht vervaagd (6px), met een thema-afhankelijke contrastoverlay. Zonder afbeelding blijft een vaste placeholder; laadfouten tonen expliciete feedback.
 
-`SpotDescription` gebruikt ext-dom om onbetrouwbare HTML te parsen en bouwt uitsluitend toegestane opmaaktags opnieuw op. Alle remote attributen verdwijnen, behalve gevalideerde HTTP(S)-links met vaste veilige linkattributen. Actieve subtrees, stylesheets, embeds en remote afbeeldingen in omschrijvingen worden niet gerenderd. Tekst wordt opnieuw geescapet; gewone regeleinden blijven behouden. Preview en detail delen exact deze renderer, reacties blijven tekst. Dit is geen algemene HTML-/BBCode-browser.
+`SpotDescription` gebruikt ext-dom om onbetrouwbare HTML te parsen en bouwt uitsluitend toegestane opmaaktags opnieuw op. Alle remote attributen verdwijnen, behalve gevalideerde HTTP(S)-links met vaste veilige linkattributen. Actieve subtrees, stylesheets, embeds en remote afbeeldingen in omschrijvingen worden niet gerenderd. Tekst wordt opnieuw geescapet; gewone regeleinden blijven behouden. Preview en detail delen exact deze renderer. Dit is geen algemene HTML-/BBCode-browser.
+
+`SpotMarkup` verwerkt uitsluitend de tekstnodes van deze opgeschoonde DOM, nooit remote HTML-attributen of actieve subtrees. `[br]` wordt een regeleinde; een begrensde parser ondersteunt nadruk, citaten, code, lijsten en HTTP(S)-links. HTML en bracketcodes kunnen samen voorkomen. Kleur/font/grootte/uitlijning behouden tekst zonder externe styling; onbekende tags blijven leesbare tekst. HTML- en BBCode-links delen dezelfde URL-validatie, er ontstaan geen geneste links. Codeblokken blijven letterlijk; diepte boven 100 faalt expliciet. Geimporteerde Usenet-reacties gebruiken dezelfde renderer; lokale reacties blijven platte geescapete tekst.
+
+`SpotPresentation` maakt voor niet-thumbnailcovers een gewone afbeeldingslink met een lightbox-hook. `presentation.js` verzorgt gedelegeerde activatie, ook voor later geladen previews, in een native modale `dialog` met Bootstrap-knoppen en alerts. Browserfocus/inertness blokkeren de achtergrond; Escape sluit alleen de lightbox, niet ook de preview. Afbeeldingen passen proportioneel binnen de viewport. Zonder script of dialogondersteuning blijft de gewone afbeeldingslink bruikbaar. Er worden geen nieuwe afbeeldinghosts of server-fetch-URLs geintroduceerd.
+
+### Op te halen inhoud
+`app_settings.admin.spot_content` bewaart drie gevalideerde booleans: `retrieve_comments`, `show_comments` en `images_enabled`, standaard allemaal true voor compatibiliteit. De adminroute vereist CSRF, valideert scalaire checkboxinvoer en logt wijzigingen zonder credentials. Retentie/artikellimiet blijven in de bestaande Usenet-instellingen.
+
+Reacties indexeren uit filtert reactiegroepen voor de NNTP-groepsselectie, zonder hun cursors bij te werken. Tonen staat hiervan los: uitschakelen onderdrukt Usenet/lokale reacties en formulieren in detail/admin en blokkeert beide lokale POST-routes. Alleen indexeren uit laat eerder opgeslagen reacties zichtbaar met uitleg. Opnieuw aan hervat vanaf de cursor; beschikbare historie kan met --days/--all worden aangevuld.
+
+Afbeeldingen uit onderdrukt thumbnails/coverkolom, posters, lightboxlinks en hero-achtergrond in lijst/batches/preview/detail. De image-route en afbeeldingservice controleren de instelling voor de databasecache of NNTP. Externe cover-URLs worden evenmin in de pagina gepubliceerd. Cache en originele segmentverwijzingen blijven opgeslagen. De instelling geldt bij de volgende aanvraag; reeds gedownloade inhoud kan niet uit een bestaande browsertab worden teruggeroepen.
 
 ## Retrievalsemantiek
 - `--since-last`: vanaf de laatst voltooide batch, met de ingestelde artikellimiet per groep. Bij de eerste run begint dit bij het oudste beschikbare artikel. Cursors worden pas na een succesvolle batch opgeslagen.
@@ -61,11 +72,11 @@ De preview is initieel verborgen en inert. Een klik op een regel of toetsenborda
 - Verbose batchoutput toont het geldige UTC-datumbereik en afzonderlijke aantallen te oud, bestaand, geen spot, ongeldig, verdwenen en opgeslagen. Het totale aantal opgeslagen berichten blijft zichtbaar. Een corrupt optioneel volledig veld geeft een waarschuwing, geen afwijzing van verder bruikbare spotmetadata.
 
 ## Web en beveiligingsgrenzen
-- `/spots`: individuele spots, type-/subcategoriefilters, titelzoekfunctie, paginering, thumbnails en geselecteerde preview.
+- `/spots`: individuele spots, stapelbare type-/subcategoriefilters, titelzoekfunctie, keyset-batches, optionele thumbnails en een initieel gesloten preview.
 - `/spots/view?key=...`: afbeelding, metadata, omschrijving, reacties en een CSRF-beveiligd formulier voor lokale reacties.
 - `/spots/image?key=...`: alleen voor ingelogde gebruikers met zichtbaarheidstoegang; rasterafbeeldingen met `nosniff` en databasecache. Lijst, detail en afbeeldingen gebruiken `private, no-store`, zodat ingetrokken zichtbaarheid niet via een normale browsercache wordt omzeild.
 - Usenet XML wordt zonder DTD/entiteiten verwerkt. Segment-IDs worden gevalideerd voor NNTP-gebruik.
-- Omschrijvingen worden via een DOM-gebaseerde opmaak-allowlist opgebouwd; reacties worden als tekst geescapet. Onbetrouwbare HTML of attributen worden nooit rechtstreeks uitgevoerd.
+- Omschrijvingen en Usenet-reacties worden via een DOM-/Spotnet-opmaak-allowlist opgebouwd; lokale reacties worden als tekst geescapet. Onbetrouwbare HTML of attributen worden nooit rechtstreeks uitgevoerd.
 - Spotterhandtekeningen worden nog niet geverifieerd. De UI vermeldt daarom expliciet dat identiteit/inhoud onbevestigd is. Dit is geen complete Spotweb trust-/moderatie-implementatie.
 - Oudere externe afbeelding-URLs worden door de browser geladen en kunnen ontbreken; de server gebruikt ze niet als fetch-URL.
 
@@ -82,6 +93,6 @@ Deze bronnen dienen als protocolreferentie. NNSpotty heeft een eigen parser, ser
 
 ## Volgende uitbreidingen
 - Handtekeningverificatie en toepassen van moderatie op geverifieerde identiteiten.
-- Veilige Spotnet-opmaak en expliciete compatibiliteit voor afwijkende legacy-XML.
+- Verdere Spotnet-tagcompatibiliteit en expliciete compatibiliteit voor afwijkende legacy-XML.
 - NZB-download/forwarding, Newznab en metadata.
 - Indexing-jobs, scheduling en performance-optimalisatie van grote backfills.

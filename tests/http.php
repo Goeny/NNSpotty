@@ -108,12 +108,30 @@ try {
         && str_contains($formattedDetail['body'], '<p>Route <strong>opmaak</strong></p>')
         && !str_contains($formattedPreview, 'unsafeFixture') && !str_contains($formattedDetail['body'], 'unsafeFixture'), 'Preview en detail renderen dezelfde opgeschoonde HTML via echte HTTP-routes');
     check(in_array('Cache-Control: private, no-store', $formattedPreviewResponse['headers'], true), 'Asynchrone preview heeft geen gedeelde of blijvende browsercache');
+    $descriptionUpdate->execute(['description' => '10 afleveringen[br]Snowfall.2017.S03.mkv[br][br][b]Multisubs[/b]', 'id' => $spotId]);
+    $bbPreview = json_decode(httpFixture($httpPort, '/spots/preview?key=' . $spotId, $cookie)['body'], true, 512, JSON_THROW_ON_ERROR)['html'];
+    $bbDetail = httpFixture($httpPort, '/spots/view?key=' . $spotId, $cookie);
+    check(str_contains($bbPreview, '10 afleveringen<br>Snowfall.2017.S03.mkv<br><br><strong>Multisubs</strong>')
+        && str_contains($bbDetail['body'], '10 afleveringen<br>Snowfall.2017.S03.mkv<br><br><strong>Multisubs</strong>'), 'Spotnet-opmaak wordt via echte HTTP-routes in preview en detail vertaald');
     $descriptionUpdate->execute(['description' => $oldDescription, 'id' => $spotId]);
     $stylesheet = httpFixture($httpPort, '/assets/spotty.css', $cookie);
     check($stylesheet['status'] === 200 && str_contains($stylesheet['body'], '.browse-grid')
         && count(array_filter($stylesheet['headers'], static fn (string $header): bool => stripos($header, 'Content-Type: text/css') === 0)) === 1, 'Lokale stylesheet wordt met CSS MIME-type geserveerd');
     $detail = httpFixture($httpPort, '/spots/view?key=' . $spotId, $cookie);
     check($detail['status'] === 200 && str_contains($detail['body'], 'Reacties (3)') && str_contains($detail['body'], 'Een omschrijving'), 'HTTP-detail toont omschrijving en gekoppelde reacties');
+    $remoteComment = $pdo->prepare('SELECT id, body FROM spotnet_comments WHERE spot_id = :id LIMIT 1');
+    $remoteComment->execute(['id' => $spotId]);
+    $remoteComment = $remoteComment->fetch();
+    $updateComment = $pdo->prepare('UPDATE spotnet_comments SET body = :body WHERE id = :id');
+    $updateComment->execute(['body' => '[b]Usenet-opmaak[/b][br]Een nieuwe regel', 'id' => $remoteComment['id']]);
+    $state->addComment($spotId, 'http-tester', '[b]Lokale tekst[/b]<script>localUnsafe()</script>');
+    $localMarkupId = $pdo->lastInsertId();
+    $commentDetail = httpFixture($httpPort, '/spots/view?key=' . $spotId, $cookie);
+    check(str_contains($commentDetail['body'], '<strong>Usenet-opmaak</strong><br>Een nieuwe regel')
+        && str_contains($commentDetail['body'], '[b]Lokale tekst[/b]&lt;script&gt;localUnsafe()&lt;/script&gt;')
+        && !str_contains($commentDetail['body'], '<script>localUnsafe'), 'Usenet-reacties krijgen veilige Spotnet-opmaak; lokale reacties blijven geescapete tekst');
+    $updateComment->execute(['body' => $remoteComment['body'], 'id' => $remoteComment['id']]);
+    $pdo->prepare('DELETE FROM post_comments WHERE id = :id')->execute(['id' => $localMarkupId]);
     $imageResponse = httpFixture($httpPort, '/spots/image?key=' . $spotId, $cookie);
     check($imageResponse['status'] === 200 && $imageResponse['body'] === Fixtures::image()
         && in_array('Content-Type: image/png', $imageResponse['headers'], true), 'HTTP-afbeelding levert de juiste bytes en MIME');
@@ -126,6 +144,8 @@ try {
     check($response['status'] === 302 && count($spots->comments($spotId)) === $before + 1, 'Lokale reactie plaatsen via echte HTTP-route');
     $admin = httpFixture($httpPort, '/admin', $cookie);
     check($admin['status'] === 200 && str_contains($admin['body'], 'comments:free.usenet') && !str_contains($admin['body'], 'alt.binaries.movies'), 'Admin toont de juiste Spotnet-configuratie');
+    check(str_contains($admin['body'], 'id="retrieve_comments"') && str_contains($admin['body'], 'id="show_comments"')
+        && str_contains($admin['body'], 'id="images_enabled"'), 'Admin biedt afzonderlijke schakelaars voor ophalen, reacties tonen en afbeeldingen');
     httpFixture($httpPort, '/admin/settings', $cookie, [
         '_csrf' => $token[1], 'server' => '127.0.0.1', 'port' => '119', 'retention' => '30',
         'encryption' => 'none', 'explicit_groups' => 'movies:alt.binaries.movies',
@@ -261,6 +281,57 @@ try {
     check(httpFixture($httpPort, '/admin/columns', $readerCookie, ['_csrf' => $readerToken[1]])['status'] === 403
         && $state->globalSpotColumns() === $defaults, 'Gewone gebruiker kan globale kolominstellingen niet wijzigen');
     check((int) $pdo->query("SELECT COUNT(*) FROM admin_audit_logs WHERE action IN ('admin.columns.updated', 'user.columns.updated')")->fetchColumn() === 3, 'Kolomwijzigingen en reset worden geaudit');
+    $contentDefaults = $state->spotContentSettings();
+    check(httpFixture($httpPort, '/admin/spot-content', $readerCookie, ['_csrf' => $readerToken[1]])['status'] === 403
+        && $state->spotContentSettings() === $contentDefaults, 'Alleen admin mag ophalen en weergave van inhoud wijzigen');
+    httpFixture($httpPort, '/admin/spot-content', $cookie, []);
+    check($state->spotContentSettings() === $contentDefaults, 'Inhoudsinstellingen wijzigen vereist CSRF');
+    foreach ([['images_enabled' => 'invalid'], ['retrieve_comments' => ['1']], ['show_comments' => ['1']]] as $invalidContent) {
+        $result = httpFixture($httpPort, '/admin/spot-content', $cookie, ['_csrf' => $token[1]] + $invalidContent);
+        check($result['status'] === 302 && $state->spotContentSettings() === $contentDefaults
+            && str_contains(implode("\n", $result['headers']), 'Ongeldige'), 'Ongeldige inhoudsinstelling wordt gemeld zonder de eerdere keuzes te wijzigen');
+    }
+    $savedComments = count($spots->comments($spotId));
+    $savedImage = $spots->image($spotId);
+    $disabled = httpFixture($httpPort, '/admin/spot-content', $cookie, ['_csrf' => $token[1]]);
+    check($disabled['status'] === 302 && $state->spotContentSettings() === ['retrieve_comments' => false, 'show_comments' => false, 'images_enabled' => false], 'Admin kan ophalen en weergave uitschakelen en in database opslaan');
+    $hiddenDetail = httpFixture($httpPort, '/spots/view?key=' . $spotId, $cookie);
+    $hiddenPreview = json_decode(httpFixture($httpPort, '/spots/preview?key=' . $spotId, $cookie)['body'], true, 512, JSON_THROW_ON_ERROR)['html'];
+    check($hiddenDetail['status'] === 200 && str_contains($hiddenDetail['body'], 'Reacties zijn door de beheerder uitgeschakeld.')
+        && !str_contains($hiddenDetail['body'], 'action="/spots/comment"') && !str_contains($hiddenDetail['body'], 'Via de echte route')
+        && !str_contains($hiddenDetail['body'], '/spots/image?')
+        && !str_contains($hiddenPreview, '/spots/image?') && !str_contains($hiddenPreview, 'Volledige spot en reacties'), 'Detail en preview laden geen verborgen afbeeldingen of reacties en tonen correcte uitleg');
+    $disabledImage = httpFixture($httpPort, '/spots/image?key=' . $spotId, $cookie);
+    check($disabledImage['status'] === 403 && in_array('Cache-Control: private, no-store', $disabledImage['headers'], true)
+        && $spots->image($spotId) === $savedImage, 'Ook gecachte afbeeldingen zijn geblokkeerd zonder de cache te wissen');
+    try {
+        (new \NnSpotty\Usenet\SpotImageService($spots, $state))->load($spots->getSpot($spotId));
+        check(false, 'Directe afbeeldingservice moet uitschakeling respecteren');
+    } catch (RuntimeException $exception) {
+        check(str_contains($exception->getMessage(), 'uitgeschakeld'), 'Ook directe afbeeldingservice omzeilt de instelling niet');
+    }
+    foreach (['/spots?category=Beeld', '/spots?batch=1&category=Beeld'] as $path) {
+        $result = httpFixture($httpPort, $path, $cookie);
+        $body = str_contains($path, 'batch=1') ? json_decode($result['body'], true, 512, JSON_THROW_ON_ERROR)['html'] : $result['body'];
+        check(!str_contains($body, 'column-cover') && !str_contains($body, '/spots/image?'), 'Verborgen afbeeldingen ontbreken ook in lijst en vervolgbatch');
+    }
+    foreach (['/spots/comment', '/admin/comments'] as $path) {
+        $result = httpFixture($httpPort, $path, $cookie, ['_csrf' => $token[1], 'spot_id' => $spotId, 'post_id' => $spotId, 'comment' => 'Verboden lokale reactie']);
+        check($result['status'] === 403 && count($spots->comments($spotId)) === $savedComments, 'Beide lokale reactieroutes respecteren de globale uitschakeling');
+    }
+    $hiddenAdmin = httpFixture($httpPort, '/admin', $cookie);
+    check(!str_contains($hiddenAdmin['body'], 'action="/admin/comments"') && !str_contains($hiddenAdmin['body'], 'Via de echte route'), 'Admin toont geen uitgeschakelde reacties of actief reactieformulier');
+    httpFixture($httpPort, '/admin/spot-content', $cookie, ['_csrf' => $token[1], 'show_comments' => '1', 'images_enabled' => '1']);
+    $pausedDetail = httpFixture($httpPort, '/spots/view?key=' . $spotId, $cookie);
+    check(str_contains($pausedDetail['body'], 'Usenet-reacties ophalen is uitgeschakeld')
+        && str_contains($pausedDetail['body'], 'Via de echte route')
+        && str_contains($pausedDetail['body'], 'data-image-lightbox'), 'Reacties tonen staat los van ophalen; eerder opgeslagen inhoud blijft bruikbaar');
+    httpFixture($httpPort, '/admin/spot-content', $cookie, ['_csrf' => $token[1], 'retrieve_comments' => '1', 'show_comments' => '1', 'images_enabled' => '1']);
+    check($state->spotContentSettings() === $contentDefaults
+        && httpFixture($httpPort, '/spots/image?key=' . $spotId, $cookie)['body'] === $savedImage['image_data'], 'Opnieuw inschakelen herstelt toegang tot de bestaande afbeeldingcache');
+    $presentationScript = httpFixture($httpPort, '/assets/presentation.js', $cookie);
+    check($presentationScript['status'] === 200 && str_contains($presentationScript['body'], 'showModal'), 'Gedeelde lightbox-JavaScript wordt door de HTTP-server geleverd');
+    check((int) $pdo->query("SELECT COUNT(*) FROM admin_audit_logs WHERE action = 'admin.spot_content.updated'")->fetchColumn() === 3, 'Inhoudsinstellingen hebben auditregistratie, ongeldige wijzigingen niet');
     httpFixture($httpPort, '/admin/content', $cookie, ['_csrf' => $token[1], 'allow_erotica' => '1']);
     check(!str_contains(httpFixture($httpPort, '/spots', $readerCookie)['body'], 'Verborgen HTTP-testspot'), 'Opt-in van admin lekt niet naar tweede gebruiker');
     httpFixture($httpPort, '/preferences', $readerCookie, ['_csrf' => $readerToken[1], 'theme' => 'default', 'items_per_page' => '10', 'show_erotica' => '1', 'username' => 'http-tester']);

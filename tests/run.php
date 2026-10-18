@@ -254,6 +254,58 @@ try {
     check(str_contains(SpotDetailPageRenderer::summary($formatted, true), '<p>Een <b>veilige omschrijving</b>.</p>')
         && str_contains(SpotDetailPageRenderer::summary($formatted, false), '<p>Een <b>veilige omschrijving</b>.</p>')
         && !str_contains(SpotDetailPageRenderer::summary($formatted, true), 'evil()'), 'Preview en detail gebruiken dezelfde veilige HTML-opmaak');
+    $spotnetText = '10 afleveringen[br]Snowfall.2017.S03.1080p.DSNP.WEB-DL.DD5.1.H.264-playWEB.mkv[br][br]Het is 1983 in Los Angeles.[br][br]Multisubs';
+    $spotnetHtml = SpotDescription::render($spotnetText);
+    check(substr_count($spotnetHtml, '<br>') === 5 && !str_contains($spotnetHtml, '[br]')
+        && str_contains($spotnetHtml, 'mkv<br><br>Het is 1983'), 'Werkelijke Spotnet-omschrijving behoudt alle enkele en dubbele [br]-regeleinden');
+    foreach ([
+        '[BR]A[br/]B[br /]C' => '<br>A<br>B<br>C',
+        '[b]Vet [i]cursief[/i][/b]' => '<strong>Vet <em>cursief</em></strong>',
+        '[u]Onder[/u][s]door[/s]' => '<u>Onder</u><s>door</s>',
+        '[quote]Citaat[/quote]' => '<blockquote>Citaat</blockquote>',
+        '[list][*]Een[*][b]Twee[/b][/list]' => '<ul><li>Een</li><li><strong>Twee</strong></li></ul>',
+        '[list=1][li]Een[/li][li]Twee[/li][/list]' => '<ol><li>Een</li><li>Twee</li></ol>',
+        '[list][*]Een[list][*]Twee[/list][*]Drie[/list]' => '<ul><li>Een<ul><li>Twee</li></ul></li><li>Drie</li></ul>',
+        '[list][*][code][*]Letterlijk[/code][*]Twee[/list]' => '<ul><li><pre><code>[*]Letterlijk</code></pre></li><li>Twee</li></ul>',
+        '[code][b]Niet opmaken[/b][br][/code]' => '<pre><code>[b]Niet opmaken[/b][br]</code></pre>',
+        '[color=red][size=99][font=Arial]Tekst[/font][/size][/color]' => '<span><span><span>Tekst</span></span></span>',
+        '[center]Tekst[/center]' => '<div>Tekst</div>',
+        '[b]Niet gesloten' => '[b]Niet gesloten',
+        '[/b]Los einde' => '[/b]Los einde',
+        '<p>HTML [b]en BBCode[/b][br]samen</p>' => '<p>HTML <strong>en BBCode</strong><br>samen</p>',
+        '<code>[br][b]letterlijk[/b]</code>' => '<code>[br][b]letterlijk[/b]</code>',
+        '[img]https://example.invalid/tracker.jpg[/img]' => '[img]https://example.invalid/tracker.jpg[/img]',
+    ] as $input => $expected) {
+        check(SpotDescription::render($input) === $expected, 'Veilige Spotnet-opmaak: ' . $input);
+    }
+    foreach (['javascript:alert(1)', 'data:text/html,test', '//example.invalid', "https://example.invalid/&#10;test", 'https://example.invalid/&quot; onclick=&quot;evil()'] as $url) {
+        $link = SpotDescription::render('[url=' . $url . '][b]Leesbaar[/b][/url]');
+        check($link === '<strong>Leesbaar</strong>', 'Onveilige Spotnet-link blijft niet-klikbare tekst: ' . $url);
+    }
+    check(SpotDescription::render('[url=https://example.invalid/?a=1&amp;b=2]Link[/url]') ===
+        '<a href="https://example.invalid/?a=1&amp;b=2" target="_blank" rel="noopener noreferrer nofollow">Link</a>', 'BBCode-URL is veilig geescaped met vaste attributen');
+    check(SpotDescription::render('[url]https://example.invalid/[/url]') ===
+        '<a href="https://example.invalid/" target="_blank" rel="noopener noreferrer nofollow">https://example.invalid/</a>', 'Spotnet-URL zonder apart label werkt');
+    $nestedLinks = SpotDescription::render('<a href="https://example.invalid">[url=https://example.invalid/other]Tekst[/url]</a>');
+    check(substr_count($nestedLinks, '<a ') === 1, 'Gemengde HTML en BBCode maken geen geneste links');
+    check(SpotDescription::render('<p title="[br]">Tekst</p><script>[b]verborgen[/b]</script>') === '<p>Tekst</p>', 'BBCode wordt niet in HTML-attributen of actieve elementen uitgevoerd');
+    try {
+        SpotDescription::render(str_repeat('[b]', 102) . 'Tekst' . str_repeat('[/b]', 102));
+        check(false, 'Te diep geneste Spotnet-opmaak moet falen');
+    } catch (RuntimeException $exception) {
+        check(str_contains($exception->getMessage(), 'te diep'), 'Te diep geneste Spotnet-opmaak faalt expliciet');
+    }
+    $formatted['description'] = $spotnetText;
+    check(str_contains(SpotDetailPageRenderer::summary($formatted, false), $spotnetHtml)
+        && str_contains(SpotDetailPageRenderer::summary($formatted, true), $spotnetHtml), 'BBCode-weergave is gelijk in preview en detail');
+    $disabledSummary = SpotDetailPageRenderer::summary($formatted, false, false, false);
+    check(!str_contains($disabledSummary, '/spots/image?') && !str_contains($disabledSummary, 'hero-backdrop')
+        && !str_contains($disabledSummary, 'data-image-lightbox') && !str_contains($disabledSummary, 'href="#comments"')
+        && str_contains($disabledSummary, 'Afbeeldingen uitgeschakeld'), 'Uitgeschakelde afbeeldingen en reacties leveren geen laad-URLs of acties in detail');
+    check(str_contains(SpotPresentation::image($spot, false), 'data-image-lightbox')
+        && !str_contains(SpotPresentation::image($spot, true), 'data-image-lightbox')
+        && str_contains($html, '<dialog class="image-lightbox"')
+        && str_contains($html, '/assets/presentation.js'), 'Cover heeft toegankelijke vergrotingslink en gedeeld lightboxvenster; thumbnails blijven lijstacties');
 
     if (in_array('--integration', $argv, true)) {
         require __DIR__ . '/integration.php';

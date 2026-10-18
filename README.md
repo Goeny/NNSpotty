@@ -44,6 +44,12 @@ De focus ligt op:
    - `/admin` voor adminbeheer (alleen admin)
    - `/preferences` voor user preferences (ingelogde gebruiker)
 
+## Git en lokale bestanden
+- `composer.json` en `composer.lock` blijven in Git voor reproduceerbare installaties. `vendor/` en de gegenereerde autoload worden voortaan lokaal met `composer install --no-dev --optimize-autoloader` opgebouwd.
+- `.env`, lokale environmentvarianten, Composer-authenticatie, runtimebestanden onder `var/`, logs, databasedumps en testcoverage worden genegeerd. `.env.example`, `var/.gitkeep`, gedeelde VS Code-configuratie, broncode, tests en documentatie blijven gevolgd.
+- **Eenmalige upgrade:** omdat `.env` en `vendor/` eerder gevolgd werden, kan Git ze bij deze update verwijderen. Maak eerst een veilige back-up van de serverconfiguratie, zet lokale wijzigingen gericht apart en herstel de configuratie na pull. Zie de [veilige serverupdate](./docs/linux-server-testing.md#git-opruimen-inhoudsinstellingen-en-afbeeldingsvergroting).
+- Negeren verwijdert niets uit de bestaande Git-historie. Roteer echte wachtwoorden/tokens die ooit in de gevolgde configuratie stonden.
+
 ## Console
 - `php bin/console db status|migrate|health|cleanup --days=90`
 - `php bin/console user list|create|delete|edit|password ...`
@@ -64,6 +70,8 @@ De focus ligt op:
 - `--since-last` verwerkt maximaal het ingestelde aantal artikelen per groep, vanaf de oudste nog niet verwerkte positie. Herhaal dit commando om een achterstand weg te werken.
 - `--days=30` scant vanaf de hoogste artikelnummers terug, zodat doorgaans recente spots als eerste worden opgeslagen. De scan controleert nog steeds de volledige beschikbare historie: datums hoeven niet op artikelnummer gesorteerd te zijn. `--all` haalt ook oudere inhoud op, ongeacht retentie. Deze volledige scans kunnen lang duren.
 - `--verbose` toont per batch het datumbereik en aantallen `te_oud`, `bestaand`, `geen_spot`, `ongeldig`, `verdwenen` en `opgeslagen`. Ontbrekende optionele overview-velden zijn toegestaan; onbruikbare regels worden afzonderlijk gemeld en blokkeren de overige artikelen niet.
+- Onder **Op te halen inhoud** kan de admin Usenet-reacties indexeren, reacties weergeven/lokaal plaatsen en afbeeldingen ophalen/tonen afzonderlijk instellen. Alles staat standaard aan, zodat bestaande werking behouden blijft. Uitgeschakelde reactiegroepen worden niet benaderd en hun cursor blijft staan; bestaande inhoud wordt niet verwijderd.
+- Reacties weergeven kan aanblijven terwijl ophalen uit staat: de detailpagina toont dan eerder opgeslagen/lokale reacties met uitleg. Afbeeldingen worden alleen op aanvraag geladen en gecachet; uit blokkeert ook gecachte afbeeldingen en verwijdert alle afbeeldingsverwijzingen uit overzicht/preview/detail. Retentie en de incrementele artikellimiet blijven onder Usenet instellingen.
 
 ## Upgrade van de headerindex
 1. Voer `php bin/console db migrate` uit.
@@ -84,10 +92,12 @@ Oude headerdata en synthetische releases blijven bewaard, maar worden niet meer 
 - Subcategorieen zijn stapelbare **EN-filters**, ook binnen dezelfde dimensie: een spot moet alle geselecteerde codes bevatten. Nogmaals klikken verwijdert die filter; actieve chips zijn afzonderlijk verwijderbaar. Zoektekst en filters blijven behouden bij bijladen; wisselen van hoofdcategorie begint met een lege subcategoriekeuze.
 - Onder **Kolommen per hoofdcategorie** stelt de admin globale standaarden in. Gebruikers kunnen per hoofdgroep een eigen selectie opslaan of terugzetten naar de actuele globale standaard. Titel blijft verplicht. De gemengde weergave **Alle** heeft een vaste algemene kolomset. Lange waarden breken af; op kleine schermen worden regels compacte kaarten, zonder horizontale tabelscroll.
 - De detailcover heeft een vast frame van 230 x 345 CSS-pixels op desktop (105 x 158 mobiel). Grote afbeeldingen worden proportioneel verkleind; kleine afbeeldingen blijven scherp op natuurlijke grootte, met een vervaagde vulling erachter. De hero gebruikt een uitgerekte kopie van dezelfde cover, met minder blur (6px) en een contrastoverlay, als tijdelijke achtergrond tot fanart-integratie.
-- Omschrijvingen gebruiken in preview en detail dezelfde veilige HTML-renderer: alineas, nadruk, lijsten, tabellen, codeblokken en HTTP(S)-links. Scripts, embeds, afbeeldingen in omschrijvingen, remote CSS en eventhandlers worden verwijderd. Reacties blijven geescapete tekst. Hiervoor is PHP-extensie `dom` vereist.
+- Klik op de cover in detail of preview voor een groter, proportioneel geschaald beeld in een toegankelijk lightboxvenster. Sluiten, Escape of klikken buiten het venster sluit het; de focus keert terug. Zonder JavaScript opent de originele afbeelding in een nieuw tabblad.
+- Omschrijvingen gebruiken in preview en detail dezelfde veilige HTML-/Spotnet-renderer: `[br]`, `[b]`, `[i]`, `[u]`, `[s]`, `[quote]`, `[code]`, `[url]`, `[list]`/`[*]` en `[li]` worden ondersteund naast HTML. Kleur-, font-, grootte- en uitlijningstags behouden de tekst maar voeren geen remote stijl uit. Codeblokken blijven letterlijk. Scripts, embeds, afbeeldingen in omschrijvingen, remote CSS en eventhandlers worden niet uitgevoerd. Onbekende bracketcodes blijven tekst. Hiervoor is PHP-extensie `dom` vereist.
+- Geimporteerde Usenet-reacties gebruiken dezelfde veilige opmaak. Zelf geplaatste lokale reacties blijven geescapete tekst.
 
 ## Tests en beperkingen
 - `composer test` of `php tests/run.php`: protocol- en renderercontroles zonder database of echte Usenet-provider.
 - Voor integratietests met een aparte MariaDB-testserver: zie [Linux server testen](./docs/linux-server-testing.md).
-- Nog niet aanwezig: spotterhandtekeningverificatie, BBCode-rendering, NZB-download/forwarding, metadata en Newznab. Geimporteerde inhoud blijft onbevestigd; HTML-omschrijvingen worden uitsluitend via een strikte opmaak-allowlist weergegeven.
+- Nog niet aanwezig: spotterhandtekeningverificatie, volledige ondersteuning voor alle exotische Spotnet-tags, NZB-download/forwarding, metadata en Newznab. Geimporteerde inhoud blijft onbevestigd; omschrijvingen en Usenet-reacties gebruiken een strikte opmaak-allowlist.
 - Een succesvolle lokale fixturetest bewijst protocolverwerking, niet beschikbaarheid van groepen of artikelen bij jouw Usenet-provider.

@@ -48,8 +48,23 @@ try {
         $log[] = $message;
     };
     $service = new RetrieveService($pdo, $state);
+    $contentDefaults = $state->spotContentSettings();
+    check($contentDefaults === ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true], 'Nieuwe inhoudsinstellingen behouden bestaand gedrag standaard');
+    $state->saveSpotContentSettings(['retrieve_comments' => false, 'show_comments' => true, 'images_enabled' => true]);
+    $disabledRun = $service->run('since-last', null, true, $logger);
+    check($disabledRun['groups'] === 1
+        && (int) $pdo->query('SELECT COUNT(*) FROM spotnet_comments')->fetchColumn() === 0
+        && (int) $pdo->query("SELECT COUNT(*) FROM retrieval_cursors WHERE group_name = 'spotnet:comments:free.usenet'")->fetchColumn() === 0
+        && count(array_filter($log, static fn (string $line): bool => str_contains($line, 'Reacties ophalen is uitgeschakeld'))) === 1,
+        'Reacties uit slaat groep, opslag en cursor over en meldt dit expliciet');
+    $pdo->exec("DELETE FROM retrieval_cursors WHERE group_name = 'spotnet:spots:free.pt'");
+    $state->saveSpotContentSettings($contentDefaults);
+    check((new AppStateRepository($pdo))->spotContentSettings() === $contentDefaults, 'Inhoudsinstellingen blijven na herladen behouden');
+    rejects(static fn () => $state->saveSpotContentSettings(['retrieve_comments' => '0', 'show_comments' => true, 'images_enabled' => true]), 'Niet-booleaanse inhoudsinstelling geweigerd');
+    rejects(static fn () => $state->saveSpotContentSettings(['retrieve_comments' => true]), 'Onvolledige inhoudsinstellingen geweigerd');
     $firstRun = $service->run('since-last', null, true, $logger);
     check($firstRun['inserted'] === 2, 'Incrementele run is begrensd per groep en haalt reacties op');
+    check($firstRun['groups'] === 2, 'Reacties opnieuw aan verwerkt de eerder overgeslagen groep vanaf de oorspronkelijke positie');
     $cursor = (int) $pdo->query("SELECT last_article FROM retrieval_cursors WHERE group_name = 'spotnet:spots:free.pt'")->fetchColumn();
     check($cursor === 799, 'Cursor bevat het echte laatste verwerkte artikelnummer');
     $service->run('since-last', null, true, $logger);

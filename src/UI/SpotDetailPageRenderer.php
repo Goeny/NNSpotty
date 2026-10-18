@@ -21,28 +21,31 @@ final class SpotDetailPageRenderer
         ?string $statusMessage = null,
         array $categories = [],
         string $theme = 'default',
-        bool $showErotica = false
+        bool $showErotica = false,
+        bool $showComments = true,
+        bool $imagesEnabled = true,
+        bool $retrieveComments = true
     ): string {
         $id = h($spot['id']);
-        $summary = self::summary($spot, false);
+        $summary = self::summary($spot, false, $imagesEnabled, $showComments);
         $status = $statusMessage !== null ? '<div class="alert alert-info" role="status">' . h($statusMessage) . '</div>' : '';
         $commentHtml = '';
-        foreach ($comments as $comment) {
+        foreach ($showComments ? $comments : [] as $comment) {
             $commentHtml .= '<article class="border-bottom py-3"><div class="fw-semibold">' . h($comment['poster'])
                 . '</div><small class="text-body-secondary">' . h($comment['posted_at']) . ' UTC &middot; ' . h($comment['source'])
-                . '</small><div class="comment-body mt-2">' . nl2br(h($comment['body'])) . '</div></article>';
+                . '</small><div class="comment-body spot-description mt-2">' . ($comment['source'] === 'Usenet'
+                    ? SpotDescription::render($comment['body']) : nl2br(h($comment['body']))) . '</div></article>';
         }
         if ($commentHtml === '') {
             $commentHtml = '<p class="text-body-secondary">Nog geen reacties opgehaald of geplaatst.</p>';
         }
         $count = count($comments);
-        $content = <<<HTML
-<a class="btn btn-sm btn-outline-secondary mb-3" href="/spots">Terug naar spots</a>
-{$status}
-{$summary}
+        $retrievalNotice = !$retrieveComments ? '<div class="alert alert-info small">Usenet-reacties ophalen is uitgeschakeld. Hieronder staan alleen eerder opgeslagen en lokale reacties.</div>' : '';
+        $commentsSection = !$showComments ? '<section class="card mt-4"><div class="card-body text-body-secondary">Reacties zijn door de beheerder uitgeschakeld.</div></section>' : <<<HTML
 <section class="card mt-4" id="comments">
   <div class="card-header">Reacties ({$count})</div>
   <div class="card-body">
+    {$retrievalNotice}
     {$commentHtml}
     <form method="post" action="/spots/comment" class="mt-3">
       {$csrfField}<input type="hidden" name="spot_id" value="{$id}">
@@ -54,13 +57,19 @@ final class SpotDetailPageRenderer
   </div>
 </section>
 HTML;
+        $content = <<<HTML
+<a class="btn btn-sm btn-outline-secondary mb-3" href="/spots">Terug naar spots</a>
+{$status}
+{$summary}
+{$commentsSection}
+HTML;
         return SpotLayout::render($spot['title'], $username, $isAdmin, $csrfField, $content, $categories, $spot['category'], $theme, showErotica: $showErotica);
     }
 
     /** @param array<string, mixed> $spot */
-    public static function summary(array $spot, bool $preview): string
+    public static function summary(array $spot, bool $preview, bool $imagesEnabled = true, bool $showComments = true): string
     {
-        $image = SpotPresentation::image($spot, false);
+        $image = SpotPresentation::image($spot, false, $imagesEnabled);
         $title = h($spot['title']);
         $classification = SpotCategories::classify($spot['category'], $spot['subcategories']);
         $type = h($classification['type']);
@@ -72,9 +81,9 @@ HTML;
         }
         $website = $spot['website'] !== '' ? '<a href="' . h($spot['website']) . '" target="_blank" rel="noopener noreferrer">Website van de spot</a>' : '';
         $action = $preview
-            ? '<a class="btn btn-primary" href="/spots/view?key=' . rawurlencode($spot['id']) . '">Volledige spot en reacties</a>'
-            : '<a class="btn btn-warning" href="#comments">Bekijk reacties</a>';
-        $hero = '<section class="spot-hero">' . SpotPresentation::backdrop($spot, 'hero-backdrop')
+            ? '<a class="btn btn-primary" href="/spots/view?key=' . rawurlencode($spot['id']) . '">' . ($showComments ? 'Volledige spot en reacties' : 'Volledige spot') . '</a>'
+            : ($showComments ? '<a class="btn btn-warning" href="#comments">Bekijk reacties</a>' : '');
+        $hero = '<section class="spot-hero">' . SpotPresentation::backdrop($spot, 'hero-backdrop', $imagesEnabled)
             . '<div class="hero-poster">' . $image . '</div><div class="hero-copy"><p class="text-body-secondary mb-2">'
             . $type . '</p><' . $tag . '>' . $title . '</' . $tag . '><div class="tag-row">' . $chips . '</div>' . $action . '</div></section>';
         $metadata = '<div class="metadata-strip"><div><small>Spotter</small>' . h($spot['poster'])

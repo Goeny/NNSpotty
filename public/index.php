@@ -146,14 +146,15 @@ $router->get('/admin', static function (Request $request) use ($state, $auth, $c
     $html = AdminPageRenderer::render(
         settings: $state->getUsenetSettings(),
         spotterLists: $state->getSpotterLists(),
-        comments: $state->getComments($state->canViewErotica($currentUser['username'])),
+        comments: $state->spotContentSettings()['show_comments'] ? $state->getComments($state->canViewErotica($currentUser['username'])) : [],
         auditLogs: $auditLogs->recent(50),
         statusMessage: $request->query('status'),
         currentUsername: $currentUser['username'],
         csrfField: $csrf->field(),
         allowErotica: $state->eroticaAllowed(),
         theme: $state->getPreferences($currentUser['username'])['theme'],
-        globalColumns: $state->globalSpotColumns()
+        globalColumns: $state->globalSpotColumns(),
+        spotContent: $state->spotContentSettings()
     );
 
     return Response::html($html);
@@ -198,6 +199,30 @@ $router->post('/admin/columns', static function (Request $request) use ($state, 
     }
     $auditLogs->log($auth->user()['username'], 'admin.columns.updated', 'settings', 'spot_columns', ['columns' => $columns], $request->clientIp());
     return Response::redirect('/admin?status=' . rawurlencode('Globale kolommen opgeslagen.') . '#columns');
+});
+
+$router->post('/admin/spot-content', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
+    if (!$auth->isAdmin()) {
+        return new Response(403, 'Admin login vereist.');
+    }
+    if (!$csrf->verify($request->input('_csrf'))) {
+        return Response::redirect('/admin?status=' . rawurlencode('Ongeldige CSRF token.'));
+    }
+    try {
+        $settings = [];
+        foreach (['retrieve_comments', 'show_comments', 'images_enabled'] as $key) {
+            $value = $request->inputScalar($key);
+            if ($value !== null && $value !== '1') {
+                throw new InvalidArgumentException('Ongeldige inhoudsinstelling: ' . $key . '.');
+            }
+            $settings[$key] = $value === '1';
+        }
+        $state->saveSpotContentSettings($settings);
+    } catch (InvalidArgumentException $exception) {
+        return Response::redirect('/admin?status=' . rawurlencode($exception->getMessage()) . '#spot-content');
+    }
+    $auditLogs->log($auth->user()['username'], 'admin.spot_content.updated', 'settings', 'spot_content', $settings, $request->clientIp());
+    return Response::redirect('/admin?status=' . rawurlencode('Inhoudsinstellingen opgeslagen.') . '#spot-content');
 });
 
 $router->post('/preferences/columns', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
@@ -322,6 +347,9 @@ $router->post('/admin/comments', static function (Request $request) use ($state,
     if (!$auth->isAuthenticated()) {
         return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
     }
+    if (!$state->spotContentSettings()['show_comments']) {
+        return new Response(403, 'Reacties zijn door de beheerder uitgeschakeld.');
+    }
     if (!$csrf->verify($request->input('_csrf'))) {
         return Response::redirect('/admin?status=' . rawurlencode('Ongeldige CSRF token.'));
     }
@@ -406,6 +434,9 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
         return Response::privateJson(['error' => $exception->getMessage()], 400);
     }
     $columns = $state->effectiveSpotColumns($currentUser['username'], $selectedCategory);
+    if (!$state->spotContentSettings()['images_enabled']) {
+        $columns = array_values(array_diff($columns, ['cover']));
+    }
     if ($isBatch) {
         return Response::privateJson([
             'html' => $batch['spots'] === [] ? '' : SpotsPageRenderer::rows($batch['spots'], $columns),
@@ -446,8 +477,9 @@ $router->get('/spots/preview', static function (Request $request) use ($auth, $s
         return Response::privateJson(['error' => $exception->getMessage()], 400);
     }
     $spot = $spots->getSpot($id, $state->canViewErotica($auth->user()['username']));
+    $content = $state->spotContentSettings();
     return $spot === null ? Response::privateJson(['error' => 'Spot niet gevonden.'], 404)
-        : Response::privateJson(['html' => SpotDetailPageRenderer::summary($spot, true)]);
+        : Response::privateJson(['html' => SpotDetailPageRenderer::summary($spot, true, $content['images_enabled'], $content['show_comments'])]);
 });
 
 $router->get('/spots/view', static function (Request $request) use ($auth, $csrf, $spots, $state): Response {
@@ -470,16 +502,20 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
         return Response::notFound();
     }
 
+    $content = $state->spotContentSettings();
     $html = SpotDetailPageRenderer::render(
         username: $currentUser['username'],
         isAdmin: $auth->isAdmin(),
         spot: $spot,
-        comments: $spots->comments($spotId),
+        comments: $content['show_comments'] ? $spots->comments($spotId) : [],
         statusMessage: $request->query('status'),
         csrfField: $csrf->field(),
         categories: $spots->listCategoriesWithCounts($state->canViewErotica($currentUser['username'])),
         theme: $state->getPreferences($currentUser['username'])['theme'],
-        showErotica: $state->canViewErotica($currentUser['username'])
+        showErotica: $state->canViewErotica($currentUser['username']),
+        showComments: $content['show_comments'],
+        imagesEnabled: $content['images_enabled'],
+        retrieveComments: $content['retrieve_comments']
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
@@ -488,6 +524,9 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
 $router->get('/spots/image', static function (Request $request) use ($auth, $spots, $state): Response {
     if (!$auth->isAuthenticated()) {
         return new Response(401, 'Login vereist.', ['Content-Type' => 'text/plain; charset=utf-8']);
+    }
+    if (!$state->spotContentSettings()['images_enabled']) {
+        return new Response(403, 'Afbeeldingen zijn door de beheerder uitgeschakeld.', ['Content-Type' => 'text/plain; charset=utf-8', 'Cache-Control' => 'private, no-store']);
     }
     $id = (string) ($request->query('key') ?? '');
     $spot = $spots->getSpot($id, $state->canViewErotica($auth->user()['username']));
@@ -510,6 +549,9 @@ $router->get('/spots/image', static function (Request $request) use ($auth, $spo
 $router->post('/spots/comment', static function (Request $request) use ($auth, $csrf, $spots, $state): Response {
     if (!$auth->isAuthenticated()) {
         return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
+    }
+    if (!$state->spotContentSettings()['show_comments']) {
+        return new Response(403, 'Reacties zijn door de beheerder uitgeschakeld.');
     }
     $id = (string) ($request->input('spot_id') ?? '');
     if ($spots->getSpot($id, $state->canViewErotica($auth->user()['username'])) === null) {

@@ -119,6 +119,36 @@ final class AppStateRepository
         return $this->eroticaAllowed() && $this->getPreferences($username)['show_erotica'];
     }
 
+    /** @return array{retrieve_comments: bool, show_comments: bool, images_enabled: bool} */
+    public function spotContentSettings(): array
+    {
+        $stored = $this->decodeSetting('admin.spot_content');
+        $settings = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true];
+        foreach ($settings as $key => $default) {
+            if (array_key_exists($key, $stored)) {
+                if (!is_bool($stored[$key])) {
+                    throw new \RuntimeException('Ongeldige opgeslagen inhoudsinstelling: ' . $key . '.');
+                }
+                $settings[$key] = $stored[$key];
+            }
+        }
+        return $settings;
+    }
+
+    /** @param array{retrieve_comments: bool, show_comments: bool, images_enabled: bool} $settings */
+    public function saveSpotContentSettings(array $settings): void
+    {
+        if (count($settings) !== 3) {
+            throw new \InvalidArgumentException('Onvolledige inhoudsinstellingen.');
+        }
+        foreach (['retrieve_comments', 'show_comments', 'images_enabled'] as $key) {
+            if (!array_key_exists($key, $settings) || !is_bool($settings[$key])) {
+                throw new \InvalidArgumentException('Ongeldige inhoudsinstelling: ' . $key . '.');
+            }
+        }
+        $this->saveSetting('admin.spot_content', $settings);
+    }
+
     /** @return array<int, list<string>> */
     public function globalSpotColumns(): array
     {

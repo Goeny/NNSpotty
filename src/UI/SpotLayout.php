@@ -40,6 +40,7 @@ final class SpotLayout
   <title>{$safeTitle} - NNSpotty</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="/assets/spotty.css" rel="stylesheet">
+  <script src="/assets/presentation.js" defer></script>
   {$scripts}
 </head>
 <body class="spotty">
@@ -76,6 +77,17 @@ final class SpotLayout
   <div class="workspace">
     <main id="content" class="{$contentClass}" tabindex="-1">{$content}</main>
   </div>
+  <dialog class="image-lightbox" id="image-lightbox" aria-labelledby="lightbox-title">
+    <div class="lightbox-toolbar">
+      <h2 class="h6 mb-0" id="lightbox-title">Afbeelding</h2>
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-close-lightbox>Sluiten &times;</button>
+    </div>
+    <div class="lightbox-body">
+      <p class="small text-body-secondary" data-lightbox-status role="status">Afbeelding laden...</p>
+      <div class="alert alert-warning" data-lightbox-error role="alert" hidden>De afbeelding kon niet worden geladen. Sluit dit venster en probeer opnieuw.</div>
+      <img class="lightbox-image" alt="" referrerpolicy="no-referrer">
+    </div>
+  </dialog>
 </body>
 </html>
 HTML;

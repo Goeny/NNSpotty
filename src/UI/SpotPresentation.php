@@ -7,17 +7,25 @@ namespace NnSpotty\UI;
 final class SpotPresentation
 {
     /** @param array<string, mixed> $spot */
-    public static function image(array $spot, bool $thumbnail): string
+    public static function image(array $spot, bool $thumbnail, bool $enabled = true): string
     {
+        if (!$enabled) {
+            return '<div class="cover-placeholder' . ($thumbnail ? ' small' : '') . '">Afbeeldingen uitgeschakeld</div>';
+        }
         $source = self::imageSource($spot);
         if ($source === '') {
             return '<div class="cover-placeholder' . ($thumbnail ? ' small' : '') . '">Geen afbeelding</div>';
         }
         $class = $thumbnail ? 'spot-thumbnail' : 'spot-poster-image';
         $background = $thumbnail ? '' : self::backdrop($spot, 'poster-backdrop');
-        return '<figure class="' . ($thumbnail ? 'mb-0' : 'spot-poster mb-0') . '">' . $background . '<img class="' . $class . '" src="' . h($source)
+        $image = '<img class="' . $class . '" src="' . h($source)
             . '" alt="Afbeelding bij ' . h($spot['title']) . '" loading="lazy" referrerpolicy="no-referrer"'
-            . ' onerror="this.hidden=true;this.parentElement.classList.add(\'image-failed\');this.nextElementSibling.hidden=false">'
+            . ' onerror="this.hidden=true;this.closest(\'figure\').classList.add(\'image-failed\');this.closest(\'figure\').querySelector(\'[role=status]\').hidden=false">';
+        if (!$thumbnail) {
+            $image = '<a class="poster-enlarge" href="' . h($source) . '" target="_blank" rel="noopener noreferrer" data-image-lightbox'
+                . ' data-image-title="' . h($spot['title']) . '" aria-label="Afbeelding vergroten: ' . h($spot['title']) . '">' . $image . '</a>';
+        }
+        return '<figure class="' . ($thumbnail ? 'mb-0' : 'spot-poster mb-0') . '">' . $background . $image
             . '<p class="alert alert-warning small" role="status" hidden>Afbeelding niet beschikbaar. Controleer de serverlog.</p>'
             . '</figure>';
     }
@@ -33,8 +41,11 @@ final class SpotPresentation
     }
 
     /** @param array<string, mixed> $spot */
-    public static function backdrop(array $spot, string $class): string
+    public static function backdrop(array $spot, string $class, bool $enabled = true): string
     {
+        if (!$enabled) {
+            return '';
+        }
         $source = self::imageSource($spot);
         return $source === '' ? '' : '<img class="' . h($class) . '" src="' . h($source)
             . '" alt="" aria-hidden="true" referrerpolicy="no-referrer" onerror="this.hidden=true">';

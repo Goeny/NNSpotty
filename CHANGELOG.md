@@ -5,6 +5,10 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Added
+- Gitignore voor dependencies, lokale configuratie, runtime/logs/dumps en testoutput; `.env` en `vendor/` uit de index gehaald, Composer-manifesten blijven gevolgd. Veilige eenmalige deploymentprocedure met configuratiebackup toegevoegd.
+- Coververgroting in detail en preview met native modaal lightboxvenster, toetsenbordfocus, Escape/sluiten, laadfeedback en proportionele schaling; linkfallback zonder JavaScript.
+- Adminschakelaars voor Usenet-reacties indexeren, reacties tonen/lokaal plaatsen en afbeeldingen ophalen/tonen. Standaard bestaand gedrag; geen dataverwijdering en geen cursorverplaatsing voor uitgeschakelde reactiegroepen.
+- Veilige Spotnet-/BBCode-weergave, inclusief `[br]`, nadruk, citaten, code, lijsten en HTTP(S)-links, gedeeld door omschrijvingen en geimporteerde reacties. Remote styling blijft geblokkeerd.
 - Initieel gesloten, asynchroon geladen preview met slide-in/slide-out, sluitknop, Escape en focusherstel; dezelfde veilige omschrijvingsopmaak als de detailpagina.
 - Automatisch bijladen nabij het lijsteinde met stabiele datum/ID-keysets, zichtbare foutmelding en handmatige retry; geen paginanummers.
 - Stapelbare subcategorie-EN-filters, verwijderbare filterchips en facetaantallen op de huidige selectie.

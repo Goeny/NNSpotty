@@ -35,7 +35,7 @@ final class SpotDescription
         return self::children($body);
     }
 
-    private static function children(DOMNode $node, int $depth = 0, bool $preformatted = false): string
+    private static function children(DOMNode $node, int $depth = 0, bool $preformatted = false, bool $allowLinks = true): string
     {
         if ($depth > 100) {
             throw new RuntimeException('Spotomschrijving bevat te diep geneste opmaak.');
@@ -43,7 +43,7 @@ final class SpotDescription
         $html = '';
         foreach ($node->childNodes as $child) {
             if ($child instanceof DOMText) {
-                $html .= $preformatted ? h($child->data) : nl2br(h($child->data));
+                $html .= $preformatted ? h($child->data) : SpotMarkup::renderText($child->data, $allowLinks);
                 continue;
             }
             if (!$child instanceof DOMElement) {
@@ -53,17 +53,11 @@ final class SpotDescription
             if (in_array($tag, ['script', 'style', 'iframe', 'object', 'embed', 'svg', 'math', 'template', 'form', 'input', 'button', 'textarea', 'select', 'meta', 'link', 'base'], true)) {
                 continue;
             }
-            $content = self::children($child, $depth + 1, $preformatted || $tag === 'pre');
+            $content = self::children($child, $depth + 1, $preformatted || in_array($tag, ['pre', 'code'], true), $allowLinks && $tag !== 'a');
             if ($tag === 'br' || $tag === 'hr') {
                 $html .= '<' . $tag . '>';
             } elseif ($tag === 'a') {
-                $href = trim($child->getAttribute('href'));
-                if (preg_match('~^https?://~i', $href) && filter_var($href, FILTER_VALIDATE_URL) !== false
-                    && preg_match('/[\x00-\x20\x7f]/', $href) !== 1) {
-                    $html .= '<a href="' . h($href) . '" target="_blank" rel="noopener noreferrer nofollow">' . $content . '</a>';
-                } else {
-                    $html .= $content;
-                }
+                $html .= $allowLinks ? SpotMarkup::link($child->getAttribute('href'), $content) : $content;
             } elseif (in_array($tag, ['p', 'div', 'b', 'strong', 'i', 'em', 'u', 's', 'del', 'blockquote', 'pre', 'code', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'dl', 'dt', 'dd', 'sub', 'sup'], true)) {
                 $html .= '<' . $tag . '>' . $content . '</' . $tag . '>';
             } else {

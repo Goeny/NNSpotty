@@ -20,6 +20,9 @@ final class SpotImageService
      */
     public function load(array $spot): array
     {
+        if (!$this->state->spotContentSettings()['images_enabled']) {
+            throw new RuntimeException('Afbeeldingen ophalen en tonen is door de beheerder uitgeschakeld.');
+        }
         $cached = $this->spots->image($spot['id']);
         if ($cached !== null) {
             return $cached;

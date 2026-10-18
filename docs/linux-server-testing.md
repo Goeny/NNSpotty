@@ -172,6 +172,60 @@ Controleer ingelogd, met voldoende bestaande spots:
 
 De afzonderlijke integratiesuite test ook EN binnen/tussen dimensies, keysets met gelijke datums en gelijktijdige indexering, volledige HTTP-batchreeksen, kolomopslag/overrides/reset, CSRF en gebruikersisolatie. Draai deze uitsluitend met de testdatabase-instellingen uit de eerdere sectie, nooit met productiecredentials.
 
+## Git opruimen, inhoudsinstellingen en afbeeldingsvergroting
+**Eenmalig belangrijk:** deze update stopt met volgen van `.env` en `vendor/`. Een pull kan de oude gevolgde bestanden verwijderen. Maak eerst een databasebackup en pauzeer webverkeer en retrieve-jobs. Voer vanuit je bestaande deploymap uit:
+
+```bash
+set -e
+umask 077
+
+# Configuratie buiten de repository bewaren. Toon alleen het backuppad, nooit de inhoud.
+env_backup="$(mktemp /tmp/nnspotty-env.XXXXXX)"
+cp -- .env "$env_backup"
+printf 'Bewaar dit configuratiebackuppad tot de update geslaagd is: %s\n' "$env_backup"
+
+# Alleen na geslaagde backup de lokale, gevolgde versie tijdelijk terugzetten.
+# Hiermee worden geen nieuwe servercredentials in een Git-stash opgenomen.
+git restore -- .env
+git stash push -m "Oude gegenereerde dependencies voor Git-opruiming" -- vendor/
+git pull --ff-only origin main
+
+# De oorspronkelijke serverconfiguratie herstellen en dependencies opnieuw genereren.
+install -m 600 "$env_backup" .env
+composer install --no-dev --optimize-autoloader
+composer check-platform-reqs
+php bin/console db migrate
+php bin/console db status
+php bin/console db health
+php tests/run.php
+
+# Controle: geen uitvoer van ls-files; check-ignore toont .env en vendor/autoload.php.
+git ls-files -- .env vendor/
+git check-ignore .env vendor/autoload.php
+git status --short
+curl -fsS -D - https://nnspotty.hopseflop.nl/assets/presentation.js -o /dev/null
+curl -fsS -D - https://nnspotty.hopseflop.nl/assets/spots.js -o /dev/null
+curl -fsS -D - https://nnspotty.hopseflop.nl/assets/spotty.css -o /dev/null
+
+# Alleen na succesvolle update en herstel van .env:
+rm -- "$env_backup"
+```
+
+Breekt de update af, dan blijft de beveiligde configuratiebackup op het getoonde pad staan. Herstel die met `install -m 600 /tmp/nnspotty-env.<jouw-suffix> .env` voordat je verkeer/jobs hervat. Zet de vendor-stash niet terug: Composer genereert de juiste bestanden. Andere lokale wijzigingen blijven ongemoeid; los eventuele andere mergeblokkades gericht op. Bij volgende updates volstaan pull en Composer install; gegenereerde autoloadwijzigingen veroorzaken dan geen mergeconflict meer.
+
+Deze functionaliteit vereist geen nieuwe migratie na 0009 en geen nieuwe retrieval voor bestaande omschrijvingen. `.gitignore` verwijdert niets uit oude Git-commits: roteer eventuele echte credentials die eerder in `.env` stonden. Herschrijf de historie niet als onderdeel van deze deployment.
+
+Controleer ingelogd:
+1. Detail en preview: klik op de cover. De originele afbeelding verschijnt groter en proportioneel in een modaal venster. Sluitknop/Escape/buitenklik sluiten; focus keert terug. In een preview mag Escape voor de lightbox niet ook de preview sluiten.
+2. Test 320/390/768/1440px en donker/licht. De lightbox mag niet horizontaal overlopen. Test een onbereikbare afbeelding: expliciete foutfeedback; geen browser-popup.
+3. Open een spot met `[br]`, dubbele `[br][br]`, vet/cursief, citaten, lijsten en veilige links. Geen rauwe bracketcodes voor ondersteunde tags. Vergelijk preview/detail. Scripts, remote stijlen, onveilige URL-schema's en `[img]` worden niet uitgevoerd/geladen.
+4. Admin **Op te halen inhoud**: zet Usenet-reacties indexeren uit, laat tonen aan. `php bin/console retrieve --since-last --verbose` meldt dat reacties worden overgeslagen; er mag geen `free.usenet batch` verschijnen. Eerder opgeslagen reacties blijven zichtbaar met een melding. Zet indexeren opnieuw aan om te hervatten; `--days=30` kan beschikbare historie aanvullen.
+5. Zet reacties tonen uit: geen reacties/formulieren in detail/admin, geen reactieactie in preview. Beide lokale POST-routes weigeren met 403. Opgeslagen reacties worden niet verwijderd.
+6. Zet afbeeldingen uit: geen thumbnails/coverkolom/hero/lightbox in lijst, bijgeladen rijen, preview of detail. Ook een bekende gecachte afbeeldingslink geeft 403 en private/no-store. Herinschakelen hergebruikt de cache.
+7. Gewone gebruikers kunnen deze admininstellingen niet wijzigen. Test de erotica-blokkade ook na herinschakelen; deze blijft onafhankelijk gelden.
+
+De integratiesuite met een aparte testdatabase controleert bovenstaande opslag-/HTTP-/NNTP-beleidsregels. Een schone Composer-installatie moet dezelfde suite kunnen draaien zonder dependencies uit Git. Gebruik nooit je productiedatabase voor `--integration`.
+
 ## Web checks via subdomein
 ```bash
 curl -i https://nnspotty.hopseflop.nl/health

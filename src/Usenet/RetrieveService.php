@@ -31,6 +31,10 @@ final class RetrieveService
         };
         $settings = $this->state->getUsenetSettings();
         $groups = SpotnetParser::groups($settings['explicit_groups']);
+        if (!$this->state->spotContentSettings()['retrieve_comments']) {
+            $groups = array_filter($groups, static fn (string $role): bool => $role !== 'comments');
+            $log('Reacties ophalen is uitgeschakeld; reactiegroepen en hun cursors blijven ongewijzigd.');
+        }
         if ($settings['max_articles_per_group'] < 100) {
             throw new \InvalidArgumentException('Max artikelen per groep moet minimaal 100 zijn.');
         }

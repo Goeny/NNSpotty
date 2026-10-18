@@ -41,6 +41,20 @@
 7. Haal echte spots op met `php bin/console retrieve --days=30 --verbose` en open `/spots`.
    Dit scant alle beschikbare headers om de datumfilter correct toe te passen en kan lang duren.
 
+## Git en dependencies
+- Een verse checkout bevat geen `vendor/` of `.env`. Installeer dependencies vanuit de gevolgde `composer.lock` met Composer; maak je eigen `.env` op basis van `.env.example`.
+- Houd `composer.json` en `composer.lock` in Git. Commit geen authenticatiegegevens (`auth.json`), lokale environmentconfiguratie, logs, databasedumps of runtimebestanden.
+- Gedeelde `.vscode`-taken, tests, documentatie en screenshots horen wel bij de repository.
+- Upgrade je een bestaande installatie die `.env` en `vendor/` nog volgde, volg dan eerst de [eenmalige backup-/restoreprocedure](./linux-server-testing.md#git-opruimen-inhoudsinstellingen-en-afbeeldingsvergroting). Een gewone pull kan de eerder gevolgde bestanden verwijderen; bewaar je serverconfiguratie buiten de repository.
+- Negeren maakt oude Git-commits niet schoon. Roteer echte credentials die ooit zijn vastgelegd; geschiedenis herschrijven is geen onderdeel van deze upgrade.
+
+## Op te halen inhoud en afbeeldingvergroting
+- Admin bevat **Op te halen inhoud**: Usenet-reacties indexeren, reacties tonen/lokaal plaatsen, afbeeldingen ophalen/tonen. Standaard staat alles aan. Retentie en de artikellimiet blijven onder Usenet instellingen.
+- Reacties indexeren uit slaat de groep/cursor over; tonen uit verbergt ook al opgeslagen reacties. Herinschakelen verwijdert of reset geen data; gebruik zo nodig `retrieve --days=30` voor beschikbare historie.
+- Afbeeldingen uit voorkomt requests voor thumbnails, covers en hero, en blokkeert de image-route ook voor cachehits. Afbeeldingen worden nooit tijdens de gewone retrieve massaal gedownload.
+- Herlaad de assets `/assets/spotty.css`, `/assets/spots.js`, `/assets/presentation.js` zonder oude cache. De cover in preview/detail opent een lightbox met toetsenbordbediening en foutfeedback.
+- Spotnet-omschrijvingen met `[br]` en gangbare bracketopmaak worden direct juist weergegeven. Een nieuwe retrieve of datamigratie is hiervoor niet nodig.
+
 ## Upgrade vanaf de generieke headerindex
 - Voer `php bin/console db migrate` uit en controleer de Spotnet-groepen in admin.
 - De oude exacte standaardinstelling met `comments:free.ptd` wordt gemigreerd naar `comments:free.usenet`.
