@@ -119,6 +119,20 @@ final class AppStateRepository
         return $this->eroticaAllowed() && $this->getPreferences($username)['show_erotica'];
     }
 
+    public function apiEnabled(): bool
+    {
+        $enabled = $this->decodeSetting('admin.newznab')['enabled'] ?? false;
+        if (!is_bool($enabled)) {
+            throw new \RuntimeException('Ongeldige opgeslagen Newznab-instelling.');
+        }
+        return $enabled;
+    }
+
+    public function setApiEnabled(bool $enabled): void
+    {
+        $this->saveSetting('admin.newznab', ['enabled' => $enabled]);
+    }
+
     /** @return array{retrieve_comments: bool, show_comments: bool, images_enabled: bool} */
     public function spotContentSettings(): array
     {

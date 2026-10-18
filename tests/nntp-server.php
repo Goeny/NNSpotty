@@ -76,6 +76,18 @@ while ($socket = stream_socket_accept($server, 60)) {
         } elseif ($command === 'BODY <image@example.invalid>') {
             $encoded = strtr(Fixtures::image(), ["\0" => '=A', "\r" => '=B', "\n" => '=C', '=' => '=D']);
             multiline($socket, '222 Body follows', rtrim(chunk_split($encoded, 32, "\r\n"), "\r\n"));
+        } elseif ($command === 'BODY <nzb@example.invalid>') {
+            $encoded = strtr(gzdeflate(Fixtures::nzb()), ["\0" => '=A', "\r" => '=B', "\n" => '=C', '=' => '=D']);
+            multiline($socket, '222 Body follows', rtrim(chunk_split($encoded, 32, "\r\n"), "\r\n"));
+        } elseif (in_array($command, ['BODY <nzb-first@example.invalid>', 'BODY <nzb-second@example.invalid>'], true)) {
+            $encoded = strtr(gzdeflate(Fixtures::nzb()), ["\0" => '=A', "\r" => '=B', "\n" => '=C', '=' => '=D']);
+            $split = strpos($encoded, '=') + 1;
+            $part = $command === 'BODY <nzb-first@example.invalid>' ? substr($encoded, 0, $split) : substr($encoded, $split);
+            multiline($socket, '222 Body follows', $part);
+        } elseif (str_starts_with($command, 'BODY <missing-nzb')) {
+            fwrite($socket, "430 No such article\r\n");
+        } elseif ($command === 'BODY <broken-nzb@example.invalid>') {
+            multiline($socket, '222 Body follows', 'not-a-compressed-nzb');
         } elseif ($command === 'QUIT') {
             fwrite($socket, "205 Goodbye\r\n");
             break;

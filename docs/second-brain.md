@@ -6,7 +6,7 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
 - **Datum:** 2026-10-18
 - **Versie:** 0.0.1
 - **Codenaam:** Delta Integrale
-- **Fase:** Database/console/auth-fundament met echte Spotnet-index en spotdetailweergave
+- **Fase:** Spotnet-index, spotdetailweergave en Newznab/NZB-download-MVP
 
 ## Context
 - Spotweb is verouderd en lastig onderhoudbaar door gegroeide complexiteit en gemengde oude/nieuwe codepatronen.
@@ -164,25 +164,40 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
 48. **Oude emoticoncodes behouden, GIF-presentatie vervangen**
     Gebruiker kiest statische moderne emoji's en compacte badges, zonder animatie of externe afbeeldingen. Vaste allowlist dekt alle 30 aangeleverde Spotweb-codes plus respect/respekt; wink/knipoog delen een symbool. Code, opslag en bron blijven intact; vervanging gebeurt uitsluitend bij renderen met toegankelijke vaste labels. Usenet-omschrijvingen/reacties delen de parser; lokale reacties krijgen alleen de emoticonuitzondering en blijven verder escaped tekst. Geen afbeeldings-URL-ondersteuning, migratie, retrieval of GIF-hergebruik nodig. Herhaalde badges moeten op smalle schermen zonder horizontale overflow afbreken. Dit verfijnt het eerdere beleid dat alle img-bracketcodes tekst bleven; externe afbeeldingen blijven geblokkeerd.
 
+49. **Prioriteit: gedeelde NZB-service, dan Newznab, dan forwarding**
+    Gebruiker wil NNSpotty via een key in Prowlarr gebruiken, dat zelf Sonarr synchroniseert. Gedeelde NZB-downloads vormen de basis: echte segments ophalen, combineren, Spotnet-decoderen, raw-inflate, begrensd valideren en in de database cachen. Geen nepknop, externe URL-proxy of downloaderimplementatie in deze milestone.
+
+50. **Globale API-toestemming, persoonlijke keys**
+    Gebruiker kiest expliciet: admin schakelt Newznab globaal in, daarna beheert iedere gebruiker zijn eigen key zonder extra individuele toestemming. Default uit; 32 willekeurige bytes, alleen SHA256 opgeslagen, eenmaal tonen, roteren/intrekken met bevestiging en CSRF, audit zonder geheim. API is sessieloos en volgt bestaande globale/persoonlijke erotica-instellingen. Keydragende links vragen om HTTPS en queryvrije accesslogs.
+
+51. **Echte standaardcategorieen en eerlijke capabilities**
+    1000-8000 zijn standaard Newznab-hoofdcodes; de 100000+-duplicaten uit Spotweb zijn provider-specifiek en worden niet gekopieerd. Eigen Spotnet-mapping en SQL-index ondersteunen hoofd-/subgroep-OF in API; browserfilters blijven EN. Huidige Prowlarr-standaard bevat UHD 2045/5045, PS4 1180 en Xbox One 1140. Caps/search/tvsearch/movie/get leveren XML, titelzoeken en numerieke seizoen/aflevering/jaarfilters; IMDb/TVDB-ID-zoeken wordt niet geclaimd zonder betrouwbare metadata. Dagelijkse/absolute episodes en complete multi-episodeherkenning zijn niet gerealiseerd; pakketten blijven pakketten.
+
+52. **Migratie en toetsbare acceptatie**
+    Migratie 0011 voegt NZB-cache, standaardcategorie-index en keytabel toe en backfillt bestaande spots in batches. Refresh wist gewijzigde NZB-bronnen; normale duplicaten blijven intact. Synthetische NNTP-, echte MariaDB- en HTTP-regressies valideren het protocol en de grenzen, niet de externe productieprovider of Sonarr-releaseherkenning. Praktijkacceptatie moet caps, zoeken en een werkelijke download vanuit Prowlarr omvatten; alleen de verbindingstest is onvoldoende. Versie blijft 0.0.1 Delta Integrale.
+    Validatie: 806 controles geslaagd met PHP 8.4 en MariaDB 11.4; alle 46 PHP-bestanden gelint. Browsercontrole van adminschakelaar, eenmalige sleutelweergave, vernieuwen/intrekken, veilige annuleerfocus, Escape/focusherstel en donkere/lichte layouts op 320/390/1440 pixels. Native bevestigingen sluiten expliciet bij Escape en passen binnen het viewport; geen browserpopups.
+
 ## Open vragen (voor volgende stap)
 - Welk framework past het best bij verdere uitbreiding? De huidige basis gebruikt PHP 8.2+ en PDO/MySQL/MariaDB.
 - Welke metadata-provider krijgt prioriteit: IMDB, TVDB of beide vanaf start?
-- Welke Newznab endpoint-scope is minimaal vereist voor MVP?
+- Welke metadata-provider biedt de beste betrouwbare TVDB/IMDb-ID-koppeling voor Newznab-vervolgfunctionaliteit?
 - Welke moderatieregels gelden bij conflicten tussen whitelist en blacklist, na verificatie van de spotteridentiteit?
 - Hoe versnellen we grote historische scans zonder de volledigheid van datumfilters te verliezen?
 
 ## Volgende stappen
-1. Beslissen over definitieve stackkeuzes (framework ja/nee, DB, queue/caching).
-2. Kernmodules verdiepen:
+1. Newznab-MVP op productie testen met Prowlarr, Sonarr en de eigen Usenet-provider: titel-/categoriezoektocht en echte NZB-download.
+2. SABnzbd/NZBGet-keuze en instellingen via admin, directe forwarding en persistente downloadhistorie toevoegen.
+3. Retentiebeheer uitbreiden met duidelijke begin-/einddatums en kalenderbediening, zonder onvolledige datumscans.
+4. Kernmodules verdiepen:
    - usenet/indexing
    - nzb-forwarding
    - metadata-integratie
    - theming
    - newznab API
-3. Handtekeningverificatie, geverifieerde spotteridentiteiten en moderatie in de retrieval-laag toevoegen.
-4. Veilige Spotnet-opmaak en geteste compatibiliteit voor afwijkende legacy-XML uitwerken.
-5. Grote backfills en commentretrieval optimaliseren; scheduling en jobs toevoegen.
-6. Installatieflow verder uitwerken (wizard + validaties).
+5. Handtekeningverificatie, geverifieerde spotteridentiteiten en moderatie in de retrieval-laag toevoegen.
+6. Geteste compatibiliteit voor afwijkende legacy-XML uitwerken.
+7. Grote backfills en commentretrieval optimaliseren; scheduling en jobs toevoegen.
+8. Installatieflow verder uitwerken (wizard + validaties).
 
 ## Updateprotocol
 Werk deze second brain bij bij:

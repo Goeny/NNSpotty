@@ -11,7 +11,7 @@ De focus ligt op:
 ## Huidige status
 - **Versie:** 0.0.1
 - **Codenaam:** Delta Integrale
-- **Fase:** Werkend fundament met Spotnet-retrieval en individuele spots (nog geen complete Spotweb-vervanger)
+- **Fase:** Spotnet-retrieval, individuele spots en Newznab-MVP met NZB-downloads (nog geen complete Spotweb-vervanger)
 
 ## Documentatie
 - [Projectrichtlijnen](./docs/project-guidelines.md)
@@ -43,6 +43,7 @@ De focus ligt op:
    - `/spots` voor individuele Spotnet-spots met afbeeldingen, omschrijving en reacties (ingelogd)
    - `/admin` voor adminbeheer (alleen admin)
    - `/preferences` voor user preferences (ingelogde gebruiker)
+   - `/api?t=caps` voor Newznab-capabilities (na inschakelen in admin)
 
 ## Git en lokale bestanden
 - `composer.json` en `composer.lock` blijven in Git voor reproduceerbare installaties. `vendor/` en de gegenereerde autoload worden voortaan lokaal met `composer install --no-dev --optimize-autoloader` opgebouwd.
@@ -69,7 +70,7 @@ De focus ligt op:
 - Een spot wordt geidentificeerd door zijn message-ID. De `X-XML`-headers leveren titel, omschrijving, categorie, grootte en afbeelding-/NZB-verwijzingen. Gelijke titels worden niet samengevoegd.
 - Reacties worden uit `free.usenet` opgehaald en aan de originele spot gekoppeld. Lokale reacties kunnen op de detailpagina worden geplaatst; deze worden niet naar Usenet verstuurd.
 - De Spotnet-reactie-ID bepaalt de koppeling, ook als een provider een verkeerd `References`-veld levert. Alleen IDs zonder gecodeerde verwijzing gebruiken `References`. Migratie `20261018_0010_spot_details_comments` herstelt reeds opgeslagen koppelingen zonder opnieuw downloaden.
-- Detail en preview tonen ook de hoofdgroep en **Gepost met** uit `X-Newsreader` (of XML `Extra/Newsreader`). Voor eerder opgeslagen spots kun je dit aanvullen met `--refresh-spots --days=7`; gewone runs slaan duplicaten nog steeds over. Expliciete refresh vernieuwt XML, metadata en categorie-index atomair, behoudt reacties en wist alleen een covercache waarvan de bron verandert. Het voegt geen verificatie, ratings, spamrapporten of NZB-downloadfunctie toe.
+- Detail en preview tonen ook de hoofdgroep en **Gepost met** uit `X-Newsreader` (of XML `Extra/Newsreader`). Voor eerder opgeslagen spots kun je dit aanvullen met `--refresh-spots --days=7`; gewone runs slaan duplicaten nog steeds over. Expliciete refresh vernieuwt XML, metadata en categorie-index atomair, behoudt reacties en wist cover-/NZB-caches alleen wanneer de bijbehorende segmentbron verandert. Verificatie, ratings en spamrapporten worden niet verzonnen.
 - Usenet-afbeeldingen worden op aanvraag opgehaald en in de database gecachet. Oudere externe afbeelding-URLs worden rechtstreeks door de browser geladen, niet door de server.
 - `--since-last` verwerkt maximaal het ingestelde aantal artikelen per groep, vanaf de oudste nog niet verwerkte positie. Herhaal dit commando om een achterstand weg te werken.
 - `--days=30` scant vanaf de hoogste artikelnummers terug, zodat doorgaans recente spots als eerste worden opgeslagen. De scan controleert nog steeds de volledige beschikbare historie: datums hoeven niet op artikelnummer gesorteerd te zijn. `--all` haalt ook oudere inhoud op, ongeacht retentie. Deze volledige scans kunnen lang duren.
@@ -77,6 +78,23 @@ De focus ligt op:
 - `--verbose` toont per batch het datumbereik en aantallen `te_oud`, `bestaand`, `geen_spot`, `ongeldig`, `verdwenen` en `opgeslagen`. Ontbrekende optionele overview-velden zijn toegestaan; onbruikbare regels worden afzonderlijk gemeld en blokkeren de overige artikelen niet.
 - Onder **Op te halen inhoud** kan de admin Usenet-reacties indexeren, reacties weergeven/lokaal plaatsen en afbeeldingen ophalen/tonen afzonderlijk instellen. Alles staat standaard aan, zodat bestaande werking behouden blijft. Uitgeschakelde reactiegroepen worden niet benaderd en hun cursor blijft staan; bestaande inhoud wordt niet verwijderd.
 - Reacties weergeven kan aanblijven terwijl ophalen uit staat: de detailpagina toont dan eerder opgeslagen/lokale reacties met uitleg. Afbeeldingen worden alleen op aanvraag geladen en gecachet; uit blokkeert ook gecachte afbeeldingen en verwijdert alle afbeeldingsverwijzingen uit overzicht/preview/detail. Retentie en de incrementele artikellimiet blijven onder Usenet instellingen.
+
+## Newznab en NZB downloaden
+1. Draai `php bin/console db migrate`. Migratie `20261018_0011_newznab_nzb` voegt cache, categorie-index en persoonlijke API-keys toe en classificeert bestaande spots zonder opnieuw ophalen.
+2. Stel `APP_URL=https://nnspotty.hopseflop.nl` in: een publieke HTTP(S)-origin, zonder subpad, query of fragment. Gebruik in productie HTTPS.
+3. Schakel **Newznab API** in onder admin. Standaard staat dit uit.
+4. Maak onder **Voorkeuren > Persoonlijke Newznab API-key** een eigen key. Bewaar hem direct: hij wordt slechts eenmaal getoond en alleen gehasht in de database opgeslagen. Vernieuwen of intrekken maakt oude links direct ongeldig.
+5. Voeg in Prowlarr **Generic Newznab** toe met URL `https://nnspotty.hopseflop.nl`, API Path `/api` en deze key. Test, sla op en controleer daarna een titelzoektocht plus daadwerkelijke NZB-download; een geslaagde verbindingstest alleen is niet voldoende.
+
+Ondersteund: XML `caps`, `search`, `tvsearch`, `movie` en `get`. `q` zoekt titelwoorden; `tvsearch` ondersteunt numerieke `season`/`ep`, `movie` ondersteunt `year`. Ook `cat` (OF-selectie), `limit` (1-100), `offset`, `maxage` en `extended=0|1` zijn beschikbaar. `caps` vermeldt bewust geen IMDb/TVDB-ID-zoeken. Onondersteunde ID-filters geven een protocolfout, geen ongemerkt ongerichte resultaten. Dagelijkse/absolute afleveringsnummers en volledige herkenning van multi-episode-releases zijn nog niet aanwezig. Seizoenspakketten blijven pakketten.
+
+De API exporteert standaard Newznab-codes: Console 1000, Movies 2000, Audio 3000, PC 4000, TV 5000, XXX 6000, Books 7000 en Other 8000, inclusief uit Spotnet afleidbare subcategorieen. De 100000+-codes uit Spotweb zijn site-specifieke duplicaten en worden niet overgenomen. UHD gebruikt 2045/5045, PS4 1180 en Xbox One 1140. Een categorie-index maakt databasefiltering mogelijk; lokale overzichtsfilters behouden hun bestaande EN-gedrag.
+
+Iedere key volgt de globale en persoonlijke erotica-instellingen; publieke caps verbergen XXX. Zoeken/downloaden vereist een key, publieke caps niet. De limiet is 120 aanvragen per minuut per key. API-aanvragen starten geen browsersessie. Feeds bevatten keydragende downloadlinks: houd feeds, browserhistorie en access-/proxy-/clientlogs geheim en laat productie-accesslogs querystrings weg.
+
+De knop **NZB downloaden** in detail en preview werkt ook als Newznab uit staat, met de normale sessie en zichtbaarheidstoegang. De gedeelde downloadservice haalt Spotnet NZB-segmenten op via NNTP, combineert/decodeert/decomprimeert ze, valideert XML en bewaart een databasecache. Gecomprimeerde invoer en uitgepakte XML zijn begrensd tot minder dan 16 MiB. Verlopen of defecte NZBs geven een expliciete fout en worden niet gecachet. Rechtstreeks doorsturen naar SABnzbd/NZBGet en downloadhistorie volgen in een volgende stap.
+
+Zie [deployment en acceptatiechecks](./docs/linux-server-testing.md#newznab-en-nzb-downloads) voor concrete servercommando's.
 
 ## Upgrade van de headerindex
 1. Voer `php bin/console db migrate` uit.
@@ -106,5 +124,5 @@ Oude headerdata en synthetische releases blijven bewaard, maar worden niet meer 
 ## Tests en beperkingen
 - `composer test` of `php tests/run.php`: protocol- en renderercontroles zonder database of echte Usenet-provider.
 - Voor integratietests met een aparte MariaDB-testserver: zie [Linux server testen](./docs/linux-server-testing.md).
-- Nog niet aanwezig: spotterhandtekeningverificatie, volledige ondersteuning voor alle exotische Spotnet-tags, NZB-download/forwarding, metadata en Newznab. Geimporteerde inhoud blijft onbevestigd; omschrijvingen en Usenet-reacties gebruiken een strikte opmaak-allowlist.
+- Nog niet aanwezig: spotterhandtekeningverificatie, volledige ondersteuning voor alle exotische Spotnet-tags, directe NZB-forwarding/downloadhistorie en externe metadata/ID-zoekintegratie. Newznab en NZB-downloads zijn een MVP; praktijkacceptatie met jouw Prowlarr/Sonarr en provider blijft nodig. Geimporteerde inhoud blijft onbevestigd; omschrijvingen en Usenet-reacties gebruiken een strikte opmaak-allowlist.
 - Een succesvolle lokale fixturetest bewijst protocolverwerking, niet beschikbaarheid van groepen of artikelen bij jouw Usenet-provider.

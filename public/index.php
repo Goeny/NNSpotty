@@ -52,6 +52,18 @@ require_once __DIR__ . '/../src/UI/SpotDetailPageRenderer.php';
 require_once __DIR__ . '/../src/UI/SpotsPageRenderer.php';
 
 loadEnvFile(__DIR__ . '/../.env');
+$apiRequest = Request::fromGlobals($_SERVER, $_GET, $_POST);
+if (in_array($apiRequest->path(), ['/api', '/api/'], true)) {
+    try {
+        $apiPdo = ConnectionFactory::fromEnvironment();
+        $apiResponse = (new \NnSpotty\Newznab\Api($apiPdo, new AppStateRepository($apiPdo), AppConfig::fromEnvironment()->url))->handle($apiRequest);
+    } catch (Throwable $exception) {
+        error_log('Newznab startup: ' . $exception->getMessage());
+        $apiResponse = \NnSpotty\Newznab\Api::error(900, 'API initialisatie mislukt. Controleer de serverlog.', 500);
+    }
+    ($apiRequest->method() === 'HEAD' ? $apiResponse->withoutBody() : $apiResponse)->send();
+    exit;
+}
 session_set_cookie_params([
     'lifetime' => 0,
     'path' => '/',
@@ -154,7 +166,8 @@ $router->get('/admin', static function (Request $request) use ($state, $auth, $c
         allowErotica: $state->eroticaAllowed(),
         theme: $state->getPreferences($currentUser['username'])['theme'],
         globalColumns: $state->globalSpotColumns(),
-        spotContent: $state->spotContentSettings()
+        spotContent: $state->spotContentSettings(),
+        apiEnabled: $state->apiEnabled()
     );
 
     return Response::html($html);
@@ -383,7 +396,7 @@ $router->post('/admin/comments', static function (Request $request) use ($state,
     return Response::redirect('/admin?status=' . rawurlencode('Comment opgeslagen.'));
 });
 
-$router->get('/preferences', static function (Request $request) use ($state, $auth, $csrf): Response {
+$router->get('/preferences', static function (Request $request) use ($state, $auth, $csrf, $pdo): Response {
     if (!$auth->isAuthenticated()) {
         return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
     }
@@ -393,6 +406,8 @@ $router->get('/preferences', static function (Request $request) use ($state, $au
         return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
     }
     $username = $currentUser['username'];
+    $newKey = $_SESSION['new_api_key'] ?? null;
+    unset($_SESSION['new_api_key']);
 
     $html = PreferencesPageRenderer::render(
         username: $username,
@@ -402,10 +417,60 @@ $router->get('/preferences', static function (Request $request) use ($state, $au
         csrfField: $csrf->field(),
         allowErotica: $state->eroticaAllowed(),
         globalColumns: $state->globalSpotColumns(),
-        personalColumns: $state->personalSpotColumns($username)
+        personalColumns: $state->personalSpotColumns($username),
+        apiEnabled: $state->apiEnabled(),
+        hasApiKey: (new \NnSpotty\Newznab\ApiKeys($pdo))->exists($username),
+        newApiKey: is_array($newKey) && $newKey['username'] === $username ? $newKey['key'] : null
     );
 
-    return Response::html($html);
+    return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store', 'Referrer-Policy' => 'no-referrer']);
+});
+
+$router->post('/admin/newznab', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
+    if (!$auth->isAdmin()) {
+        return new Response(403, 'Admin login vereist.');
+    }
+    if (!$csrf->verify($request->input('_csrf'))) {
+        return new Response(403, 'Ongeldige CSRF token.');
+    }
+    try {
+        $enabled = $request->inputScalar('enabled');
+        if ($enabled !== null && $enabled !== '1') {
+            throw new InvalidArgumentException('Ongeldige API-instelling.');
+        }
+        $state->setApiEnabled($enabled === '1');
+    } catch (InvalidArgumentException $exception) {
+        return Response::redirect('/admin?status=' . rawurlencode($exception->getMessage()) . '#newznab');
+    }
+    $auditLogs->log($auth->user()['username'], 'admin.newznab.updated', 'settings', 'newznab',
+        ['enabled' => $enabled === '1'], $request->clientIp());
+    return Response::redirect('/admin?status=' . rawurlencode('Newznab-instelling opgeslagen.') . '#newznab');
+});
+
+$router->post('/preferences/api-key', static function (Request $request) use ($state, $pdo, $auth, $csrf, $auditLogs): Response {
+    if (!$auth->isAuthenticated()) {
+        return new Response(401, 'Login vereist.');
+    }
+    if (!$csrf->verify($request->input('_csrf'))) {
+        return new Response(403, 'Ongeldige CSRF token.');
+    }
+    $username = $auth->user()['username'];
+    try {
+        $action = $request->inputScalar('action');
+        $keys = new \NnSpotty\Newznab\ApiKeys($pdo);
+        if ($action === 'revoke') {
+            $keys->revoke($username);
+            unset($_SESSION['new_api_key']);
+        } elseif ($action === 'rotate' && $state->apiEnabled()) {
+            $_SESSION['new_api_key'] = ['username' => $username, 'key' => $keys->rotate($username)];
+        } else {
+            throw new InvalidArgumentException('Ongeldige actie of API is uitgeschakeld.');
+        }
+    } catch (InvalidArgumentException $exception) {
+        return Response::redirect('/preferences?status=' . rawurlencode($exception->getMessage()) . '#api-key');
+    }
+    $auditLogs->log($username, 'user.api_key.' . $action, 'user', $username, [], $request->clientIp());
+    return Response::redirect('/preferences?status=' . rawurlencode('API-key bijgewerkt.') . '#api-key');
 });
 
 $router->get('/spots', static function (Request $request) use ($auth, $csrf, $state, $spots): Response {
@@ -543,6 +608,32 @@ $router->get('/spots/image', static function (Request $request) use ($auth, $spo
     } catch (Throwable $exception) {
         error_log('Spot image ' . $id . ': ' . $exception->getMessage());
         return new Response(502, 'Afbeelding ophalen mislukt. Controleer de serverlog.', ['Content-Type' => 'text/plain; charset=utf-8']);
+    }
+});
+
+$router->get('/spots/nzb', static function (Request $request) use ($auth, $spots, $state, $pdo): Response {
+    if (!$auth->isAuthenticated()) {
+        return new Response(401, 'Login vereist.');
+    }
+    try {
+        $id = $request->queryScalar('key') ?? '';
+        if (preg_match('/^[a-f0-9]{64}$/D', $id) !== 1) {
+            throw new InvalidArgumentException('Ongeldig spot-ID.');
+        }
+    } catch (InvalidArgumentException $exception) {
+        return new Response(400, $exception->getMessage(), ['Cache-Control' => 'private, no-store']);
+    }
+    $spot = $spots->getSpot($id, $state->canViewErotica($auth->user()['username']));
+    if ($spot === null || $spot['nzb_segments'] === []) {
+        return Response::notFound();
+    }
+    try {
+        return \NnSpotty\Usenet\SpotNzbService::download((new \NnSpotty\Usenet\SpotNzbService($pdo, $state))->load($spot), $id);
+    } catch (Throwable $exception) {
+        error_log('Spot NZB ' . $id . ': ' . $exception->getMessage());
+        return new Response(502, 'NZB ophalen mislukt. Controleer de serverlog.', [
+            'Content-Type' => 'text/plain; charset=utf-8', 'Cache-Control' => 'private, no-store',
+        ]);
     }
 });
 

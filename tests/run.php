@@ -361,6 +361,7 @@ try {
         && str_contains($html, '<dialog class="image-lightbox"')
         && str_contains($html, '/assets/presentation.js'), 'Cover heeft toegankelijke vergrotingslink en gedeeld lightboxvenster; thumbnails blijven lijstacties');
 
+    require __DIR__ . '/newznab-unit.php';
     if (in_array('--integration', $argv, true)) {
         require __DIR__ . '/integration.php';
     }

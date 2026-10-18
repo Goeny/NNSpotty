@@ -32,4 +32,12 @@ final class Fixtures
     {
         return base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', true);
     }
+
+    public static function nzb(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8"?>'
+            . '<nzb xmlns="http://www.newzbin.com/DTD/2003/nzb"><file poster="fixture" date="1792320000" subject="test.bin">'
+            . '<groups><group>alt.binaries.test</group></groups><segments>'
+            . '<segment bytes="1234" number="1">binary-part@example.invalid</segment></segments></file></nzb>';
+    }
 }

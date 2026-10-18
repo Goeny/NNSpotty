@@ -23,7 +23,7 @@ final class AdminPageRenderer
      * @param array<int, array{post_id: string, username: string, comment: string, created_at: string}> $comments
      * @param array<int, array{actor_username: string, action: string, target_type: string, target_id: string, details_json: string, ip_address: string, created_at: string}> $auditLogs
      */
-    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = [], array $spotContent = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true]): string
+    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = [], array $spotContent = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true], bool $apiEnabled = false): string
     {
         $retention = (int) $settings['retention'];
         $server = h($settings['server']);
@@ -43,6 +43,7 @@ final class AdminPageRenderer
         $safeCurrentUsername = h($currentUsername);
         $columnForm = SpotColumns::form($globalColumns !== [] ? $globalColumns : SpotColumns::defaults(), null, $csrfField);
         $eroticaChecked = $allowErotica ? 'checked' : '';
+        $apiChecked = $apiEnabled ? 'checked' : '';
         $contentOptions = '';
         foreach (['retrieve_comments' => 'Usenet-reacties indexeren', 'show_comments' => 'Reacties weergeven en lokale reacties toestaan', 'images_enabled' => 'Afbeeldingen ophalen en tonen (op aanvraag)'] as $key => $label) {
             $contentOptions .= '<div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="' . $key
@@ -88,6 +89,18 @@ HTML;
       </div>
     </div>
     {$statusAlert}
+    <section class="card my-4" id="newznab">
+      <div class="card-header">Newznab API</div>
+      <form method="post" action="/admin/newznab" class="card-body">
+        {$csrfField}
+        <div class="form-check form-switch">
+          <input class="form-check-input" id="api-enabled" type="checkbox" name="enabled" value="1" {$apiChecked}>
+          <label class="form-check-label" for="api-enabled">Newznab API inschakelen</label>
+        </div>
+        <p class="form-text">Standaard uit. Na inschakelen beheert iedere gebruiker een persoonlijke API-key via Voorkeuren. De API volgt de eigen erotica-instelling en de globale blokkade. Zoeken op titel en standaard Newznab-categorieen; geen IMDb/TVDB-ID-zoeken. Maximaal 120 aanvragen per minuut per key. Gebruik HTTPS en APP_URL met het publieke adres.</p>
+        <button class="btn btn-primary" type="submit">API-instelling opslaan</button>
+      </form>
+    </section>
     {$columnForm}
     <section class="card my-4" id="spot-content">
       <div class="card-header fw-semibold">Op te halen inhoud</div>

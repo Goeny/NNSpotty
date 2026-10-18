@@ -5,6 +5,9 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Added
+- Newznab-MVP met publieke caps, persoonlijke gehashte API-keys, standaardcategorieen, XML search/tvsearch/movie/get, categorie-OR, titel/aflevering/jaarfilters, paginering en keygebonden aanvraaglimiet. Default-off adminsysteemschakelaar; eigen keybeheer met CSRF, eenmalige weergave en bevestigingen voor rotatie/intrekken. Geen onterecht geadverteerd IMDb/TVDB-ID-zoeken.
+- Gedeelde NZB-downloadservice voor browser en API: NNTP BODY, multipart Spotnet-unescape/raw-DEFLATE, begrensde veilige NZB-validatie, databasecache en expliciete foutafhandeling. Werkende downloadknop in detail/preview; migratie `20261018_0011_newznab_nzb` backfillt bestaande categorieen en voegt keys/cache toe. NZB-cache vervalt bij expliciet gewijzigde segmentbron.
+- Protocol-/database-/HTTP-regressies voor NZB-transport en cache, categorievertaling, API-feeds, sleutelbeheer, limieten, gebruikersisolatie, zichtbaarheid en migratie/backfill; Prowlarr-configuratie en productieacceptatie gedocumenteerd.
 - Moderne statische emoji's en compacte badges voor alle 30 Spotweb-emoticoncodes, plus respect/respekt-alias; gedeeld door Usenet-/lokale reacties en omschrijvingen, zonder GIF's of externe afbeeldingsverzoeken.
 - Newsreader/clientnaam in detail en preview; expliciete `retrieve --refresh-spots --days=<n>` voor aanvullen van eerder opgeslagen metadata en `--comments-only` voor onafhankelijke reactieretrieval.
 - Gitignore voor dependencies, lokale configuratie, runtime/logs/dumps en testoutput; `.env` en `vendor/` uit de index gehaald, Composer-manifesten blijven gevolgd. Veilige eenmalige deploymentprocedure met configuratiebackup toegevoegd.

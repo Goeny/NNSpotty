@@ -44,3 +44,24 @@
         if (trigger?.isConnected) trigger.focus({preventScroll: true});
     });
 })();
+
+(() => {
+    'use strict';
+    document.querySelectorAll('.key-confirm').forEach(dialog => {
+        dialog.addEventListener('keydown', event => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            event.stopPropagation();
+            dialog.close();
+        });
+    });
+    document.addEventListener('click', event => {
+        const opener = event.target.closest('[data-confirm-dialog]');
+        if (opener) {
+            const dialog = document.getElementById(opener.dataset.confirmDialog);
+            if (dialog && typeof dialog.showModal === 'function') dialog.showModal();
+        }
+        const closer = event.target.closest('[data-close-confirm]');
+        if (closer) closer.closest('dialog').close();
+    });
+})();

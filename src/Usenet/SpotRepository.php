@@ -27,12 +27,16 @@ final class SpotRepository
         $this->pdo->beginTransaction();
         try {
             if ($refresh) {
-                $existing = $this->pdo->prepare('SELECT image_url, image_segments FROM spotnet_spots WHERE id = :id FOR UPDATE');
+                $existing = $this->pdo->prepare('SELECT image_url, image_segments, nzb_segments FROM spotnet_spots WHERE id = :id FOR UPDATE');
                 $existing->execute(['id' => $spot['id']]);
                 $image = $existing->fetch();
                 if (is_array($image) && ($image['image_url'] !== $spot['image_url']
                     || json_decode($image['image_segments'], true, 512, JSON_THROW_ON_ERROR) !== $spot['image_segments'])) {
                     $delete = $this->pdo->prepare('DELETE FROM spotnet_images WHERE spot_id = :id');
+                    $delete->execute(['id' => $spot['id']]);
+                }
+                if (is_array($image) && json_decode($image['nzb_segments'], true, 512, JSON_THROW_ON_ERROR) !== $spot['nzb_segments']) {
+                    $delete = $this->pdo->prepare('DELETE FROM spotnet_nzbs WHERE spot_id = :id');
                     $delete->execute(['id' => $spot['id']]);
                 }
             }
@@ -62,7 +66,7 @@ final class SpotRepository
             }
             $statement->execute($parameters);
             if ($statement->rowCount() > 0) {
-                $this->indexCategories($spot['id'], $spot['category'], $classification);
+                $this->indexCategories($spot['id'], $spot['category'], $spot['subcategories'], $classification);
             }
             $this->pdo->commit();
         } catch (\Throwable $exception) {
@@ -172,6 +176,7 @@ final class SpotRepository
 
     public function rebuildCategories(): int
     {
+        $newznab = $this->pdo->query("SHOW TABLES LIKE 'spotnet_newznab_categories'")->fetchColumn() !== false;
         $last = '';
         $total = 0;
         do {
@@ -181,8 +186,9 @@ final class SpotRepository
             $this->pdo->beginTransaction();
             try {
                 foreach ($rows as $row) {
-                    $classification = SpotCategories::classify($row['category'], json_decode($row['subcategories'], true, 512, JSON_THROW_ON_ERROR));
-                    $this->indexCategories($row['id'], $row['category'], $classification);
+                    $subcategories = json_decode($row['subcategories'], true, 512, JSON_THROW_ON_ERROR);
+                    $classification = SpotCategories::classify($row['category'], $subcategories);
+                    $this->indexCategories($row['id'], $row['category'], $subcategories, $classification, $newznab);
                     $last = $row['id'];
                     $total++;
                 }
@@ -196,7 +202,7 @@ final class SpotRepository
     }
 
     /** @param array{type: string, adult: bool, codes: list<string>} $classification */
-    private function indexCategories(string $id, string $category, array $classification): void
+    private function indexCategories(string $id, string $category, array $subcategories, array $classification, bool $newznab = true): void
     {
         $update = $this->pdo->prepare('UPDATE spotnet_spots SET browse_type = :type, is_erotica = :adult WHERE id = :id');
         $update->execute(['id' => $id, 'type' => $classification['type'], 'adult' => (int) $classification['adult']]);
@@ -206,6 +212,14 @@ final class SpotRepository
         $head = array_search($category, SpotCategories::HEADS, true);
         foreach ($classification['codes'] as $code) {
             $insert->execute(['id' => $id, 'code' => $head . ':' . $code]);
+        }
+        if ($newznab) {
+            $delete = $this->pdo->prepare('DELETE FROM spotnet_newznab_categories WHERE spot_id = :id');
+            $delete->execute(['id' => $id]);
+            $insert = $this->pdo->prepare('INSERT INTO spotnet_newznab_categories (spot_id, category_id) VALUES (:id, :category)');
+            foreach (\NnSpotty\Newznab\Categories::forSpot($category, $subcategories) as $newznabCategory) {
+                $insert->execute(['id' => $id, 'category' => $newznabCategory]);
+            }
         }
     }
 

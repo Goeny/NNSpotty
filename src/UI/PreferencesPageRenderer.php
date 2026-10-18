@@ -9,7 +9,7 @@ final class PreferencesPageRenderer
     /**
      * @param array{theme: string, items_per_page: int, show_erotica?: bool} $preferences
      */
-    public static function render(string $username, array $preferences, ?string $statusMessage, bool $isAdmin, string $csrfField, bool $allowErotica = false, array $globalColumns = [], array $personalColumns = []): string
+    public static function render(string $username, array $preferences, ?string $statusMessage, bool $isAdmin, string $csrfField, bool $allowErotica = false, array $globalColumns = [], array $personalColumns = [], bool $apiEnabled = false, bool $hasApiKey = false, ?string $newApiKey = null): string
     {
         $safeUsername = h($username);
         $columnForm = SpotColumns::form($globalColumns !== [] ? $globalColumns : SpotColumns::defaults(), $personalColumns, $csrfField);
@@ -29,6 +29,33 @@ final class PreferencesPageRenderer
         if ($statusMessage !== null) {
             $statusAlert = '<div class="alert alert-info" role="alert">' . h($statusMessage) . '</div>';
         }
+        $apiStatus = $apiEnabled ? 'De Newznab API is ingeschakeld.' : 'De beheerder heeft de Newznab API uitgeschakeld.';
+        $apiKey = '<section class="card my-4" id="api-key"><div class="card-header">Persoonlijke Newznab API-key</div><div class="card-body">'
+            . '<p>' . $apiStatus . '</p><p class="small text-body-secondary">Voeg in Prowlarr een Generic Newznab-indexer toe met het publieke NNSpotty-adres en API-pad /api. Kopieer je persoonlijke key. Titelzoeken is beschikbaar; IMDb/TVDB-ID-zoeken nog niet. Downloadlinks bevatten de key: behandel feeds en logs als geheim.</p>';
+        if ($newApiKey !== null) {
+            $apiKey .= '<div class="alert alert-warning" role="status">Bewaar deze key nu; hij wordt maar eenmaal getoond. Vernieuwen maakt de vorige key direct ongeldig.</div>'
+                . '<label class="form-label" for="new-api-key">Nieuwe API-key</label><input class="form-control font-monospace mb-3" id="new-api-key" value="'
+                . h($newApiKey) . '" readonly autocomplete="off" spellcheck="false">';
+        }
+        if ($hasApiKey) {
+            $apiKey .= '<p>Er is een persoonlijke key actief.</p>';
+            foreach (['rotate' => 'Vernieuwen', 'revoke' => 'Intrekken'] as $action => $label) {
+                if ($action === 'rotate' && !$apiEnabled) {
+                    continue;
+                }
+                $apiKey .= '<button class="btn btn-outline-secondary me-2" type="button" data-confirm-dialog="api-' . $action . '">' . $label . '</button>'
+                    . '<dialog class="key-confirm card p-4" id="api-' . $action . '" aria-labelledby="api-' . $action . '-title">'
+                    . '<h2 class="h5" id="api-' . $action . '-title">API-key ' . strtolower($label) . '?</h2>'
+                    . '<p>De huidige key en bijbehorende downloadlinks worden direct ongeldig. Werk Prowlarr en eventuele andere clients bij.</p>'
+                    . '<form method="post" action="/preferences/api-key">' . $csrfField . '<input type="hidden" name="action" value="' . $action . '">'
+                    . '<button class="btn btn-danger" type="submit">' . $label . '</button> <button class="btn btn-secondary" type="button" data-close-confirm autofocus>Annuleren</button>'
+                    . '</form></dialog>';
+            }
+        } elseif ($apiEnabled) {
+            $apiKey .= '<form method="post" action="/preferences/api-key">' . $csrfField
+                . '<input type="hidden" name="action" value="rotate"><button class="btn btn-primary" type="submit">API-key aanmaken</button></form>';
+        }
+        $apiKey .= '</div></section>';
 
         $content = <<<HTML
   <div class="container-fluid">
@@ -44,6 +71,7 @@ final class PreferencesPageRenderer
       </div>
     </div>
     {$statusAlert}
+    {$apiKey}
     <div class="card">
       <div class="card-header fw-semibold">Preferences voor username: {$safeUsername}</div>
       <div class="card-body">

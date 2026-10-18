@@ -25,6 +25,9 @@
 .spot-emoticon { display: inline-block; vertical-align: baseline; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; font-size: 1.25em; line-height: 1.5; margin-inline: .08em; }
 .spot-emoticon-badge { padding: .05em .4em; border: 1px solid var(--spot-border); border-radius: 999px; background: var(--spot-panel); font-size: 1em; white-space: nowrap; }
 .spot-emoticon-label { font-family: system-ui, sans-serif; font-size: .75em; font-weight: 650; }
+.spotty .key-confirm { position: fixed; inset: 0; margin: auto; width: min(520px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow: auto; color: var(--bs-body-color); }
+.key-confirm:not([open]) { display: none; }
+.key-confirm::backdrop { background: #0009; }
 .sidebar {
     position: fixed;
     inset: var(--header-height) auto 0 0;

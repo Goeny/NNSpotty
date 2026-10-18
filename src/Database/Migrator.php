@@ -29,6 +29,9 @@ final class Migrator
                 if ($name === '20261018_0008_category_backfill') {
                     (new \NnSpotty\Usenet\SpotRepository($this->pdo))->rebuildCategories();
                 }
+                if ($name === '20261018_0011_newznab_nzb') {
+                    (new \NnSpotty\Usenet\SpotRepository($this->pdo))->rebuildCategories();
+                }
                 $insert = $this->pdo->prepare('INSERT INTO migrations (name, executed_at) VALUES (:name, UTC_TIMESTAMP())');
                 $insert->execute(['name' => $name]);
             } catch (\Throwable $throwable) {
@@ -317,6 +320,28 @@ final class Migrator
                  SET spot_id = SHA2(CONCAT(SUBSTRING_INDEX(SUBSTRING_INDEX(message_id, \'@\', 1), \'.\', 1),
                      \'@\', SUBSTRING_INDEX(message_id, \'@\', -1)), 256)
                  WHERE LOCATE(\'.\', SUBSTRING_INDEX(message_id, \'@\', 1)) > 1',
+            ],
+            '20261018_0011_newznab_nzb' => [
+                'CREATE TABLE IF NOT EXISTS spotnet_nzbs (
+                    spot_id CHAR(64) CHARACTER SET ascii PRIMARY KEY,
+                    nzb_data MEDIUMBLOB NOT NULL,
+                    FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS spotnet_newznab_categories (
+                    spot_id CHAR(64) CHARACTER SET ascii NOT NULL,
+                    category_id INT UNSIGNED NOT NULL,
+                    PRIMARY KEY (spot_id, category_id),
+                    INDEX idx_newznab_category (category_id, spot_id),
+                    FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS user_api_keys (
+                    username VARCHAR(191) PRIMARY KEY,
+                    key_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+                    created_at DATETIME NOT NULL,
+                    window_start DATETIME NOT NULL,
+                    request_count INT UNSIGNED NOT NULL DEFAULT 0,
+                    FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             ],
         ];
     }

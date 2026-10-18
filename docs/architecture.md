@@ -15,12 +15,16 @@ De huidige pipeline:
 3. Per spot wordt `HEAD <message-id>` opgehaald. `SpotnetParser` voegt herhaalde `X-XML`-headers samen en leest `Spotnet/Posting`.
 4. Titel, omschrijving, poster, categorie/subcategorieen, grootte, tag, website en afbeelding-/NZB-segmenten worden opgeslagen. `X-Newsreader` (fallback XML `Extra/Newsreader`) wordt als onbevestigde clientnaam apart bewaard en in detail/preview getoond.
 5. Reacties worden via `ARTICLE` opgehaald. De Spotnet comment-ID-structuur heeft voorrang: het lokale deel voor de eerste punt plus het oorspronkelijke domein vormt de spot-ID, met behoud van hoofdletters. Providers kunnen `References` verkeerd doorgeven; die header wordt alleen gebruikt bij IDs zonder gecodeerde koppeling. Reacties mogen eerder binnenkomen dan de bijbehorende spot. Een eventueel `Message-ID` in de opgehaalde reactie moet overeenkomen met het aangevraagde ID.
-6. `SpotImageService` haalt afbeeldingsegmenten via `BODY` op, verwijdert transportregelafbrekingen en decodeert de Spotnet-escapes `=A` tot en met `=D`. Alleen herkende rasterafbeeldingen worden gecachet. Afbeeldingen worden niet geinflate; NZB-segmenten gebruiken wel compressie, maar downloaden daarvan is nog niet geimplementeerd.
+6. `SpotImageService` haalt afbeeldingsegmenten via `BODY` op, verwijdert transportregelafbrekingen en decodeert de Spotnet-escapes `=A` tot en met `=D`. Alleen herkende rasterafbeeldingen worden gecachet. Afbeeldingen worden niet geinflate.
+7. `SpotNzbService` combineert NZB-bodies voor dezelfde unescape-stap, voert vervolgens raw-DEFLATE uit met een harde outputlimiet en valideert de NZB-structuur. Invoer en uitvoer zijn maximaal 16 MiB minus een byte. Alleen de conventionele externe Newzbin DTD-declaratie wordt verwijderd, nooit geladen; andere DTDs/entiteiten en afwijkende namespaces worden geweigerd. Geldige NZBs worden in de database gecachet, niet in losse bestanden.
 
 ## Opslag
 - `spotnet_spots`: een rij per message-ID, met volledige XML en uitgelezen metadata.
 - `spotnet_comments`: geimporteerde reacties, gekoppeld aan de hash van de originele spot message-ID.
 - `spotnet_images`: afbeeldingcache als database-BLOB.
+- `spotnet_nzbs`: gevalideerde, uitgepakte NZB-cache als MEDIUMBLOB; foreign key ruimt op bij spotverwijdering.
+- `spotnet_newznab_categories`: spot/standaardcategorie-index, met categoriezoekindex. Hoofdgroep en toepasselijke subgroepen worden samen opgeslagen.
+- `user_api_keys`: een SHA256-keyhash per username, creatiedatum en atomair begrensd aanvraagvenster; foreign key ruimt op bij userverwijdering. De willekeurige key zelf staat niet in deze tabel.
 - `spotnet_spot_categories`: genormaliseerde categoriecodes met hoofdgroep (`0:a9`), geindexeerd voor SQL-filters.
 - `user_spot_columns`: optionele kolomoverride per username en protocol-hoofdgroep; foreign key ruimt overrides op bij userverwijdering. Globale standaarden staan als JSON onder `app_settings.admin.spot_columns`.
 - `post_comments`: lokale reacties; op de spotdetailpagina samen met Usenet-reacties getoond, met bronvermelding.
@@ -77,10 +81,24 @@ Afbeeldingen uit onderdrukt thumbnails/coverkolom, posters, lightboxlinks en her
 - Corrupte XML en verdwenen artikelen worden geteld en gemeld. Transport- of databasefouten breken de run af; er wordt geen lege succesvolle fallback gemaakt.
 - Verbose batchoutput toont het geldige UTC-datumbereik en afzonderlijke aantallen te oud, bestaand, geen spot, ongeldig, verdwenen en opgeslagen. Het totale aantal opgeslagen berichten blijft zichtbaar. Een corrupt optioneel volledig veld geeft een waarschuwing, geen afwijzing van verder bruikbare spotmetadata.
 
+## Newznab-MVP
+Migratie `20261018_0011_newznab_nzb` voegt drie tabellen toe en bouwt de categorie-index ook voor bestaande spots in transactiebatches van 250 op. Nieuwe saves en expliciete refresh schrijven lokale en Newznab-categorieen samen. Refresh invalideert alleen een NZB-cache waarvan segmentverwijzingen zijn gewijzigd. Gewone duplicaten veranderen deze cache niet.
+
+`Newznab\Categories` vertaalt onafhankelijk de bestaande Spotnet-classificatie naar standaard 1000-8000 hoofdgroepen en beschikbare subgroepen. Adult overrult onjuiste niet-adult markering. Geen Spotweb-specifieke 100000+-aliases. Standaardreferenties: [Newznab API](https://newznab.readthedocs.io/en/latest/misc/api.html) en [Prowlarr-categorieen](https://github.com/Prowlarr/Prowlarr/blob/develop/src/NzbDrone.Core/Indexers/NewznabStandardCategory.cs).
+
+`/api` en `/api/` worden voor `session_start()` afgehandeld. `admin.newznab` is strikt boolean en standaard false. Admin beheert alleen de globale schakelaar; iedere gebruiker kan daarna zonder individuele admin-goedkeuring eigen 256-bit keys maken/roteren/intrekken via sessie+CSRF. Het ruwe geheim gaat eenmaal via server-side sessionflash naar de eigen voorkeurpagina (`private, no-store`), nooit via een redirect of auditlog. Vernieuwen vervangt de hash; intrekken werkt ook wanneer de API globaal uit staat.
+
+`Api` ondersteunt GET/HEAD, XML `caps/search/tvsearch/movie/get` en Newznab-XML-fouten. Publieke caps tonen geen XXX; geauthenticeerde caps volgen de gebruiker. Een geldige key is nodig voor zoeken/downloaden en heeft een atomair vast venster van 120 aanvragen/minuut. Feeds en downloads zijn private/no-store/no-referrer. Links gebruiken gevalideerde `APP_URL`, niet de aangeleverde Host-header. Productie dient via HTTPS te werken en querystrings uit accesslogs te weren: de standaard Newznab-downloadlinks bevatten de key.
+
+`Search` gebruikt SQL: EN tussen titelwoorden, OF tussen categoriecodes, EXISTS tegen de categorie-index, zichtbaarheid en niet-lege NZB-verwijzingen. Voor Newznab geldt offset/limit met stabiele datum/ID-sortering en een echte total; de bestaande browser gebruikt onveranderd keysets. Titelzoeken ondersteunt ook dotted releasebenamingen, tvsearch numerieke SxxExx/NxNN of seizoenpatronen, movie een titeljaar. Caps adverteert geen externe IDs; aangeboden maar niet ondersteunde ID-filters worden expliciet geweigerd. Geen dagelijkse/absolute episode-metadata of volledige multi-episode-parser. Enclosure length is 0 zolang de NZB niet is opgehaald; de releasegrootte staat apart als `newznab:attr name="size"`.
+
+De sessiebeveiligde browserdownload en keybeveiligde API-download delen `SpotNzbService`. Beschikbaarheid van NZB-segmenten garandeert niet dat een provider de bodies nog heeft. Transport-/inflate-/validatiefouten worden gelogd en expliciet teruggegeven zonder cache-entry. Deze milestone levert geen downloader-forwarding of historie en claimt geen succesvolle productie-Prowlarr/Sonarr-acceptatie op basis van alleen protocolfixtures.
+
 ## Web en beveiligingsgrenzen
 - `/spots`: individuele spots, stapelbare type-/subcategoriefilters, titelzoekfunctie, keyset-batches, optionele thumbnails en een initieel gesloten preview.
 - `/spots/view?key=...`: afbeelding, metadata, omschrijving, reacties en een CSRF-beveiligd formulier voor lokale reacties.
 - `/spots/image?key=...`: alleen voor ingelogde gebruikers met zichtbaarheidstoegang; rasterafbeeldingen met `nosniff` en databasecache. Lijst, detail en afbeeldingen gebruiken `private, no-store`, zodat ingetrokken zichtbaarheid niet via een normale browsercache wordt omzeild.
+- `/spots/nzb?key=...`: ingelogde gebruiker met zichtbaarheidstoegang, onafhankelijk van de globale API-schakelaar en afbeeldingsinstelling.
 - Usenet XML wordt zonder DTD/entiteiten verwerkt. Segment-IDs worden gevalideerd voor NNTP-gebruik.
 - Omschrijvingen en Usenet-reacties worden via een DOM-/Spotnet-opmaak-allowlist opgebouwd; lokale reacties worden als tekst geescapet. Onbetrouwbare HTML of attributen worden nooit rechtstreeks uitgevoerd.
 - Spotterhandtekeningen worden nog niet geverifieerd. De UI vermeldt daarom expliciet dat identiteit/inhoud onbevestigd is. Dit is geen complete Spotweb trust-/moderatie-implementatie.
@@ -100,5 +118,5 @@ Deze bronnen dienen als protocolreferentie. NNSpotty heeft een eigen parser, ser
 ## Volgende uitbreidingen
 - Handtekeningverificatie en toepassen van moderatie op geverifieerde identiteiten.
 - Verdere Spotnet-tagcompatibiliteit en expliciete compatibiliteit voor afwijkende legacy-XML.
-- NZB-download/forwarding, Newznab en metadata.
+- SABnzbd/NZBGet-forwarding met historie, externe metadata en Newznab-ID-zoekfunctionaliteit.
 - Indexing-jobs, scheduling en performance-optimalisatie van grote backfills.

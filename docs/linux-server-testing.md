@@ -8,6 +8,61 @@ cp .env.example .env
 # vul daarna .env met jouw basis app + DB gegevens
 ```
 
+## Newznab en NZB-downloads
+Voer dit vanuit de bestaande deploymap uit; overschrijf `.env` niet. Pauzeer eerst retrieve-cronjobs en webverkeer tijdens de migratie. Maak een databasebackup met de eigen databasegebruiker, bijvoorbeeld:
+
+```bash
+cd <pad-naar-project>
+umask 022
+read -r -p 'Databasegebruiker: ' DB_USER
+read -r -p 'Databasenaam: ' DB_NAME
+# Voer het databasewachtwoord in bij de prompt, niet in het commando.
+(umask 077; mariadb-dump --single-transaction --host=localhost --user="$DB_USER" --password "$DB_NAME" > "$HOME/nnspotty-before-newznab-$(date +%Y%m%d-%H%M%S).sql")
+# Ga alleen verder als de backup is geslaagd.
+git status --short
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+composer check-platform-reqs
+php bin/console db migrate
+php bin/console db status
+php bin/console db health
+php tests/run.php
+curl -fsS https://nnspotty.hopseflop.nl/health
+```
+
+Gebruik bij een andere databaseserver de bestaande host/poort. Migratie `20261018_0011_newznab_nzb` maakt drie tabellen aan en bouwt standaardcategorieen voor bestaande spots op. Grote indexes kunnen even duren. Stop niet na alleen de DDL: de migratie is pas gereed wanneer `db status` hem als uitgevoerd meldt. Na een onderbreking mag `db migrate` opnieuw worden uitgevoerd.
+
+Controleer in `.env` dat `APP_URL=https://nnspotty.hopseflop.nl` staat, zonder `/api`, subpad, query of fragment; een afsluitende slash is toegestaan. Start daarna webverkeer en retrieve-jobs weer. Laat publieke assets leesbaar (directories 755, assets 644); bescherm `.env` voor de applicatiegebruiker. Gebruik geen globale `chmod -R 777`.
+
+1. Log in als admin en schakel **Newznab API** in. Zonder inschakeling geeft `/api?t=caps` HTTP 503/Newznab 203.
+2. Open als de gewenste gebruiker **Voorkeuren > Persoonlijke Newznab API-key** en maak een key. Kopieer de eenmalige weergave naar een wachtwoordkluis en Prowlarr.
+3. Prowlarr: **Add Indexer > Usenet > Generic Newznab**, URL `https://nnspotty.hopseflop.nl`, API Path `/api`, API Key de persoonlijke key. Test en sla op. Gebruik de door caps aangeboden categorieen, niet Spotwebs custom 100000+-codes.
+4. Zoek handmatig een bekende filmtitel en serietitel in Prowlarr. Controleer TV 5000/5040 en Movies 2000/2040; categorieen zijn OF-selecties. Test ook aflevering/seizoen en inspecteer de echte NZB met je downloader. Een seizoenpakket is niet automatisch een afzonderlijke aflevering. NNSpotty claimt alleen titelzoeken; ID-gebaseerd zoeken en dagelijkse/absolute episodes komen later.
+5. Controleer de gebruikelijke Prowlarr-appsync naar Sonarr. Een geslaagde caps-test bewijst niet dat iedere release correct herkend of via jouw provider nog gedownload kan worden.
+6. Vernieuw de key onder Voorkeuren: oude links moeten direct falen. Werk Prowlarr daarna bij. Intrekken werkt ook wanneer admin Newznab uitzet.
+7. Controleer persoonlijke/globale erotica-blokkades ook met de API-key. Globaal uit blokkeert zelfs admins; publieke caps adverteren geen XXX.
+8. In detail/preview werkt **NZB downloaden** met een browsersessie ook als Newznab uit staat. Een providerfout levert een zichtbare fout op, geen leeg succesbestand.
+
+Protocolcontrole zonder key in de shellhistorie of procesargumenten:
+
+```bash
+curl -fsS 'https://nnspotty.hopseflop.nl/api?t=caps'
+# Bash: key alleen in een lokale variabele; deel API-responses/logs niet.
+read -r -s -p 'Persoonlijke API-key: ' NNSPOTTY_API_KEY; printf '\n'
+printf '%s' "$NNSPOTTY_API_KEY" |
+  curl -fsS --get --data-urlencode 'apikey@-' \
+    --data-urlencode 't=tvsearch' --data-urlencode 'q=Snowfall' \
+    --data-urlencode 'season=3' --data-urlencode 'cat=5000' \
+    'https://nnspotty.hopseflop.nl/api'
+unset NNSPOTTY_API_KEY
+```
+
+Verwacht geldige RSS met `newznab:response`, standaardcategorieen, stabiele GUIDs en `application/x-nzb`-enclosures. De enclosure-URL bevat de key; bewaar of deel deze uitvoer niet publiek. `size` is de releasegrootte, enclosure length is voorlopig 0 (NZB wordt pas bij download geladen). Ongeldige parameters geven XML-code 201, ongeldige keys 100, onbekende functies/ID-zoeken 203, ontbrekende NZBs 300; aanvraaglimiet geeft HTTP 429. ID-zoeken wordt niet stilletjes omgezet naar ongefilterde resultaten.
+
+**Logging:** standaard Newznab zet keys in querystrings. Pas Apache/Nginx/reverse-proxy-accesslogs en observability aan om querystrings niet te loggen. Een Apache-vhost kan bijvoorbeeld een eigen `LogFormat "%a %t \"%m %U %H\" %>s %b" nnspotty_noquery` gebruiken met `CustomLog ${APACHE_LOG_DIR}/nnspotty-access.log nnspotty_noquery`; gebruik daarin geen `%r`, `%q` of Referer. Verwijder/redigeer ook querystrings in eventuele proxy-/Prowlarr-debuglogs. De applicatie-auditlog bevat alleen acties, geen keys.
+
+De bestaande geisoleerde integratietests omvatten ook de volledige API/NZB-route; zie hieronder. SABnzbd/NZBGet-forwarding en downloadhistorie zijn nog niet toegevoegd.
+
 ## Dependencies + database
 ```bash
 composer install --no-dev --optimize-autoloader

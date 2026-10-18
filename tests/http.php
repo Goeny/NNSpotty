@@ -18,6 +18,7 @@ foreach (explode(';', substr($dsn, 6)) as $parameter) {
     }
 }
 $environment = array_merge(getenv(), [
+    'APP_URL' => 'http://127.0.0.1:' . $httpPort,
     'DB_HOST' => $dbConfig['host'] ?? '127.0.0.1',
     'DB_PORT' => $dbConfig['port'] ?? '3306',
     'DB_DATABASE' => $database,
@@ -369,6 +370,7 @@ try {
     $pdo->prepare('DELETE FROM post_comments WHERE post_id = ?')->execute([$adult['id']]);
     $pdo->prepare('DELETE FROM spotnet_spots WHERE id = ?')->execute([$adult['id']]);
     $state->setEroticaAllowed(false);
+    require __DIR__ . '/newznab-http.php';
 } catch (Throwable $exception) {
     rewind($httpLog);
     fwrite(STDERR, stream_get_contents($httpLog));
