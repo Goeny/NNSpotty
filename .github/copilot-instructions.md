@@ -63,6 +63,12 @@ NNSpotty is een volledig nieuwe webapplicatie (geen voortbouw op legacy Spotweb-
 - Zodra aanpassingen gereed en gevalideerd zijn, commit en push de taakgerelateerde wijzigingen naar de huidige Git-branch zonder een apart verzoek af te wachten.
 - Neem geen ongerelateerde wijzigingen of secrets mee. Gebruik geen force-push; meld expliciet als committen of pushen niet lukt.
 
+## Toekomstige metadata-uitbreiding
+- Breid metadata op termijn uit naar overige categorieen, niet alleen films en series.
+- Onderzoek passende providers per domein: muziek via [MusicBrainz](https://musicbrainz.org/), games via [IGDB](https://www.igdb.com/) of [RAWG](https://rawg.io/), software via [AppStream](https://www.freedesktop.org/software/appstream/docs/) en boeken via [Open Library](https://openlibrary.org/).
+- Dit zijn roadmap-opties, geen reeds geimplementeerde koppelingen of definitieve providerkeuzes. Beoordeel bij uitwerking beschikbaarheid, databron/identificatie, API-toegang, licentie, attributie, limieten, caching en gebruikersvoorkeuren. AppStream is een metadatastandaard/catalogus-ecosysteem, geen universele softwarezoek-API.
+- Houd de domeinlagen modulair en documenteer gekozen providers en grenzen in README en second brain.
+
 ## Versioning en codenaambeleid
 - Start development op **0.0.1**.
 - Final release wordt **1.0.0**.

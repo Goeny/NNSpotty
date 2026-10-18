@@ -398,6 +398,15 @@ final class Migrator
                     FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             ],
+            '20261018_0014_browse_visits' => [
+                'CREATE TABLE IF NOT EXISTS user_browse_visits (
+                    username VARCHAR(191) PRIMARY KEY,
+                    last_visit_at DATETIME(6) NOT NULL,
+                    FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'ALTER TABLE spotnet_spots MODIFY COLUMN created_at DATETIME(6) NOT NULL',
+                'ALTER TABLE spotnet_spots ADD INDEX IF NOT EXISTS idx_spotnet_created_at (created_at)',
+            ],
         ];
     }
 }

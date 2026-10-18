@@ -125,6 +125,34 @@ try {
     $soundList = httpFixture($httpPort, '/spots?category=Geluid', $cookie);
     check($soundList['status'] === 200 && str_contains($soundList['body'], '>FLAC<span')
         && !str_contains($soundList['body'], '>WEBRip<span'), 'Hoofdcategorielink wisselt de bijbehorende sidebar via echte HTTP-route');
+    $firstVisitPage = httpFixture($httpPort, '/spots?category=Beeld&q=Visit+Route+Fixture', $cookie);
+    check(str_contains($firstVisitPage['body'], '0 nieuw sinds je vorige bezoek'), 'Eerste browsersessie begint met nul nieuwe spots, niet het volledige historische totaal');
+    $routeVisitSpot = \NnSpotty\Usenet\SpotnetParser::spot('visit-route@example.invalid', Fixtures::headers('visit-route@example.invalid'));
+    $routeVisitSpot['title'] = 'Visit Route Fixture';
+    $routeVisitSpot['subcategories'] = ['1z00', '1a09'];
+    $routeVisitSpot['posted_at'] = '2000-01-01 00:00:00';
+    $spots->saveSpot($routeVisitSpot, 'free.pt');
+    $visitPath = '/spots?category=Beeld&q=Visit+Route+Fixture';
+    $visitPage = httpFixture($httpPort, $visitPath, $cookie);
+    check(str_contains($visitPage['body'], '1 nieuw sinds je vorige bezoek') && str_contains($visitPage['body'], '1 individuele spots'),
+        'Nieuw geimporteerde oude post telt als nieuw sinds bezoek, niet op basis van publicatiedatum');
+    check(str_contains(httpFixture($httpPort, $visitPath, $cookie)['body'], '1 nieuw sinds je vorige bezoek')
+        && str_contains(httpFixture($httpPort, '/spots/view?key=' . $routeVisitSpot['id'], $cookie)['body'], '1 nieuw sinds je vorige bezoek'),
+        'Herladen, filters en detailnavigatie houden de huidige sessiegrens vast');
+    $visitBeforeBatch = $pdo->query("SELECT last_visit_at FROM user_browse_visits WHERE username = 'http-tester'")->fetchColumn();
+    httpFixture($httpPort, '/spots?batch=1', $cookie);
+    check($pdo->query("SELECT last_visit_at FROM user_browse_visits WHERE username = 'http-tester'")->fetchColumn() === $visitBeforeBatch,
+        'Achtergrondbijladen markeert geen nieuw bezoek of activiteit');
+    $newVisitCookie = '';
+    $newVisitLogin = httpFixture($httpPort, '/login', $newVisitCookie);
+    preg_match('/name="_csrf" value="([^"]+)"/', $newVisitLogin['body'], $newVisitToken);
+    httpFixture($httpPort, '/login', $newVisitCookie, ['_csrf' => $newVisitToken[1], 'username' => 'http-tester', 'password' => $password]);
+    $nextVisitPage = httpFixture($httpPort, $visitPath, $newVisitCookie);
+    check(str_contains($nextVisitPage['body'], '0 nieuw sinds je vorige bezoek') && !str_contains($nextVisitPage['body'], '1 nieuw sinds je vorige bezoek')
+        && str_contains($nextVisitPage['body'], '1 individuele spots'), 'Nieuwe browsersessie gebruikt laatste browseactiviteit als grens; totale lijst verandert niet');
+    check(str_contains(httpFixture($httpPort, $visitPath, $cookie)['body'], '1 nieuw sinds je vorige bezoek'),
+        'Nieuwe login op tweede apparaat wist de teller van een al geopende sessie niet');
+    $pdo->prepare('DELETE FROM spotnet_spots WHERE id = ?')->execute([$routeVisitSpot['id']]);
     $oldDescription = $spots->getSpot($spotId)['description'];
     $descriptionUpdate = $pdo->prepare('UPDATE spotnet_spots SET description = :description WHERE id = :id');
     $descriptionUpdate->execute(['description' => '<p>Route <strong>opmaak</strong></p><script>unsafeFixture()</script>', 'id' => $spotId]);

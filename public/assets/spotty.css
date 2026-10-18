@@ -1,10 +1,52 @@
+:root {
+    --plex-accent: #e5a00d;
+    --plex-accent-hover: #f2b830;
+    --plex-accent-active: #cc8d09;
+    --plex-accent-text: #f2b830;
+    --plex-accent-rgb: 229, 160, 13;
+}
+[data-bs-theme="light"], html:not([data-bs-theme]) { --plex-accent-text: #855700; }
+.btn-primary, .btn-warning {
+    --bs-btn-color: #191919;
+    --bs-btn-bg: var(--plex-accent);
+    --bs-btn-border-color: var(--plex-accent);
+    --bs-btn-hover-color: #191919;
+    --bs-btn-hover-bg: var(--plex-accent-hover);
+    --bs-btn-hover-border-color: var(--plex-accent-hover);
+    --bs-btn-focus-shadow-rgb: var(--plex-accent-rgb);
+    --bs-btn-active-color: #191919;
+    --bs-btn-active-bg: var(--plex-accent-active);
+    --bs-btn-active-border-color: var(--plex-accent-active);
+    --bs-btn-disabled-color: #191919;
+    --bs-btn-disabled-bg: var(--plex-accent);
+    --bs-btn-disabled-border-color: var(--plex-accent);
+}
+.btn-outline-primary {
+    --bs-btn-color: var(--plex-accent-text);
+    --bs-btn-border-color: var(--plex-accent);
+    --bs-btn-hover-color: #191919;
+    --bs-btn-hover-bg: var(--plex-accent);
+    --bs-btn-hover-border-color: var(--plex-accent);
+    --bs-btn-focus-shadow-rgb: var(--plex-accent-rgb);
+    --bs-btn-active-color: #191919;
+    --bs-btn-active-bg: var(--plex-accent-active);
+    --bs-btn-active-border-color: var(--plex-accent-active);
+    --bs-btn-disabled-color: var(--plex-accent-text);
+    --bs-btn-disabled-bg: transparent;
+    --bs-btn-disabled-border-color: var(--plex-accent);
+}
+.btn-link { --bs-btn-color: var(--plex-accent-text); --bs-btn-hover-color: var(--plex-accent-text); --bs-btn-active-color: var(--plex-accent-text); --bs-btn-focus-shadow-rgb: var(--plex-accent-rgb); }
+.badge.text-bg-primary, .badge.text-bg-warning { color: #191919 !important; background-color: var(--plex-accent) !important; }
+.nav-pills { --bs-nav-pills-link-active-bg: var(--plex-accent); --bs-nav-pills-link-active-color: #191919; --bs-nav-link-color: var(--plex-accent-text); --bs-nav-link-hover-color: var(--plex-accent-text); }
+.form-check-input:checked { background-color: var(--plex-accent); border-color: var(--plex-accent); }
+.form-check-input:focus { border-color: var(--plex-accent); box-shadow: 0 0 0 .25rem rgba(var(--plex-accent-rgb), .25); }
 .spotty {
     --header-height: 116px;
     --spot-bg: #0b1119;
     --spot-panel: #141d29;
     --spot-border: #293547;
     --spot-muted: #a5b4cb;
-    --spot-accent: #3781ff;
+    --spot-accent: var(--plex-accent);
     --bs-body-bg: var(--spot-bg);
     --bs-body-color: #e7ecf6;
     --bs-secondary-color: var(--spot-muted);
@@ -63,8 +105,8 @@
 .application-logo { display: block; width: 100%; max-width: 384px; height: auto; margin-inline: auto; border-radius: 14px; }
 .nav-caption { margin: 16px 10px 12px; font-size: .7rem; color: var(--spot-muted); text-transform: uppercase; letter-spacing: .1em; }
 .side-link { display: flex; justify-content: space-between; gap: 8px; padding: 10px 12px; margin: 3px 0; color: var(--spot-muted); border-radius: 7px; border-left: 2px solid transparent; }
-.side-link:hover, .side-link.active { color: var(--bs-body-color); background: rgba(55, 129, 255, .14); border-left-color: var(--spot-accent); }
-.side-count { border-radius: 4px; padding: 0 6px; background: var(--spot-panel); font-size: .75rem; }
+.side-link:hover, .side-link.active { color: var(--bs-body-color); background: rgba(var(--plex-accent-rgb), .14); border-left-color: var(--spot-accent); }
+.side-count { border-radius: 4px; padding: 0 6px; background: rgba(var(--plex-accent-rgb), .14); color: var(--plex-accent-text); font-size: .75rem; }
 .sidebar-footer { margin-top: auto; padding: 24px 8px 0; }
 .workspace { margin-left: 218px; min-width: 0; padding-top: var(--header-height); }
 .topbar { position: fixed; inset: 0 0 auto; height: var(--header-height); z-index: 20; display: flex; flex-direction: column; justify-content: center; gap: 10px; padding: 10px 26px; border-bottom: 1px solid var(--spot-border); background: var(--spot-panel); }
@@ -79,7 +121,7 @@
 .page-heading h1 { font-weight: 750; letter-spacing: -.03em; }
 .category-pills { display: flex; gap: 8px; min-width: 0; overflow-x: auto; flex-shrink: 0; }
 .category-pills a { border: 1px solid var(--spot-border); border-radius: 9px; color: var(--bs-body-color); padding: 6px 13px; background: var(--spot-panel); }
-.category-pills a.active { background: var(--spot-accent); color: #fff; }
+.category-pills a.active { background: var(--spot-accent); color: #191919; }
 .browse-grid { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
 .spot-list { display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 1; }
 .spot-list .table-responsive { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
@@ -114,7 +156,7 @@
 .image-failed:not(.spot-poster) { width: 42px; height: 54px; }
 [data-image-fallback]:not([hidden]) { position: absolute; inset: 0; }
 [data-image-fallback] > .cover-placeholder { width: 100%; height: 100%; min-height: 0; }
-.format-badge { display: inline-block; max-width: 100%; border-radius: 4px; padding: 3px 6px; color: #fff; background: #226cd9; white-space: normal; overflow-wrap: anywhere; }
+.format-badge { display: inline-block; max-width: 100%; border-radius: 4px; padding: 3px 6px; color: #191919; background: var(--plex-accent); white-space: normal; overflow-wrap: anywhere; }
 .filter-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 14px; margin-bottom: 18px; border: 1px solid var(--spot-border); border-radius: 10px; }
 .filter-bar select { flex: 1 1 240px; width: auto; }
 .filter-bar input { flex: 1 1 180px; width: auto; }
@@ -176,7 +218,7 @@
 .preview .poster-enlarge .spot-poster-image { max-height: 165px; }
 .preview .spot-hero h2 { font-size: 1.3rem; }
 .tag-row { display: flex; flex-wrap: wrap; gap: 7px; margin: 16px 0; }
-.tag-chip { font-size: .75rem; padding: 5px 10px; border: 1px solid var(--spot-border); border-radius: 20px; background: var(--spot-bg); }
+.tag-chip { font-size: .75rem; padding: 5px 10px; border: 1px solid var(--plex-accent); border-radius: 20px; background: var(--spot-bg); color: var(--plex-accent-text); }
 .metadata-strip { display: flex; flex-wrap: wrap; gap: 16px 30px; padding: 20px; border: 1px solid var(--spot-border); background: var(--spot-panel); border-radius: 10px; margin-bottom: 20px; }
 .metadata-strip div { flex: 1; min-width: 130px; overflow-wrap: anywhere; }
 .metadata-strip small { display: block; color: var(--spot-muted); margin-bottom: 6px; }

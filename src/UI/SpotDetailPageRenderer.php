@@ -11,6 +11,7 @@ final class SpotDetailPageRenderer
     /** @param array<string, mixed> $spot
      *  @param list<array<string, mixed>> $comments
      *  @param list<array<string, mixed>> $categories
+     *  @param list<array<string, mixed>> $facets
      */
     public static function render(
         string $username,
@@ -25,7 +26,8 @@ final class SpotDetailPageRenderer
         bool $showComments = true,
         bool $imagesEnabled = true,
         bool $retrieveComments = true,
-        string $metadataControls = ''
+        string $metadataControls = '',
+        array $facets = []
     ): string {
         $id = h($spot['id']);
         $summary = self::summary($spot, false, $imagesEnabled, $showComments, metadataLink: $metadataControls !== '');
@@ -70,7 +72,7 @@ HTML;
 {$commentsSection}
 {$metadataControls}
 HTML;
-        return SpotLayout::render($spot['title'], $username, $isAdmin, $csrfField, $content, $categories, $spot['category'], $theme, showErotica: $showErotica);
+        return SpotLayout::render($spot['title'], $username, $isAdmin, $csrfField, $content, $categories, $spot['category'], $theme, facets: $facets, showErotica: $showErotica);
     }
 
     /** @param array<string, mixed> $spot */

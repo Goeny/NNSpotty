@@ -48,11 +48,14 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 - Onder andere films, series, boeken, afbeeldingen, muziek, livesets, podcasts, luisterboeken, spellen en applicaties.
 - Subcategorieen als stapelbare **EN-filters**, ook binnen dezelfde dimensie; actieve filters zijn afzonderlijk verwijderbaar. Zoektekst en filters blijven behouden bij bijladen.
 - Categorieaantallen volgen de zichtbaarheid van de gebruiker. Onbekende categoriecodes blijven bewaard en zichtbaar in technische details.
+- Achter subcategoriefilters staat **nieuw sinds je vorige bezoek**, niet het historische totaal. De grens is persoonlijk en blijft tijdens dezelfde browsersessie gelijk bij navigeren/herladen. Nieuwe imports tijdens het bezoek komen erbij; de overzichtskop blijft het totale aantal passende spots tonen.
+- De eerste keer na installatie/upgrade wordt een bezoekgrens vastgelegd: bestaande historie begint niet als nieuw. Bij een volgende browsersessie (of uit-/inloggen) geldt je laatste overzicht-/detailbezoek als grens. Tabs delen de sessie; de browser kan sessiecookies bij sessieherstel behouden. Dit zijn geen individuele gelezen/ongelezen-markeringen.
 - Infinite loading zonder paginanummers, met een knop **Meer resultaten laden** en opnieuw proberen na een fout. Persoonlijke laadbatch van 10-200 resultaten.
 - Een enkele klik opent een sluitbare preview die van rechts in-/uitschuift. Dubbelklik opent de volledige detailpagina.
 - Preview met eigen scrollgebied, Escape en focusherstel; toetsenbordvriendelijke titellinks. Zonder JavaScript openen titels de volledige spot en is er een vervolglink.
 - Instelbare overzichtskolommen per hoofdgroep: globale adminstandaarden en persoonlijke overrides met herstel naar de actuele globale standaard. Titel blijft verplicht; **Alle** gebruikt een vaste gemengde kolomset.
 - Responsive kaarten op kleine schermen, afbrekende lange waarden en geen horizontale tabelscroll.
+- Plex-geinspireerde oranje/gouden accenten voor primaire knoppen, badges, filterlabels, selectieknoppen en schakelaars, in donker en licht; overige layout en semantische fout-/succes-/informatiekleuren blijven behouden.
 
 ### Detailpagina, afbeeldingen en releasekwaliteit
 
@@ -355,6 +358,10 @@ Vervang placeholders en quote echte argumenten waar nodig. De retrieve-commando'
 
 `db cleanup` verwijdert oude **lokale reacties**, retrieve-runs, loginpogingen en auditregels volgens de dagengrens, plus verlopen TVDB-providercache onafhankelijk van die grens. Dit is geen algemene spotretentie-purge; voer het niet blind uit als je die historie wilt bewaren.
 
+Nieuwtellers gebruiken de **eerste importtijd** van een spot, niet de publicatiedatum: ook een nieuw geimporteerde oudere post kan nieuw voor je zijn. Refresh/duplicaten maken bestaande spots niet opnieuw nieuw. Alleen volledige overzicht-/detailbezoeken bewaren browseactiviteit; achtergrondbatches, Newznab, afbeeldingen, TVDB en SABnzbd-polling schuiven de bezoekgrens niet op. Zoektekst, actieve EN-filters en erotica-zichtbaarheid blijven van toepassing.
+
+Migratie `20261018_0014_browse_visits` bewaart de laatste browseactiviteit per username, verhoogt de importtijdprecisie naar microseconden en voegt een tijdindex toe. Geen nieuwe retrieve nodig. Pauzeer verkeer/retrieval en maak een backup voor de schemawijziging; de wijziging aan de spotstabel kan bij een grote index tijd kosten.
+
 ### Bestaande installatie bijwerken
 
 Maak een beveiligde databasebackup en configuratiebackup; pauzeer retrieve-jobs en webverkeer bij schemawijzigingen. Voer vanuit de bestaande deploymap op `nnspotty.hopseflop.nl` uit:
@@ -415,6 +422,7 @@ Een fixturetest bewijst geen providerbeschikbaarheid. Controleer met je eigen ac
 - Geen NZBGet-forwarding, afgeronde SABnzbd-historiesynchronisatie of SABnzbd-pauzeer/verwijderbediening.
 - Geen aparte IMDb-provider, klikbare cast-/crew-/studio-/netwerkontdekfilters of Newznab IMDb/TVDB-ID-zoeken. Externe IDs worden waar beschikbaar wel bewaard voor vervolgwerk.
 - Geen automatische filmkeuze voor onduidelijke collecties of niet-unieke titel-/jaarmatches.
+- Roadmap: metadata voor andere categorieen, bijvoorbeeld muziek via MusicBrainz, games via IGDB/RAWG, software via AppStream-catalogi en boeken via Open Library. Dit zijn nog geen geimplementeerde koppelingen of definitieve providerkeuzes; API-toegang, matching, licentie, attributie en limieten moeten per domein worden uitgewerkt.
 - Geimporteerde inhoud blijft onbevestigd; erotica-classificatie gebruikt categoriecodes, geen inhoudsanalyse. Zorg zelf voor passende toegang, providerabonnementen en rechten op inhoud.
 
 ## Documentatie en bijdragen
@@ -458,6 +466,7 @@ Houd bij nieuwe of gewijzigde features ook deze README actueel: functionaliteit,
 | [Spotweb](https://github.com/spotweb/spotweb) | Functionele/protocolreferentie voor Spotnet, categorieen en oude emoticoncodes; NNSpotty gebruikt een nieuwe eigen implementatie, geen legacy Spotweb-codebasis |
 | [Plex](https://www.plex.tv/) | Visuele inspiratie voor thema/detailpresentatie; geen Plex-koppeling of playback |
 | [NZBGet](https://nzbget.com/) en [IMDb](https://www.imdb.com/) | Genoemd als vervolgdoel, niet als huidige werkende downloader-/metadataprovider |
+| [MusicBrainz](https://musicbrainz.org/), [IGDB](https://www.igdb.com/), [RAWG](https://rawg.io/), [AppStream](https://www.freedesktop.org/software/appstream/docs/), [Open Library](https://openlibrary.org/) | Roadmap-opties voor muziek-/game-/software-/boekmetadata; nog niet gebruikt als koppeling. AppStream is een standaard/catalogus-ecosysteem, geen universele zoek-API |
 
 ### Hosting, ontwikkeling en validatie
 

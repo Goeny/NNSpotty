@@ -83,6 +83,13 @@
 - Erotica blijft standaard verborgen. Zet dit indien gewenst globaal aan in admin; daarna moet iedere gebruiker zelf opt-innen onder voorkeuren.
 - Controleer `/assets/spotty.css`: deze moet met `Content-Type: text/css` worden geserveerd. Bij Apache met projectroot als documentroot is de aangepaste root `.htaccess` nodig; met `public/` als documentroot wordt het bestand direct geserveerd.
 
+## Upgrade persoonlijke nieuwtellers en Plex-accenten
+- Pauzeer webverkeer en retrieve-jobs, maak een beveiligde databasebackup, installeer dependencies en draai `php bin/console db migrate` voor `20261018_0014_browse_visits`.
+- Deze migratie voegt persoonlijke browseactiviteit toe en verandert de importtijd naar microseconden met index. Op een grote spotstabel kan de ALTER tijd kosten; plan een onderhoudsvenster.
+- Geen nieuwe retrieve of providerkey nodig. Eerste bezoek na upgrade legt een beginpunt vast; bestaande historie verschijnt niet als nieuw. Volgende browsersessies tellen nieuwe imports sinds de laatste browseactiviteit, met een vaste grens tijdens dezelfde sessie.
+- Herlaad de stylesheet met Ctrl+F5. Knoppen/badges/filterlabels gebruiken oranje/goud in donker/licht; de overige layout blijft gelijk.
+- Zie [Linux-validatie](./linux-server-testing.md#persoonlijke-nieuwtellers-en-plex-accenten) voor servercommando's en een controle met twee sessies.
+
 ## Upgrade interactief overzicht en kolominstellingen
 - Voer `composer install --no-dev --optimize-autoloader` en `php bin/console db migrate` uit. Migratie `20261018_0009_user_spot_columns` voegt persoonlijke kolomkeuzes toe, zonder bestaande inhoud te veranderen of nieuwe retrieval.
 - Controleer dat `/assets/spots.js` als JavaScript en `/assets/spotty.css` als CSS worden geserveerd; herlaad zonder oude assetcache.

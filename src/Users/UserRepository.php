@@ -33,6 +33,28 @@ final class UserRepository
         return $statement->rowCount();
     }
 
+    public function recordBrowseVisit(string $username): string
+    {
+        $this->pdo->beginTransaction();
+        try {
+            $insert = $this->pdo->prepare('INSERT INTO user_browse_visits (username, last_visit_at)
+                VALUES (:username, UTC_TIMESTAMP(6)) ON DUPLICATE KEY UPDATE username = VALUES(username)');
+            $insert->execute(['username' => $username]);
+            $select = $this->pdo->prepare('SELECT last_visit_at FROM user_browse_visits WHERE username = :username FOR UPDATE');
+            $select->execute(['username' => $username]);
+            $previous = $select->fetchColumn();
+            if (!is_string($previous)) throw new \RuntimeException('Vorig spotbezoek kon niet worden gelezen.');
+            $update = $this->pdo->prepare('UPDATE user_browse_visits
+                SET last_visit_at = GREATEST(last_visit_at, UTC_TIMESTAMP(6)) WHERE username = :username');
+            $update->execute(['username' => $username]);
+            $this->pdo->commit();
+            return $previous;
+        } catch (\Throwable $exception) {
+            $this->pdo->rollBack();
+            throw $exception;
+        }
+    }
+
     public function updatePassword(string $username, string $password): int
     {
         $statement = $this->pdo->prepare(

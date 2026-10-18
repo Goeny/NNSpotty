@@ -145,7 +145,8 @@ HTML;
         $category = SpotCategories::HEADS[$head];
         $base = ['category' => $category, 'q' => $search];
         $html = '<p class="nav-caption">' . h($category) . '</p><a class="side-link" href="'
-            . h('/spots?' . http_build_query($base)) . '">Alles in ' . h($category) . '</a>';
+            . h('/spots?' . http_build_query($base)) . '">Alles in ' . h($category) . '</a>'
+            . '<p class="small text-body-secondary px-2">Nieuw sinds je vorige bezoek. Tellers blijven tijdens deze browsersessie staan.</p>';
         foreach (SpotCategories::dimensions($head) as $dimension => $name) {
             $html .= '<details class="category-group" open><summary>' . h($name) . '</summary>';
             foreach (SpotCategories::definitions()[$head][$dimension] as $number => $label) {
@@ -156,7 +157,8 @@ HTML;
                     continue;
                 }
                 $active = in_array($code, $selected, true) ? ' active' : '';
-                $count = '<span class="side-count">' . (int) ($counts[$code] ?? 0) . '</span>';
+                $count = '<span class="side-count" title="Nieuw sinds je vorige bezoek" aria-label="'
+                    . (int) ($counts[$code] ?? 0) . ' nieuw sinds je vorige bezoek">' . (int) ($counts[$code] ?? 0) . '</span>';
                 $html .= '<a class="side-link' . $active . '"' . ($active !== '' ? ' aria-current="page"' : '') . ' href="'
                     . h('/spots?' . http_build_query($base + ['subcategory' => implode(',', SpotFilters::toggle($selected, $code))])) . '">' . h($label) . $count . '</a>';
             }

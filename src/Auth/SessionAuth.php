@@ -61,6 +61,16 @@ final class SessionAuth
         return $this->user() !== null;
     }
 
+    public function newSpotsSince(): string
+    {
+        $user = $this->user();
+        if ($user === null) throw new \LogicException('Login vereist voor persoonlijke spottellers.');
+        $previous = $this->users->recordBrowseVisit($user['username']);
+        // Keep the previous visit boundary fixed across navigation and refreshes.
+        $_SESSION[self::SESSION_KEY]['new_spots_since'] ??= $previous;
+        return $_SESSION[self::SESSION_KEY]['new_spots_since'];
+    }
+
     public function isAdmin(): bool
     {
         $user = $this->user();

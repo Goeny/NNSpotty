@@ -46,7 +46,7 @@ final class SpotRepository
                      posted_at, website, tag, image_url, image_segments, nzb_segments, full_xml, browse_type, is_erotica, created_at)
                  VALUES
                     (:id, :message_id, :group_name, :title, :description, :poster, :newsreader, :category, :subcategories, :size,
-                     :posted_at, :website, :tag, :image_url, :image_segments, :nzb_segments, :full_xml, :browse_type, :is_erotica, UTC_TIMESTAMP())
+                     :posted_at, :website, :tag, :image_url, :image_segments, :nzb_segments, :full_xml, :browse_type, :is_erotica, UTC_TIMESTAMP(6))
                  ON DUPLICATE KEY UPDATE ' . ($refresh ? 'title = VALUES(title), description = VALUES(description),
                     poster = VALUES(poster), newsreader = VALUES(newsreader), category = VALUES(category),
                     subcategories = VALUES(subcategories), size = VALUES(size), posted_at = VALUES(posted_at),
@@ -165,9 +165,13 @@ final class SpotRepository
     }
 
     /** @return list<array<string, mixed>> */
-    public function facets(?string $category, bool $showErotica, string $search = '', array $subcategories = []): array
+    public function facets(?string $category, bool $showErotica, string $search = '', array $subcategories = [], ?string $newSince = null): array
     {
         [$where, $parameters] = $this->filter($category, $showErotica, $subcategories, $search);
+        if ($newSince !== null) {
+            $where .= ($where === '' ? ' WHERE ' : ' AND ') . 's.created_at > :new_since';
+            $parameters['new_since'] = $newSince;
+        }
         $statement = $this->pdo->prepare('SELECT c.code, COUNT(*) AS total FROM spotnet_spot_categories c
             JOIN spotnet_spots s ON s.id = c.spot_id' . $where . ' GROUP BY c.code ORDER BY c.code');
         $statement->execute($parameters);

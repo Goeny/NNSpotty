@@ -232,6 +232,16 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
     Op verzoek van de gebruiker is de README opnieuw opgebouwd met het lokale logo bovenaan, een inventaris van huidige functionaliteit, installatie vanaf een lege database inclusief eerste admin, historische eerste retrieve en incrementeel vervolg, configuratie van Newznab/SABnzbd/TVDB, onderhoud, tests en expliciete grenzen. Third-party runtimecode, protocollen, externe applicaties en ontwikkeltools met links staan als laatste onderdeel, met onderscheid tussen afhankelijkheid, integratie, referentie en toekomstdoel. Broncontrole bevestigt dat opgeslagen spotterlijsten nog niet als filter worden afgedwongen; de README maakt dit expliciet. De projectinstructies verplichten voortaan README-onderhoud bij iedere nieuwe of gewijzigde feature, inclusief configuratie/commando's/beperkingen/third-partygebruik. Geen runtimewijziging, migratie of versie-/codenaamwijziging.
     Validatie: functies/configuratie en commando's gecontroleerd tegen bestaande renderers, console, retrieve-service, dependency-manifest/lockfile en installatiedocumentatie. Lokale documentatielinks/logo gecontroleerd; bestaande TVDB-ankerlink blijft behouden. Alleen documentatie gewijzigd, geen runtime-tests nodig.
 
+69. **Metadata voor alle relevante domeinen als toekomstwerk**
+    Gebruiker wil op termijn metadata voor overige categorieen: muziek bijvoorbeeld MusicBrainz, games IGDB of RAWG, software AppStream en boeken Open Library. Opgenomen in projectinstructies en README als roadmap, niet als bestaande koppelingen of definitieve keuzes. Per domein nog matching/identificatie, databron/API, toegang/licentie, attributie, limieten en opt-in/caching uitwerken. AppStream is een standaard/catalogus-ecosysteem, geen universele softwarezoek-API. De huidige TVDB-integratie blijft ongewijzigd.
+
+70. **Plex-accenten zonder layoutwijziging**
+    Op verzoek worden primaire knoppen, badges, filterlabels/selectiecontrols en schakelaars oranje/goud in plaats van blauw. Gedeelde stylesheet dekt ook login en Bootstrap-hover/focus/active/disabled; donker/licht krijgen leesbare tekstkleuren. Semantische danger/success/info, layout, achtergronden en grafiek blijven gelijk.
+
+71. **Nieuw sinds vorig browsebezoek in filterbadges**
+    Gebruiker kiest expliciet een persoonlijke grens vanaf de vorige browsersessie, vast tijdens hetzelfde bezoek. Overzichttotalen en volledige filterresultaten blijven ongewijzigd; uitsluitend sidebarbadges tellen nieuwe imports. Migratie 0014 bewaart laatste overzicht-/detailactiviteit per username, maakt importtijd microseconde-nauwkeurig en indexeert die. De eerst gelezen vorige tijd blijft in de authsessie bevroren; activiteit wordt transactioneel opgeslagen voor de volgende sessie. Eerste gebruik start op nu zonder de historische database als nieuw te markeren. Login/logout reset de authgrens; tabs delen een sessie, bestaande andere sessies behouden hun grens. Achtergrondbatches, API, afbeeldingen en providerpolling verplaatsen niets. Nieuw is gebaseerd op eerste importtijd, niet publicatiedatum; refresh/duplicaten tellen niet opnieuw. Zoek-/categorie-/EN-/erotica-beleid geldt ook voor nieuwe aantallen. Geen nieuwe retrieve nodig voor de migratie; plan downtime/backup voor de spotstabel-ALTER. Versie blijft 0.0.1 Delta Integrale.
+    Validatie: 1095 checks geslaagd met PHP 8.4/MariaDB 11.4 inclusief echte HTTP-sessies, exact 100 nieuwe tegenover 101 totale zichtbare films, microsecondegrens, eerste bezoek, herladen, gebruikersisolatie, gelijktijdige sessies, filters, verborgen erotica, refresh en cascade. Browser: 24 combinaties van overzicht/detail/admin/voorkeuren, Default/Plex Dark/Plex Light en 390/1440px zonder horizontale overflow; badge 100 tegenover 110 totaal blijft bij navigatie staan, nieuwe login en eerste andere gebruiker tonen 0 tegenover hetzelfde totaal. Login, preview en echte knopstaten base/hover/focus/active/disabled gecontroleerd; tekstcontrast van gevulde knoppen minimaal 6.17:1, licht label op wit 6.24:1. PHP-syntax en editorcontroles zonder fouten.
+
 ## Open vragen (voor volgende stap)
 - Welk framework past het best bij verdere uitbreiding? De huidige basis gebruikt PHP 8.2+ en PDO/MySQL/MariaDB.
 - Welke metadata-provider biedt de beste betrouwbare TVDB/IMDb-ID-koppeling voor Newznab-vervolgfunctionaliteit?
@@ -253,6 +263,7 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
 7. Geteste compatibiliteit voor afwijkende legacy-XML uitwerken.
 8. Grote backfills en commentretrieval optimaliseren; scheduling en jobs toevoegen.
 9. Installatieflow verder uitwerken (wizard + validaties).
+10. Metadata verbreden naar muziek (MusicBrainz), games (IGDB/RAWG), software (AppStream-catalogi) en boeken (Open Library), met domeinspecifieke matching/licentie/attributie en voorkeuren.
 
 ## Updateprotocol
 Werk deze second brain bij bij:

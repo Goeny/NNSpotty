@@ -8,6 +8,34 @@ cp .env.example .env
 # vul daarna .env met jouw basis app + DB gegevens
 ```
 
+## Persoonlijke nieuwtellers en Plex-accenten
+Maak een beveiligde databasebackup volgens de bestaande procedure hieronder. Pauzeer webverkeer en retrieve-jobs tijdens de migratie: de ALTER van de spotstabel kan bij een grote index tijd kosten. Voer vanuit de bestaande deploymap op `nnspotty.hopseflop.nl` uit, zonder `.env` te overschrijven:
+
+```bash
+umask 022
+git status --short
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+composer check-platform-reqs
+php bin/console db migrate
+php bin/console db status
+php bin/console db health
+php tests/run.php
+curl -fsS https://nnspotty.hopseflop.nl/health
+curl -fsS -o /dev/null -w 'CSS: %{http_code}\n' https://nnspotty.hopseflop.nl/assets/spotty.css
+```
+
+Migratie `20261018_0014_browse_visits` moet toegepast zijn. Hervat verkeer/jobs en herlaad met Ctrl+F5:
+
+1. Eerste bezoek na upgrade: bestaande historie telt niet als nieuw. De overzichtskop toont nog steeds het totale aantal passende spots. De filterbadges hebben uitleg en tonen alleen nieuwe imports; filters blijven de volledige resultaten filteren, niet alleen nieuwe spots.
+2. Verlaat de sessie nadat je het overzicht hebt bezocht. Haal daarna nieuwe spots op met `php bin/console retrieve --since-last --verbose` (gebruik bij een schone installatie eerst de historische import uit de README). Log opnieuw in: de badge Films toont uitsluitend de nieuw geimporteerde films, niet het eerdere totaal plus die films.
+3. Herlaad, wissel hoofdgroep/filter/zoektekst en open een detail: de persoonlijke grens blijft gelijk. Nieuwe imports tijdens dit bezoek mogen de teller verhogen. Een andere gebruiker heeft een eigen bezoekgeschiedenis. Een nieuwe sessie voor dezelfde gebruiker gebruikt de laatst bewaarde browseactiviteit; reeds geopende sessies behouden hun eigen grens.
+4. Test terug-/inloggen of een echt nieuwe browsersessie: de vorige grens wordt vervangen. Een tab delen is geen nieuw bezoek; browsers die sessiecookies herstellen kunnen dezelfde sessie behouden. Achtergrondbijladen, metadata-/downloadpolling en Newznab markeren geen bezoek.
+5. Controleer dat verborgen erotica ook niet via aantallen lekt; zoektekst en alle EN-filters moeten tellers beperken. Een refresh van bestaande spotmetadata mag de importtijd/nieuwstatus niet vernieuwen.
+6. Controleer login, overzicht, detail, admin en voorkeuren in Default/Plex Dark/Plex Light, op desktop en mobiel. Primaire knoppen, badges, filterchips en schakelaars zijn oranje/goud; hover/focus/disabled blijven leesbaar. Danger/success/info houden hun betekenis, overige layout/achtergronden veranderen niet.
+
+Geen nieuwe providerkoppelingen in deze update. MusicBrainz, IGDB/RAWG, AppStream en Open Library zijn roadmap-opties, vastgelegd in projectinstructies/second brain.
+
 ## TheTVDB metadata, posters en fanart
 Pauzeer webverkeer en retrieve-jobs en maak eerst een beveiligde databasebackup volgens de bestaande backup-procedure hieronder. Bestaande `.env` en lokale serverwijzigingen niet overschrijven. Voer in de bestaande deploymap uit:
 

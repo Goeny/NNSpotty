@@ -530,7 +530,7 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
         selectedCategory: $selectedCategory,
         totalItems: $spots->countSpots($selectedCategory, $showErotica, $filters, $search),
         csrfField: $csrf->field(),
-        facets: $spots->facets($selectedCategory, $showErotica, $search, $filters),
+        facets: $spots->facets($selectedCategory, $showErotica, $search, $filters, $auth->newSpotsSince()),
         filters: $filters,
         search: $search,
         theme: $preferences['theme'],
@@ -595,7 +595,8 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
         imagesEnabled: $content['images_enabled'],
         retrieveComments: $content['retrieve_comments'],
         metadataControls: (new \NnSpotty\Metadata\Repository($pdo))->allowed($currentUser['username'])
-            ? \NnSpotty\Metadata\View::controls($spot, $currentUser['is_admin'], $csrf->field()) : ''
+            ? \NnSpotty\Metadata\View::controls($spot, $currentUser['is_admin'], $csrf->field()) : '',
+        facets: $spots->facets($spot['category'], $state->canViewErotica($currentUser['username']), newSince: $auth->newSpotsSince())
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);

@@ -5,6 +5,9 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Added
+- Persoonlijke filterbadges met nieuw geimporteerde spots sinds het vorige browsebezoek, met vaste grens tijdens de huidige browsersessie; overzichttotalen blijven totaalwaarden. Eerste bezoek begint zonder historische nieuwmeldingen. Ook detail-sidebars tonen dezelfde tellers; zoeken/EN-filters/zichtbaarheid blijven gelden.
+- Migratie `20261018_0014_browse_visits` voor username-gebonden browseactiviteit, microseconde-importtijden en tijdindex; refresh/duplicaten tellen niet opnieuw als nieuw.
+- Plex-geinspireerde oranje/gouden kleuraccenten voor knoppen, badges, filterlabels en schakelaars; bestaande layout en semantische statuskleuren blijven behouden. Metadata voor muziek/games/software/boeken vastgelegd als toekomstwerk, niet als bestaande koppelingen.
 - Verbeterde TVDB-zoektermen voor genummerde releases en editie-/kwaliteitssuffixen; filmcollecties en meerdere Blu-ray-discs blijven bewust zonder automatische enkelvoudige filmkeuze. Oude matchresultaten worden opnieuw beoordeeld met behoud van handmatige keuzes/blokkeringen. Ontbrekende officiele afleveringen noemen het gevraagde seizoen/nummer expliciet als onbevestigd.
 - Plex-geinspireerde releasekwaliteit in hero/preview (video, audio, taal, ondertiteling), uitsluitend uit herkende titelclaims en onafhankelijk van TVDB. Ronde lokale placeholders voor ontbrekende en defecte cast-/crewfoto's, met behoud van de globale afbeeldingsvoorkeur.
 - Zichtbare TVDB-attributie bij getoonde metadata: directe recordlink met klein origineel lokaal logo passend bij donker/licht. Compacte "TVDB link" linksboven in de hero opent matchstatus en admin-only handmatige opties in een rechts in-/uitschuivend toegankelijk paneel met Escape, zelfstandig scrollen en focusherstel na asynchrone correcties.
