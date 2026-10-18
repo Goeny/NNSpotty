@@ -1,170 +1,470 @@
+<p align="center">
+  <img src="./public/assets/images/logo.png" alt="NNSpotty logo" width="384">
+</p>
+
 # NNSpotty
 
-NNSpotty is een nieuw project dat met **php-nntp** een moderne, onderhoudbare opvolger van Spotweb bouwt.
+**Een moderne Spotnet-webapplicatie voor het vinden, bekijken en downloaden van Usenet-spots.**
 
-De focus ligt op:
-- eenvoud in installatie en beheer;
-- sterke gebruikerservaring;
-- hoge performance;
-- duidelijke, modulaire codebasis zonder legacy-complexiteit.
+NNSpotty haalt individuele spots op, inclusief omschrijving, categorieen, afbeeldingen, NZB-verwijzingen en reacties. Je kunt zoeken en filteren, NZB's downloaden, rechtstreeks naar SABnzbd sturen en NNSpotty als Newznab-indexer gebruiken. Optionele TheTVDB-verrijking geeft films en series een Plex-geinspireerde detailpagina met posters, fanart en cast.
 
-## Huidige status
-- **Versie:** 0.0.1
-- **Codenaam:** Delta Integrale
-- **Fase:** Spotnet, Newznab, SABnzbd en optionele TheTVDB-verrijking (nog geen complete Spotweb-vervanger)
+Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangepaste installatie van Spotweb. Applicatiedata, instellingen, indexen en caches staan in MySQL/MariaDB.
 
-## Documentatie
-- [Projectrichtlijnen](./docs/project-guidelines.md)
-- [Versioning en codenames](./docs/versioning.md)
-- [Second brain](./docs/second-brain.md)
-- [Architectuur](./docs/architecture.md)
-- [Installatie](./docs/installation.md)
-- [Linux server testen](./docs/linux-server-testing.md)
-- [Changelog](./CHANGELOG.md)
-- [UI-referentie screenshots](./docs/screenshots/)
-- [Huisstijlpresentatie](./docs/branding/presentation.png) en originele [logo](./docs/branding/logo.png), [favicon](./docs/branding/favicon.png) en [coverplaceholder](./docs/branding/placeholder.png).
+**Versie: 0.0.1 - Delta Integrale.** Actief in ontwikkeling; nog geen volledige Spotweb-vervanger. Het doel voor de eerste definitieve release is 1.0.0.
 
-De originele huisstijlbestanden staan ongewijzigd in `docs/branding/`. De website gebruikt verkleinde PNG-versies in `public/assets/images/`: favicon (32px), headericoon (64px), touch-icon (180px), logo (768x512), coverplaceholder (320x480) en lijstplaceholder (84x126). Ontbrekende of onbereikbare covers krijgen alleen de placeholder, zonder waarschuwingstekst; ook de blurred hero-achtergrond gebruikt deze als fallback. De admininstelling om postafbeeldingen uit te schakelen blijft leidend. De presentatie is documentatie, geen publiek geladen UI-asset.
+## Inhoud
 
-Na inloggen opent direct het spotsoverzicht. De oude homepage met knoppen is verwijderd; `/` verwijst naar `/spots` en vraagt zo nodig eerst om inloggen.
+- [Functionaliteiten](#functionaliteiten)
+- [Installatie vanaf nul](#installatie-vanaf-nul)
+- [Eerste retrieve en dagelijks bijwerken](#eerste-retrieve-en-dagelijks-bijwerken)
+- [Newznab en NZB downloaden](#newznab-en-nzb-downloaden)
+- [SABnzbd instellen](#sabnzbd-instellen)
+- [TheTVDB: films, series en afleveringen](#thetvdb-films-series-en-afleveringen)
+- [Console, onderhoud en updates](#console-onderhoud-en-updates)
+- [Tests en controles](#tests-en-controles)
+- [Beperkingen en vervolgwerk](#beperkingen-en-vervolgwerk)
+- [Documentatie en bijdragen](#documentatie-en-bijdragen)
+- [Third-party applicaties, code en tools](#third-party-applicaties-code-en-tools)
 
-Een enkele klik op een overzichtsregel opent de slide-in-preview; dubbelklikken opent direct de volledige detailpagina. De titellink blijft bruikbaar met toetsenbord, Ctrl/Cmd-klik of zonder JavaScript. Compacte knoppen voor reacties, NZB en SABnzbd staan rechtsboven in de hero en breken op smalle schermen af zonder de titel te overlappen.
+## Functionaliteiten
 
-## Quick start
-1. Installeer dependencies:
-   ```bash
-   composer install
-   ```
-2. Draai migraties:
-   ```bash
-   php bin/console db migrate
-   ```
-3. Start lokaal:
-   ```bash
-   php -S localhost:8080 -t public
-   ```
-4. Controle:
-   - `/` verwijst direct naar het spotsoverzicht (login vereist)
-   - `/health` voor health + versie-info
-   - `/login` voor authenticatie
-   - `/spots` voor individuele Spotnet-spots met afbeeldingen, omschrijving en reacties (ingelogd)
-   - `/admin` voor adminbeheer (alleen admin)
-   - `/preferences` voor user preferences (ingelogde gebruiker)
-   - `/api?t=caps` voor Newznab-capabilities (na inschakelen in admin)
+### Spots ophalen en opslaan
 
-## Git en lokale bestanden
-- `composer.json` en `composer.lock` blijven in Git voor reproduceerbare installaties. `vendor/` en de gegenereerde autoload worden voortaan lokaal met `composer install --no-dev --optimize-autoloader` opgebouwd.
-- `.env`, lokale environmentvarianten, Composer-authenticatie, runtimebestanden onder `var/`, logs, databasedumps en testcoverage worden genegeerd. `.env.example`, `var/.gitkeep`, gedeelde VS Code-configuratie, broncode, tests en documentatie blijven gevolgd.
-- **Eenmalige upgrade:** omdat `.env` en `vendor/` eerder gevolgd werden, kan Git ze bij deze update verwijderen. Maak eerst een veilige back-up van de serverconfiguratie, zet lokale wijzigingen gericht apart en herstel de configuratie na pull. Zie de [veilige serverupdate](./docs/linux-server-testing.md#git-opruimen-inhoudsinstellingen-en-afbeeldingsvergroting).
-- Negeren verwijdert niets uit de bestaande Git-historie. Roteer echte wachtwoorden/tokens die ooit in de gevolgde configuratie stonden.
+- Echte Spotnet-inhoud via NNTP en **php-nntp**, niet alleen een overzicht van algemene Usenet-headers.
+- Spotidentiteit op basis van message-ID: verschillende spots met dezelfde titel blijven afzonderlijke items.
+- Verwerking van herhaalde `X-XML`-headers voor titel, omschrijving, spotter, datum, bestandsgrootte, categorieen, tag, website en afbeelding-/NZB-segmenten; ook hoofdgroep en gebruikte newsreader worden in details getoond.
+- Aparte Spotnet-groepen voor spots en reacties: standaard `spots:free.pt,comments:free.usenet`. Een lege groepsinstelling gebruikt deze defaults, geen automatische groepsontdekking.
+- Historische imports over een aantal dagen of de volledige beschikbare historie; incrementeel bijwerken met een databasecursor per groep.
+- Incrementele artikellimiet per groep, retentie in dagen, afzonderlijk reacties ophalen en expliciet verversen van bestaande spotmetadata.
+- Dubbele berichten overslaan, verdwenen/ongeldige artikelen afzonderlijk verwerken, diagnostische batchoutput en opgeslagen retrieve-runstatussen. Transportfouten worden expliciet gemeld; cursors worden niet voorbij ongelezen ranges geschoven.
+- Afbeeldingen en NZB-inhoud worden op aanvraag opgehaald, gevalideerd en in de database gecachet, niet massaal tijdens indexing gedownload.
+- Refresh bewaart reacties en vernieuwt metadata/categorie-index atomair; afbeelding-/NZB-caches vervallen alleen bij gewijzigde segmentbron.
 
-## Console
-- `php bin/console db status|migrate|health|cleanup --days=90`
-- `php bin/console user list|create|delete|edit|password ...`
-- `php bin/console retrieve --all|--since-last|--days=30`
-- `php bin/console retrieve --days=30 --verbose` (diagnostische detailoutput)
-- `php bin/console retrieve --comments-only --days=7 --verbose` (alleen reacties, zonder eerst spots te scannen)
-- `php bin/console retrieve --refresh-spots --days=7 --verbose` (bestaande spotmetadata opnieuw ophalen en aanvullen)
+### Overzicht, zoeken en navigatie
 
-## Retrieve configuratie
-- `retrieve` verwerkt Spotnet-berichten, geen algemene Usenet-headerindex.
-- Usenet/retrieve settings beheer je via het admin panel:
-  - server/port/login/encryptie
-  - retentie
-  - groepen met de rollen `spots` en `comments`
-  - max artikelen per groep voor incrementele runs
-- Standaard: `spots:free.pt,comments:free.usenet`; leeg betekent deze defaults, niet auto-discovery.
-- Een spot wordt geidentificeerd door zijn message-ID. De `X-XML`-headers leveren titel, omschrijving, categorie, grootte en afbeelding-/NZB-verwijzingen. Gelijke titels worden niet samengevoegd.
-- Reacties worden uit `free.usenet` opgehaald en aan de originele spot gekoppeld. Lokale reacties kunnen op de detailpagina worden geplaatst; deze worden niet naar Usenet verstuurd.
-- De Spotnet-reactie-ID bepaalt de koppeling, ook als een provider een verkeerd `References`-veld levert. Alleen IDs zonder gecodeerde verwijzing gebruiken `References`. Migratie `20261018_0010_spot_details_comments` herstelt reeds opgeslagen koppelingen zonder opnieuw downloaden.
-- Detail en preview tonen ook de hoofdgroep en **Gepost met** uit `X-Newsreader` (of XML `Extra/Newsreader`). Voor eerder opgeslagen spots kun je dit aanvullen met `--refresh-spots --days=7`; gewone runs slaan duplicaten nog steeds over. Expliciete refresh vernieuwt XML, metadata en categorie-index atomair, behoudt reacties en wist cover-/NZB-caches alleen wanneer de bijbehorende segmentbron verandert. Verificatie, ratings en spamrapporten worden niet verzonnen.
-- Usenet-afbeeldingen worden op aanvraag opgehaald en in de database gecachet. Oudere externe afbeelding-URLs worden rechtstreeks door de browser geladen, niet door de server.
-- `--since-last` verwerkt maximaal het ingestelde aantal artikelen per groep, vanaf de oudste nog niet verwerkte positie. Herhaal dit commando om een achterstand weg te werken.
-- `--days=30` scant vanaf de hoogste artikelnummers terug, zodat doorgaans recente spots als eerste worden opgeslagen. De scan controleert nog steeds de volledige beschikbare historie: datums hoeven niet op artikelnummer gesorteerd te zijn. `--all` haalt ook oudere inhoud op, ongeacht retentie. Deze volledige scans kunnen lang duren.
-- Een normale run verwerkt eerst de spotgroep en daarna de reacties. `--comments-only` slaat de spotgroep volledig over en laat de spotcursor ongemoeid, maar blijft de admininstelling voor reacties respecteren. `--refresh-spots` verwerkt alleen spots en vereist `--days` of `--all`. De twee opties zijn niet combineerbaar; ook gerichte datumsessies blijven volledige headerscans van de geselecteerde groep.
-- `--verbose` toont per batch het datumbereik en aantallen `te_oud`, `bestaand`, `geen_spot`, `ongeldig`, `verdwenen` en `opgeslagen`. Ontbrekende optionele overview-velden zijn toegestaan; onbruikbare regels worden afzonderlijk gemeld en blokkeren de overige artikelen niet.
-- Onder **Op te halen inhoud** kan de admin Usenet-reacties indexeren, reacties weergeven/lokaal plaatsen en afbeeldingen ophalen/tonen afzonderlijk instellen. Alles staat standaard aan, zodat bestaande werking behouden blijft. Uitgeschakelde reactiegroepen worden niet benaderd en hun cursor blijft staan; bestaande inhoud wordt niet verwijderd.
-- Reacties weergeven kan aanblijven terwijl ophalen uit staat: de detailpagina toont dan eerder opgeslagen/lokale reacties met uitleg. Afbeeldingen worden alleen op aanvraag geladen en gecachet; uit blokkeert ook gecachte afbeeldingen en verwijdert alle afbeeldingsverwijzingen uit overzicht/preview/detail. Retentie en de incrementele artikellimiet blijven onder Usenet instellingen.
+- Na inloggen direct het spotsoverzicht; geen tussenhomepage. De root-URL verwijst naar `/spots`.
+- Vaste header met zoeken en uitsluitend de hoofdgroepen **Beeld, Geluid, Spellen en Applicaties**, plus **Alle**.
+- Linker sidebar met de volledige subcategorie-indeling van de gekozen hoofdgroep: type, formaat/platform, bron, taal/ondertiteling, bitrate en genre waar van toepassing.
+- Onder andere films, series, boeken, afbeeldingen, muziek, livesets, podcasts, luisterboeken, spellen en applicaties.
+- Subcategorieen als stapelbare **EN-filters**, ook binnen dezelfde dimensie; actieve filters zijn afzonderlijk verwijderbaar. Zoektekst en filters blijven behouden bij bijladen.
+- Categorieaantallen volgen de zichtbaarheid van de gebruiker. Onbekende categoriecodes blijven bewaard en zichtbaar in technische details.
+- Infinite loading zonder paginanummers, met een knop **Meer resultaten laden** en opnieuw proberen na een fout. Persoonlijke laadbatch van 10-200 resultaten.
+- Een enkele klik opent een sluitbare preview die van rechts in-/uitschuift. Dubbelklik opent de volledige detailpagina.
+- Preview met eigen scrollgebied, Escape en focusherstel; toetsenbordvriendelijke titellinks. Zonder JavaScript openen titels de volledige spot en is er een vervolglink.
+- Instelbare overzichtskolommen per hoofdgroep: globale adminstandaarden en persoonlijke overrides met herstel naar de actuele globale standaard. Titel blijft verplicht; **Alle** gebruikt een vaste gemengde kolomset.
+- Responsive kaarten op kleine schermen, afbrekende lange waarden en geen horizontale tabelscroll.
 
-## TheTVDB: films, series en afleveringen
-1. Draai `php bin/console db migrate` voor migratie `20261018_0013_tvdb` en herlaad de nieuwe `/assets/metadata.js` en stylesheet zonder oude browsercache.
-2. Open als admin `/admin#metadata`. Sla je **TheTVDB API V4-key**, eventueel vereiste abonnee-PIN en taal op, schakel toegang in en test de opgeslagen toegang. Nederlands gebruikt Engels als fallback. Controleer of je TVDB-licentie deze installatie toestaat; deel keys niet in chat, logs of screenshots.
-3. Schakel onder `/preferences#metadata` **TVDB-metadata voor mij ophalen en tonen** in. Ook admins doen dit zelf. Globaal en persoonlijk staan standaard uit; persoonlijke toestemming omzeilt geen globale blokkade.
-4. Open de **volledige detailpagina** van een film of serie. Metadata wordt asynchroon geladen: de oorspronkelijke spot blijft direct bruikbaar. Overzicht, preview en retrieval doen geen TVDB-opvragingen.
+### Detailpagina, afbeeldingen en releasekwaliteit
 
-De Plex-geinspireerde hero toont beschikbare poster, echte fanart zonder blur, synopsis, releasedatum, speelduur en genres. Een herkende losse aflevering krijgt het juiste seizoen/nummer, afleveringtitel, synopsis en still; pakketten blijven op serieniveau. Beschikbare cast/crew, studio en netwerk verschijnen eronder. Originele releasetitel, omschrijving, technische informatie, reacties en NZB/SABnzbd-acties blijven behouden; de lightbox werkt ook op TVDB-beelden.
+- Hero met cover, omschrijving, genres en compacte acties voor reacties, NZB en SABnzbd rechtsboven.
+- Originele titel, spotter, UTC-datum, bestandsgrootte, categorieen, tag, website, newsreader, message-ID en NZB-segmentinformatie blijven beschikbaar.
+- Vast coverframe: grote beelden proportioneel verkleind, kleine beelden met vervaagde vulling. De oorspronkelijke hero gebruikt een uitgerekte, licht vervaagde cover als achtergrond.
+- Klikbare cover in detail en preview met lightbox, Escape, sluiten buiten het venster en focusherstel. Zonder JavaScript opent het beeld in een nieuw tabblad.
+- Eigen NNSpotty-logo, favicon, touch-icon en coverplaceholders; ontbrekende/defecte covers tonen alleen de placeholder, ook als hero-achtergrond.
+- Herkende **Video / Audio / Taal / Ondertiteling** uit de releasetitel, ook zonder TVDB: onder andere resolutie, HDR, codec, bron, IMAX, AI-enhanced, RIFE/60 fps, audioformaat, kanalen en subtitleclaims.
+- Releasekwaliteit is nadrukkelijk **niet gecontroleerd in mediabestanden**. Onbekende waarden worden niet ingevuld en een taalclaim is niet automatisch de audiotaal.
 
-Automatisch koppelen vereist een unieke exact genormaliseerde titel/alias; films vereisen ook hetzelfde jaar. Remakes en twijfelgevallen krijgen geen gok. De kleine **TVDB link** linksboven in de hero opent een rechts inschuivend paneel met matchstatus en opnieuw controleren. Alleen admins kunnen daar zoeken, een gedeelde film/serie/aflevering kiezen, automatisch matchen herstellen of metadata voor de spot blokkeren. Sluiten/Escape schuift het paneel uit en herstelt de focus; het blijft beschikbaar na een matchcorrectie of blokkering. Niet elke releasenaam is automatisch herkenbaar; dagelijkse/absolute afleveringscodes worden niet herkend.
+### Omschrijvingen, reacties en emoticons
 
-Nummerprefixen zoals `03. ` en technische/editiesuffixen zoals IMAX, Theatrical Version, 4K, Ultra HD en Blu-ray worden uit de zoekterm gehaald. Herkende filmcollecties/trilogieen en meerdere Blu-ray-discs worden nooit automatisch aan een enkele film gekoppeld, ook niet met jaartal. Bij afwijkende afleveringsnummering toont de hero het gevraagde seizoen/nummer expliciet als **niet door TVDB bevestigd**; er wordt niet naar een ander seizoen of een andere ordering gegokt. De publieke TVDB-pagina van [De Bondgenoten](https://www.thetvdb.com/series/de-bondgenoten) bood bij onderzoek alleen officiele seizoenen 1-3, geen S04E01. Dat is geen reden om een andere aflevering te tonen.
+- Veilige HTML-/Spotnet-opmaak in omschrijvingen en geimporteerde reacties: onder andere `[br]`, vet, cursief, onderstrepen, doorhalen, quotes, codeblokken, links en lijsten.
+- Kleur-, font-, grootte- en uitlijningstags behouden de tekst zonder externe stijlen uit te voeren. Scripts, embeds, eventhandlers en remote CSS worden niet uitgevoerd; afbeeldingen in omschrijvingen/reacties worden niet geladen.
+- Usenet-reacties uit `free.usenet`, gekoppeld aan de oorspronkelijke spot. De gecodeerde reactie-ID gaat voor een eventueel foutief `References`-veld; bestaande oudere koppelingen worden via migratie hersteld.
+- Reacties tonen auteur, datum en bron. Lokale reacties plaatsen vanuit de detailpagina; deze blijven in NNSpotty en worden **niet op Usenet gepubliceerd**.
+- Alle 30 bekende Spotweb-emoticoncodes uit de reactieknoppen worden hoofdletterongevoelig herkend, met moderne statische emoji's/tekstbadges in plaats van animated GIF's.
+- Onder andere `[img=buigen]`, `[img=klappen]`, `[img=respekt]`, alias `[img=respect]` en `[img=knipoog]`/`[img=wink]`. Codeblokken blijven letterlijk; onbekende codes en afbeelding-URLs laden geen beelden.
+- Lokale reacties blijven geescapete tekst met emoticonondersteuning. Emoticons werken ook bij uitgeschakelde postafbeeldingen.
 
-De hero en preview tonen herkende **Video / Audio / Taal / Ondertiteling** uit de oorspronkelijke releasetitel, onafhankelijk van TVDB-toestemming of match. Dit zijn onbevestigde releaseclaims, geen analyse van mediabestanden: onbekende codecs, audiotalen, bitdiepte en ondertitelformaten worden niet ingevuld. Cast/crew zonder foto of met een defecte foto krijgen een ronde lokale placeholder; met afbeeldingen uit worden ook die placeholders niet geladen.
+### Downloads en koppelingen
 
-Zodra TVDB-data wordt getoond, staat **Metadata van TheTVDB** met een klein, lokaal donker/licht-logo bij de synopsis. Tekst en logo vormen samen een directe link naar het betreffende TVDB-record, conform de [attributierichtlijn](https://www.thetvdb.com/api-information#attribution). De aangeleverde logo's `tvdb-dark.png` en `tvdb-light.png` blijven ongewijzigd; de lokale bronvermelding blijft zichtbaar als postafbeeldingen uit staan. Zonder getoonde TVDB-data verschijnt geen attributie.
+- NZB downloaden vanuit detail en preview, onafhankelijk van de globale Newznab-schakelaar.
+- Gedeelde downloadservice voor browser, Newznab en SABnzbd: segmenten samenvoegen, Spotnet-decodering/decompressie, begrensde XML-validatie en databasecache. Defecte/verlopen NZB's geven een expliciete fout en worden niet gecachet.
+- **Newznab XML-API** met persoonlijke API-keys, standaardcategorieen, titelzoeken, filmjaar- en seizoen/afleveringfilters, paginering en aanvraaglimiet; te gebruiken via onder andere Prowlarr.
+- **SABnzbd-forwarding** met centrale adminkoppeling, persoonlijke gebruikerskoppelingen, admin-categoriemapping en bevestigde NZB-upload zonder een Newznab-keylink door te sturen.
+- **Downloads-paneel** met echte SABnzbd-wachtrij, voortgang, snelheid, resterende tijd en een snelheidsgrafiek van de laatste vijf minuten van de panelsessie.
+- Lokale verzendhistorie met expliciete statussen, bescherming tegen dubbele upload van dezelfde bevestiging en een zichtbare onbekende uitkomst bij onzekere verzending.
+- Zie de configuratie en grenzen van deze koppelingen hieronder.
 
-Databasecache: metadata/providerrecords zeven dagen, zoekresultaten en ontbrekende/ambigue matches een dag, fouten vijf minuten. **Metadata opnieuw controleren** respecteert deze termijnen, geen geforceerde cachebypass. Een installatiebreed budget begrenst uitgaande aanvragen tot 90/minuut; fouten blijven zichtbaar met de oorspronkelijke spot als fallback. `db cleanup` verwijdert verlopen providercache. Afbeeldingen uitgeschakeld blokkeert ook TVDB-fanart/posters/castfoto's. Met toestemming wordt de titel met TVDB gedeeld; de browser laadt afbeeldingen rechtstreeks van toegestane TVDB-hosts. Keys, PIN en token staan herstelbaar in de database, nooit in HTML of auditdetails; bescherm backups.
+### TheTVDB-metadata
 
-De verbeterde releaseparser hercontroleert oude matchresultaten bij het volgende detailbezoek; handmatige keuzes en blokkeringen blijven behouden. De onderliggende providercache houdt zijn eigen TTL, dus nieuw toegevoegde afleveringen verschijnen niet direct zolang de bestaande afleveringslijst nog geldig is.
+- Optionele verrijking van volledige film-, serie- en afleveringsdetails, met centrale API V4-key/optionele abonnee-PIN en persoonlijke opt-in.
+- Asynchroon ophalen bij detailbezoek; overzicht, preview en indexing starten geen TVDB-fetch.
+- Conservatieve unieke titel-/aliasmatching en filmjaarcontrole; opschoning van nummerprefixen en technische/editiesuffixen.
+- Exacte officiele seizoen-/afleveringskoppeling, met eerlijke serie-fallback als de aflevering ontbreekt. Filmcollecties worden niet automatisch aan een enkele film gekoppeld.
+- Poster, echte fanart, afleveringstill, synopsis, genres, datum, speelduur, cast/crew en beschikbare studio-/netwerkinformatie.
+- Ronde lokale placeholders voor ontbrekende of defecte cast-/crewfoto's.
+- Compacte **TVDB link** linksboven in de hero opent een slide-in met status en admin-only zoeken, handmatig kiezen, resetten en blokkeren. Correcties gelden gedeeld voor alle gebruikers.
+- Nederlands met Engelse fallback of Engels, databasecache, aanvraagbudget en zichtbare foutfeedback met behoud van de oorspronkelijke spot.
+- Zichtbare **Metadata van TheTVDB** met lokaal donker/licht-logo en een directe link naar het juiste providerrecord.
 
-Cast-/bedrijfs- en externe IDs worden voorbereid voor latere ontdekfuncties; **klikbare cast/netwerkfilters en Newznab IMDb/TVDB-ID-zoeken zijn nog niet toegevoegd**. Er worden geen Plex-playbackknoppen, reviews of fictieve beoordelingen getoond; TVDB-populariteit is geen rating. Zie [productieacceptatie](./docs/linux-server-testing.md#thetvdb-metadata-posters-en-fanart) voor controles met je eigen key.
+### Gebruikers, beheer en weergave
+
+- Sessie-login/logout met gehashte wachtwoorden, adminrechten, CSRF-beschermde mutaties en login-rate-limiting: blokkering na vijf mislukte pogingen binnen vijftien minuten.
+- Consolebeheer voor gebruikers aanmaken, verwijderen, adminrol wijzigen, wachtwoord wijzigen en gebruikers tonen.
+- Username-gebonden voorkeuren, los van centrale instellingen: **Default**, **Plex Dark**, **Plex Light**, laadbatch, kolommen, erotica, Newznab-key, eigen SABnzbd en TVDB-toestemming.
+- Erotica standaard globaal en persoonlijk verborgen; pas zichtbaar na beide toestemmingen. Globaal uit geldt ook voor admins. Dit beleid geldt voor zoeken, aantallen, facetten, details, afbeeldingen, reacties, API en lokale verzendhistorie; indexing verwijdert deze inhoud niet.
+- Admin met zeven deelbare submenu's: **Usenet**, **Inhoud en weergave**, **Newznab**, **SABnzbd**, **TVDB metadata**, **Moderatie en reacties**, **Auditlog**. Zonder JavaScript blijven de secties zichtbaar.
+- Usenet-host, poort, login, encryptie, retentie, groepsrollen en incrementele artikellimiet centraal beheren.
+- Reacties indexeren, reacties tonen/lokaal plaatsen en afbeeldingen ophalen/tonen afzonderlijk schakelen. Uitschakelen verwijdert geen data; afbeeldingen uit blokkeert ook cachehits en TVDB-afbeeldingen. Lokale TVDB-attributie blijft wel zichtbaar.
+- Spotter-whitelist/blacklist registreren en tonen, en lokale reacties toevoegen/bekijken in admin. **De spotterlijsten worden nog niet als retrieval-/zichtbaarheidsfilter afgedwongen; spotteridentiteiten zijn nog niet cryptografisch geverifieerd.**
+- Auditlog voor beheeracties, database-migraties/status/health/cleanup en publiek `/health` met applicatieversie/codenaam.
+- Modulaire domeinlagen voor indexing, metadata, UI, Newznab en downloader; eigen PHP-/JavaScriptcode, zonder frontend-buildstap.
+
+## Installatie vanaf nul
+
+### 1. Benodigdheden
+
+- Linux-server met Git, **PHP 8.2+** voor zowel CLI als webserver en **Composer 2.x**.
+- PHP-extensies `curl`, `dom`, `iconv`, `pdo_mysql`, `SimpleXML` en `zlib`; daarnaast OpenSSL voor versleutelde NNTP-streams en werkende TLS/CA-certificaten voor HTTPS.
+- MySQL of MariaDB, met een eigen database en databasegebruiker.
+- Apache of Nginx met PHP-FPM voor productie. De PHP-developmentserver is alleen voor lokaal testen.
+- Een Usenet-abonnement/provider die de Spotnet-groepen aanbiedt. Beschikbare historie hangt af van de provider.
+- Optioneel: SABnzbd, Prowlarr/Sonarr/Radarr en een passende TheTVDB API-licentie.
+- De browser laadt Bootstrap-CSS van jsDelivr. TVDB-artwork en eventuele externe spotcovers vereisen browsertoegang tot hun bronhosts.
+
+### 2. Broncode en dependencies
+
+Vervang de voorbeeldlocatie door je eigen deploypad. Gebruik de clone-URL van jouw repository; de huidige projectremote staat hieronder.
+
+```bash
+git clone http://gitlab.hopseflop.nl/ivar/nnspotty.git nnspotty
+cd nnspotty
+umask 022
+composer install --no-dev --optimize-autoloader
+composer check-platform-reqs
+cp .env.example .env
+chmod 600 .env
+```
+
+Gebruik bij voorkeur een HTTPS- of SSH-clone-URL als jouw Git-server die aanbiedt. `composer.lock` is meegeleverd: gebruik voor installatie **install**, niet **update**. Node.js/npm is niet nodig.
+
+### 3. Database en basisconfiguratie
+
+Maak met een bevoegde databasebeheerder een lege database en een aparte gebruiker, bijvoorbeeld via `sudo mariadb`:
+
+```sql
+CREATE DATABASE nnspotty CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'nnspotty'@'localhost' IDENTIFIED BY 'VERVANG_DOOR_EEN_UNIEK_LANG_WACHTWOORD';
+GRANT ALL PRIVILEGES ON nnspotty.* TO 'nnspotty'@'localhost';
+```
+
+Stem gebruikershost en netwerktoegang af op je databaseopstelling. Migraties hebben ook schemawijzigingsrechten nodig; geef geen globale databasebeheerrechten aan de applicatie.
+
+Bewerk `.env` in de projectroot:
+
+```dotenv
+APP_NAME=NNSpotty
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://nnspotty.hopseflop.nl
+APP_VERSION=0.0.1
+APP_CODENAME=Delta Integrale
+
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=nnspotty
+DB_USERNAME=nnspotty
+DB_PASSWORD=VERVANG_DOOR_HET_DATABASEWACHTWOORD
+DB_CHARSET=utf8mb4
+```
+
+Gebruik je eigen domein voor `APP_URL`: een publiek HTTP(S)-origin zonder subpad, query of fragment; in productie HTTPS. Voor lokaal testen gebruik je `http://localhost:8080`. CLI en PHP-FPM moeten dezelfde configuratie kunnen lezen.
+
+**Usenet, SABnzbd en TVDB stel je in via admin/voorkeuren, niet via `.env`.** De SABnzbd/NZBGet/IMDb/TVDB-velden die nog in het voorbeeldbestand staan zijn geen vervanging voor deze database-instellingen; NZBGet en een aparte IMDb-provider zijn nog niet geimplementeerd.
+
+### 4. Migraties en eerste admin
+
+```bash
+php bin/console db migrate
+php bin/console db status
+php bin/console db health
+
+read -rsp 'Wachtwoord voor de eerste admin: ' ADMIN_PASSWORD; echo
+php bin/console user create admin "$ADMIN_PASSWORD" --admin=1
+unset ADMIN_PASSWORD
+```
+
+Dit maakt je eerste account; er is geen standaardlogin. Het consolecommando ontvangt het wachtwoord als procesargument: voer dit alleen in een vertrouwde beheeromgeving uit. De verborgen invoer voorkomt een letterlijk wachtwoord in shellhistorie, niet inzage door bevoegde procesinspectie.
+
+### 5. Webserver en eerste login
+
+**Productie:** stel de documentroot in op de map `public/`. Laat bestaande assets direct serveren en overige routes naar `public/index.php` gaan. Apache kan de meegeleverde `public/.htaccess` gebruiken met `mod_rewrite`/passende `AllowOverride`; configureer bij Nginx de overeenkomstige frontcontroller-routing en PHP-FPM.
+
+Gebruik HTTPS en geef de web-/CLI-gebruiker passende leesrechten. Publiceer geen `.env`, broncode, dependencies, backups of databasebestanden. De meegeleverde root-frontcontroller bestaat voor compatibiliteit met bestaande hosting; `public/` als documentroot heeft de voorkeur.
+
+**Alleen lokaal testen:**
+
+```bash
+php -S localhost:8080 -t public
+```
+
+Open `/login`, log in met je aangemaakte account en ga naar `/admin#usenet`. Stel in:
+
+- providerhost, poort, login en encryptie (`none`, `ssl`, `tls`); gebruik bij voorkeur de versleutelde NNTP-poort van je provider, meestal **563 + ssl**. `none`, vaak op 119, versleutelt login en inhoud niet; de TLS-keuze is geen ingebouwde STARTTLS-onderhandeling;
+- retentie in dagen;
+- `spots:free.pt,comments:free.usenet`;
+- het maximumaantal artikelen per groep voor incrementele runs.
+
+Sla de instellingen op. Controleer onder **Inhoud en weergave** of reacties en afbeeldingen naar wens zijn ingeschakeld. Op een schone installatie staat er nog geen inhoud in het overzicht: voer nu de eerste retrieve uit.
+
+## Eerste retrieve en dagelijks bijwerken
+
+Voer de commando's uit vanuit de projectroot, met dezelfde databaseconfiguratie als de website. Kies **een** van de onderstaande importmodi per run.
+
+### Aanbevolen eerste import: recente spots
+
+```bash
+php bin/console retrieve --days=30 --verbose
+```
+
+Dit importeert spots en ingeschakelde reacties van de laatste dertig dagen. De spotgroep wordt eerst verwerkt, daarna de reactiegroep. Open vervolgens `/spots`.
+
+**Let op:** een datumimport scant de volledige beschikbare headerhistorie om de datumfilter betrouwbaar toe te passen. Artikelnummer en datum zijn niet gegarandeerd gesorteerd. Hoogste artikelnummers worden bij `--days` eerst verwerkt, zodat recente spots doorgaans eerder zichtbaar zijn, maar ook een kleine dagenwaarde kan lang duren. De incrementele artikellimiet begrenst deze historische scan niet.
+
+### Alternatief: alle beschikbare historie
+
+```bash
+php bin/console retrieve --all --verbose
+```
+
+Dit negeert de ingestelde retentie en verwerkt alle nog bij je provider beschikbare historie. Het herstelt geen artikelen die de provider niet meer aanbiedt en kan veel tijd/databasecapaciteit vragen. Je hoeft niet eerst `--days` en daarna `--all` te draaien.
+
+### Nieuwe inhoud blijven ophalen
+
+Na een volledig geslaagde historische import staat de cursor aan het gescande einde. Gebruik daarna:
+
+```bash
+php bin/console retrieve --since-last --verbose
+```
+
+Dit verwerkt vanaf de oudste nog niet verwerkte positie maximaal de ingestelde artikellimiet per groep. Herhaal bij een achterstand. Zonder eerder opgeslagen cursor begint deze modus bij het oudste beschikbare artikel, **niet** automatisch bij de nieuwste spots; gebruik daarom bij een schone installatie bij voorkeur eerst `--days`.
+
+Zonder modusoptie gebruikt `retrieve` ook `--since-last`. Hierbij geldt de adminretentie als datumfilter; `--days=N` gebruikt zijn eigen venster en `--all` geen datumgrens. Kies geen conflicterende modi in hetzelfde commando.
+
+Een cronvoorbeeld voor na de eerste import, onder de deploymentgebruiker, elke vijf minuten:
+
+```cron
+*/5 * * * * cd /var/www/nnspotty && /usr/bin/flock -n /var/www/nnspotty/var/retrieve.lock /usr/bin/php bin/console retrieve --since-last >> /var/www/nnspotty/var/retrieve.log 2>&1
+```
+
+Pas projectpad en PHP-/flock-pad aan. Zorg dat `var/` schrijfbaar is voor deze gebruiker, laat niet meerdere handmatige/automatische retrieve-runs overlappen en beheer logrotatie. Het lock-/logbestand is geen applicatiedatabase; inhoud en cursors blijven in MySQL/MariaDB.
+
+### Alleen reacties of bestaande spots aanvullen
+
+```bash
+# Alleen reacties, zonder eerst de spotgroep te scannen:
+php bin/console retrieve --comments-only --days=7 --verbose
+
+# Bestaande spotmetadata expliciet vernieuwen:
+php bin/console retrieve --refresh-spots --days=7 --verbose
+```
+
+- Ook deze datumruns scannen de volledige beschikbare headers van de geselecteerde groep.
+- `--comments-only` laat de spotcursor ongemoeid en respecteert de admininstelling voor reacties.
+- `--refresh-spots` verwerkt alleen spots en vereist `--days` of `--all`; normale runs slaan reeds opgeslagen spots over.
+- Beide opties zijn niet combineerbaar.
+- `--verbose` toont ranges/datums en onder andere `te_oud`, `bestaand`, `geen_spot`, `ongeldig`, `verdwenen` en `opgeslagen`.
+
+Ontbreken reacties? Controleer de juiste groep, beide reactieschakelaars en providerbeschikbaarheid. Geen opgehaalde reacties betekent niet dat er op Usenet geen reacties zijn. Bij een poort/encryptiemismatch kan bijvoorbeeld `SSL routines::wrong version number` verschijnen.
 
 ## Newznab en NZB downloaden
-1. Draai `php bin/console db migrate`. Migratie `20261018_0011_newznab_nzb` voegt cache, categorie-index en persoonlijke API-keys toe en classificeert bestaande spots zonder opnieuw ophalen.
-2. Stel `APP_URL=https://nnspotty.hopseflop.nl` in: een publieke HTTP(S)-origin, zonder subpad, query of fragment. Gebruik in productie HTTPS.
-3. Schakel **Newznab API** in onder admin. Standaard staat dit uit.
-4. Maak onder **Voorkeuren > Persoonlijke Newznab API-key** een eigen key. Bewaar hem direct: hij wordt slechts eenmaal getoond en alleen gehasht in de database opgeslagen. Vernieuwen of intrekken maakt oude links direct ongeldig.
-5. Voeg in Prowlarr **Generic Newznab** toe met URL `https://nnspotty.hopseflop.nl`, API Path `/api` en deze key. Test, sla op en controleer daarna een titelzoektocht plus daadwerkelijke NZB-download; een geslaagde verbindingstest alleen is niet voldoende.
 
-Ondersteund: XML `caps`, `search`, `tvsearch`, `movie` en `get`. `q` zoekt titelwoorden; `tvsearch` ondersteunt numerieke `season`/`ep`, `movie` ondersteunt `year`. Ook `cat` (OF-selectie), `limit` (1-100), `offset`, `maxage` en `extended=0|1` zijn beschikbaar. `caps` vermeldt bewust geen IMDb/TVDB-ID-zoeken. Onondersteunde ID-filters geven een protocolfout, geen ongemerkt ongerichte resultaten. Dagelijkse/absolute afleveringsnummers en volledige herkenning van multi-episode-releases zijn nog niet aanwezig. Seizoenspakketten blijven pakketten.
+1. Controleer het publieke `APP_URL` en schakel de API in onder `/admin#newznab` (standaard uit).
+2. Maak onder `/preferences#api-key` een persoonlijke key. Hij verschijnt eenmaal en wordt alleen gehasht opgeslagen. Roteren/intrekken maakt oude keys en downloadlinks direct ongeldig.
+3. Voeg in Prowlarr een **Generic Newznab**-indexer toe:
 
-De API exporteert standaard Newznab-codes: Console 1000, Movies 2000, Audio 3000, PC 4000, TV 5000, XXX 6000, Books 7000 en Other 8000, inclusief uit Spotnet afleidbare subcategorieen. De 100000+-codes uit Spotweb zijn site-specifieke duplicaten en worden niet overgenomen. UHD gebruikt 2045/5045, PS4 1180 en Xbox One 1140. Een categorie-index maakt databasefiltering mogelijk; lokale overzichtsfilters behouden hun bestaande EN-gedrag.
+   | Instelling | Waarde |
+   |---|---|
+   | URL | `https://nnspotty.hopseflop.nl` of je eigen NNSpotty-origin |
+   | API Path | `/api` |
+   | API Key | Je persoonlijke NNSpotty-key |
 
-Iedere key volgt de globale en persoonlijke erotica-instellingen; publieke caps verbergen XXX. Zoeken/downloaden vereist een key, publieke caps niet. De limiet is 120 aanvragen per minuut per key. API-aanvragen starten geen browsersessie. Feeds bevatten keydragende downloadlinks: houd feeds, browserhistorie en access-/proxy-/clientlogs geheim en laat productie-accesslogs querystrings weg.
+4. Test niet alleen de verbinding, maar ook een titelzoektocht en daadwerkelijke NZB-download. Koppel Prowlarr vervolgens aan Sonarr/Radarr volgens hun eigen configuratie.
 
-De knop **NZB** in detail en preview werkt ook als Newznab uit staat, met de normale sessie en zichtbaarheidstoegang. De gedeelde downloadservice haalt Spotnet NZB-segmenten op via NNTP, combineert/decodeert/decomprimeert ze, valideert XML en bewaart een databasecache. Gecomprimeerde invoer en uitgepakte XML zijn begrensd tot minder dan 16 MiB. Verlopen of defecte NZBs geven een expliciete fout en worden niet gecachet.
+Ondersteund:
 
-Zie [deployment en acceptatiechecks](./docs/linux-server-testing.md#newznab-en-nzb-downloads) voor concrete servercommando's.
+| Aanvraag/filter | Werking |
+|---|---|
+| `t=caps` | Publieke XML-capabilities na globale inschakeling; zonder key, zonder XXX-categorieen |
+| `t=search` | Titelzoeken via `q` |
+| `t=tvsearch` | Titelzoeken plus numerieke `season` en `ep` |
+| `t=movie` | Titelzoeken plus `year` |
+| `t=get` | NZB-download met key en zichtbaarheidstoegang |
+| `cat` | Meerdere Newznab-categorieen als OF-selectie |
+| `limit`, `offset` | Paginering, maximaal 100 resultaten per aanvraag |
+| `maxage`, `extended=0|1` | Leeftijdsfilter en uitgebreide attributen |
 
-## SABnzbd: versturen en live wachtrij
-- Vereist PHP-extensie **curl**; draai Composer-installatie/platformcontrole en migratie `20261018_0012_sabnzbd`.
-- **Admin > SABnzbd:** configureer de centrale host met volledig basisadres (bijvoorbeeld `http://192.168.1.10:8080` of `https://sab.example.nl/sabnzbd`) en de volledige SABnzbd API-key, niet de beperkte NZB-key. Hostpaden voor een reverse proxy zijn toegestaan; laat `/api` weg. Schakel in, sla op en test de opgeslagen verbinding.
-- **Voorkeuren > Mijn SABnzbd-koppeling:** iedere gebruiker beheert zijn eigen verbinding. Gewone gebruikers mogen alleen publiek routeerbare hosts gebruiken; localhost, private/LAN-, link-local-, gereserveerde en transition-adressen worden geweigerd. Alleen admins mogen interne hosts en de centrale koppeling benaderen. Dit geldt bij opslaan en bij iedere nieuwe aanvraag, dus ook na rolwijziging of gewijzigde DNS.
-- **Categorietoewijzing:** admin beheert exacte SABnzbd-categorienamen voor Films, Series, Boeken, Erotica, Afbeeldingen, Muziek, Livesets, Podcasts, Luisterboeken, Spellen, Applicaties en Overig. Deze mapping geldt ook voor persoonlijke hosts. Leeg gebruikt SABnzbd Default; een niet-lege categorie moet op de doelhost bestaan. Geen stille fallback. De verbindingstest toont beschikbare SABnzbd-categorienamen.
-- **SABnzbd** in detail en preview opent een bevestiging met koppeling, titel en effectieve categorie. NNSpotty uploadt de gevalideerde NZB-inhoud via multipart POST, niet een keydragende Newznab-URL. Een gewijzigde host/key/mapping vereist een nieuwe bevestiging. Hergebruik van dezelfde bevestiging veroorzaakt geen tweede upload.
-- **Downloads** in de header opent een modaal slide-in-paneel met echte wachtrij, voortgang, resterende tijd, snelheid en een SVG-snelheidsgrafiek van de laatste vijf minuten tijdens deze panelsessie. Vernieuwen gebeurt om de vijf seconden zolang paneel en tabblad zichtbaar zijn; bij fouten stopt automatisch verversen totdat je opnieuw probeert. Wachtrijen groter dan 30 items hebben vorige/volgende. Het paneel ondersteunt Escape, focusherstel, donker/licht, mobiel en verminderde beweging.
-- Je ziet de volledige externe wachtrij van uitsluitend je eigen gekozen host, inclusief jobs buiten NNSpotty. Admins kunnen daarnaast de centrale wachtrij kiezen. De zichtbaarheid van externe SABnzbd-jobs volgt niet automatisch NNSpotty-erotica-filters; de eigen lokale spot/verzendhistorie doet dat wel.
-- De database bewaart de laatste verzendpogingen met status **Verzonden**, **Geweigerd**, **Uitkomst onbekend** of nog onbevestigd. Verzonden betekent door SABnzbd geaccepteerd, niet voltooid. De laatste 30 worden getoond; er is nog geen synchronisatie van voltooide SABnzbd-historie of bediening voor pauzeren/verwijderen. Bij een timeout/ongeldige bevestiging nooit blind opnieuw versturen: SABnzbd kan de upload al ontvangen hebben. Lokale historie blijft beschikbaar als de verbinding uit/onbereikbaar is of verwijderd is.
-- Keys staan voor uitgaande authenticatie in de database, maar worden nooit teruggerenderd, naar browser-JSON gestuurd of in applicatie-audits geschreven. Een leeg keyveld behoudt het bestaande geheim; verwijderen wist de verbinding, niet de externe downloads of lokale historie. Bescherm database/backups. Gebruik HTTPS op publieke hosts; HTTP verstuurt de key zonder transportversleuteling. TLS-verificatie blijft aan, redirects en omgevingsproxies uit; DNS-resultaten worden gecontroleerd en per verbinding vastgepind.
+Standaard hoofdcodes: **1000 Console, 2000 Movies, 3000 Audio, 4000 PC, 5000 TV, 6000 XXX, 7000 Books, 8000 Other**, met afleidbare subcategorieen. Ook UHD 2045/5045, PS4 1180 en Xbox One 1140. Spotweb-specifieke 100000+-duplicaatcodes worden niet overgenomen. Newznab-categorie-OF staat los van de EN-filters in het web-overzicht.
 
-Het adminpaneel is verdeeld in **Usenet**, **Inhoud en weergave**, **Newznab**, **SABnzbd**, **Moderatie en reacties** en **Auditlog**. Navigatie is deelbaar via fragmentlinks; zonder JavaScript blijven alle secties zichtbaar. SABnzbd-panelen en directe forwarding vereisen JavaScript. NZBGet is nog een volgende uitbreiding.
+Zoeken/downloaden vereist een geldige persoonlijke key en volgt globale/persoonlijke erotica-instellingen. Limiet: **120 aanvragen per minuut per key**. API-verkeer start geen browsersessie. IMDb/TVDB-ID-filters worden niet geadverteerd en expliciet geweigerd; geen ongerichte fallbackzoektocht.
 
-## Upgrade van de headerindex
-1. Voer `php bin/console db migrate` uit.
-2. Controleer in admin: `spots:free.pt,comments:free.usenet`.
-3. Voer `php bin/console retrieve --days=30 --verbose` uit.
+Feeds bevatten keydragende downloadlinks: bescherm feeds, client-/proxy-/accesslogs en browserhistorie. Laat productie-accesslogs querystrings weglaten. De gewone **NZB**-knop gebruikt sessieautorisatie en werkt ook met Newznab uitgeschakeld. De downloadservice begrenst gecomprimeerde invoer en uitgepakte XML tot minder dan 16 MiB.
 
-Oude headerdata en synthetische releases blijven bewaard, maar worden niet meer als spots getoond. De nieuwe Spotnet-index heeft eigen cursors. `db reindex-spots` is vervallen: generieke headers bevatten geen volledige spotinhoud.
+## SABnzbd instellen
 
-## Categorieen, zichtbaarheid en layout
-- De vier Spotnet-hoofdgroepen hebben nu hun volledige formaat-/platform-, bron-, taal-, bitrate- en genre-indeling. Het overzicht onderscheidt onder andere films, series, boeken, afbeeldingen, muziek, livesets, podcasts, luisterboeken, spellen en applicaties.
-- De vaste header bevat alleen Alle en de hoofdcategorieen Beeld, Geluid, Spellen en Applicaties, plus zoeken. Na selectie staan alle bijbehorende subcategorieen per dimensie in de linker sidebar, ook zonder spots. Alleen zichtbare spots leveren aantallen; verborgen erotica-subcategorieen worden niet aangeboden. Onbekende codes blijven bewaard en worden in de technische details als code getoond.
-- Erotica staat standaard globaal **uit**. De admin kan dit toestaan onder **Inhoud en zichtbaarheid**. Daarna kan iedere gebruiker onder **Voorkeuren** zelf opt-innen; standaard blijft erotica verborgen. Globaal uit blokkeert ook admins, zelfs met een opgeslagen persoonlijke opt-in.
-- Deze controle geldt voor lijsten, aantallen, facetten, zoeken, previews, directe detail-/afbeeldingslinks en reacties. Indexing en opgeslagen inhoud worden niet verwijderd. Herkenning gebruikt Spotnet-codes, inclusief oudere adult-genres; dit is geen inhoudsanalyse of vervanging voor moderatie.
-- Voer bij deze upgrade `php bin/console db migrate` uit terwijl retrieval en webverkeer zijn gepauzeerd. De bestaande spots worden automatisch in batches opnieuw ingedeeld op basis van hun opgeslagen subcategoriecodes; opnieuw ophalen is niet nodig. Bij een onderbroken backfill kan hetzelfde commando opnieuw worden uitgevoerd.
-- De screenshots vormen de basis voor een responsive sidebar, compacte spotlijst met covers, geselecteerde preview en detailhero. `default` en `plex-dark` gebruiken de donkere layout; `plex-light` geeft een lichte variant. Niet-geimplementeerde ratings, playback en verificatiestatussen worden niet nagebootst.
-- De rechter preview is aanvankelijk gesloten. Klik op een spotregel (of activeer de titellink met het toetsenbord): het paneel schuift rechts in. Sluiten of Escape schuift het weer uit en geeft de focus terug aan de spot. Het paneel scrollt zelfstandig, ook op mobiel; header en zoeken blijven vast.
-- Resultaten laden automatisch bij wanneer je de onderkant nadert, zonder paginanummers. De knop **Meer resultaten laden** blijft beschikbaar, ook om een mislukte aanvraag opnieuw te proberen. **Resultaten per laadbatch** in voorkeuren bepaalt de batchgrootte (10-200). Zonder JavaScript openen titels de volledige spot en is er een vervolglink.
-- Subcategorieen zijn stapelbare **EN-filters**, ook binnen dezelfde dimensie: een spot moet alle geselecteerde codes bevatten. Nogmaals klikken verwijdert die filter; actieve chips zijn afzonderlijk verwijderbaar. Zoektekst en filters blijven behouden bij bijladen; wisselen van hoofdcategorie begint met een lege subcategoriekeuze.
-- Onder **Kolommen per hoofdcategorie** stelt de admin globale standaarden in. Gebruikers kunnen per hoofdgroep een eigen selectie opslaan of terugzetten naar de actuele globale standaard. Titel blijft verplicht. De gemengde weergave **Alle** heeft een vaste algemene kolomset. Lange waarden breken af; op kleine schermen worden regels compacte kaarten, zonder horizontale tabelscroll.
-- De detailcover heeft een vast frame van 230 x 345 CSS-pixels op desktop (105 x 158 mobiel). Grote afbeeldingen worden proportioneel verkleind; kleine afbeeldingen blijven scherp op natuurlijke grootte, met een vervaagde vulling erachter. De hero gebruikt een uitgerekte kopie van dezelfde cover, met minder blur (6px) en een contrastoverlay, als tijdelijke achtergrond tot fanart-integratie.
-- Klik op de cover in detail of preview voor een groter, proportioneel geschaald beeld in een toegankelijk lightboxvenster. Sluiten, Escape of klikken buiten het venster sluit het; de focus keert terug. Zonder JavaScript opent de originele afbeelding in een nieuw tabblad.
-- Omschrijvingen gebruiken in preview en detail dezelfde veilige HTML-/Spotnet-renderer: `[br]`, `[b]`, `[i]`, `[u]`, `[s]`, `[quote]`, `[code]`, `[url]`, `[list]`/`[*]` en `[li]` worden ondersteund naast HTML. Kleur-, font-, grootte- en uitlijningstags behouden de tekst maar voeren geen remote stijl uit. Codeblokken blijven letterlijk. Scripts, embeds, afbeeldingen in omschrijvingen, remote CSS en eventhandlers worden niet uitgevoerd. Onbekende bracketcodes blijven tekst. Hiervoor is PHP-extensie `dom` vereist.
-- Geimporteerde Usenet-reacties gebruiken dezelfde veilige opmaak. Zelf geplaatste lokale reacties blijven geescapete tekst, met uitsluitend ondersteuning voor de onderstaande emoticoncodes.
-- Spotweb-emoticons zoals `[img=buigen]`, `[img=klappen]` en `[img=respekt]` krijgen moderne statische emoji's; respect, exactly en censored krijgen compacte badges met tekst. `[img=respect]` is een alias van `[img=respekt]`, `[img=wink]` van `[img=knipoog]`. Alle 30 codes uit de Spotweb-reactieknoppen worden ondersteund, hoofdletterongevoelig. Geen GIF's, externe afbeeldingen, nieuwe dependencies of animaties. De precieze emojiweergave volgt het besturingssysteem.
-- De emoticons werken in bestaande Usenet-reacties, lokale reacties en omschrijvingen/preview zonder migratie of opnieuw ophalen. Codeblokken in Usenet-opmaak blijven letterlijk. Onbekende namen, `[img=URL]`, `[img]URL[/img]` en HTML-afbeeldingen worden niet als afbeeldingen geladen. De adminschakelaar voor spotafbeeldingen verandert deze tekstsymbolen niet.
+1. `/admin#downloads`: configureer de centrale verbinding met basis-URL en **volledige SABnzbd API-key**, niet de beperkte NZB-key. Laat `/api` weg; een reverse-proxypad zoals `/sabnzbd` mag wel. Schakel in, sla op en test de opgeslagen verbinding.
+2. Stel exacte SABnzbd-categorienamen in per spottype: Films, Series, Boeken, Erotica, Afbeeldingen, Muziek, Livesets, Podcasts, Luisterboeken, Spellen, Applicaties en Overig. Leeg gebruikt SABnzbd Default; een niet-lege categorie moet op de doelhost bestaan, zonder stille fallback. De test toont beschikbare categorieen.
+3. Gebruikers stellen onder `/preferences#downloads` een eigen koppeling in. De globale categoriemapping geldt ook voor persoonlijke hosts. Gewone gebruikers mogen alleen publiek routeerbare hosts gebruiken; alleen admins mogen interne/LAN-hosts en de centrale koppeling gebruiken.
+4. Klik **SABnzbd** bij een spot, controleer verbinding/titel/categorie en bevestig. NNSpotty uploadt de gevalideerde NZB als multipart-inhoud. Veranderde host/key/mapping vereist een nieuwe bevestiging; dezelfde bevestiging veroorzaakt geen tweede upload.
 
-## Tests en beperkingen
-- `composer test` of `php tests/run.php`: protocol- en renderercontroles zonder database of echte Usenet-provider.
-- Voor integratietests met een aparte MariaDB-testserver: zie [Linux server testen](./docs/linux-server-testing.md).
-- Nog niet aanwezig: spotterhandtekeningverificatie, volledige ondersteuning voor alle exotische Spotnet-tags, NZBGet-forwarding, synchronisatie van afgeronde SABnzbd-jobs, klikbare cast-/bedrijfsfilters en Newznab-ID-zoeken. Praktijkacceptatie met jouw TVDB-key, SABnzbd/Prowlarr/Sonarr en provider blijft nodig. Geimporteerde inhoud blijft onbevestigd; omschrijvingen en Usenet-reacties gebruiken een strikte opmaak-allowlist.
-- Een succesvolle lokale fixturetest bewijst protocolverwerking, niet beschikbaarheid van groepen of artikelen bij jouw Usenet-provider.
+**Downloads** in de header opent de live slide-in. Verversen gebeurt elke vijf seconden zolang paneel en tabblad zichtbaar zijn; bij fouten stopt polling tot je opnieuw probeert. Wachtrijen boven dertig items hebben vorige/volgende. Het paneel ondersteunt Escape, focusherstel, mobiel, thema's en verminderde beweging.
+
+Je ziet de hele externe wachtrij van je gekozen host, ook jobs die niet vanuit NNSpotty zijn gestuurd. Admins kunnen ook de centrale wachtrij kiezen. Externe jobs volgen niet automatisch NNSpotty-eroticafilters; de lokale spot-/verzendhistorie wel.
+
+De laatste dertig lokale verzendpogingen blijven zichtbaar, ook bij een uitgeschakelde/onbereikbare/verwijderde koppeling. **Verzonden** betekent door SABnzbd geaccepteerd, niet voltooid. **Geweigerd**, **Uitkomst onbekend** of een nog onbevestigde poging blijven expliciet herkenbaar. Stuur bij een timeout niet blind opnieuw: SABnzbd kan de upload al hebben ontvangen. Voltooide SABnzbd-historie synchroniseren, pauzeren/verwijderen en NZBGet zijn nog niet beschikbaar.
+
+Keys worden herstelbaar in de database bewaard, nooit teruggetoond in HTML/browser-JSON of applicatie-audits. Leeg keyveld behoudt de bestaande key; verwijderen wist de verbinding, niet downloads/historie. Gebruik HTTPS op publieke hosts; HTTP versleutelt de key niet. DNS/adressen worden ook bij aanvragen gecontroleerd en vastgepind; TLS-verificatie blijft aan, redirects/omgevingsproxies uit.
+
+## TheTVDB: films, series en afleveringen
+
+1. `/admin#metadata`: voer je **API V4-key**, eventueel vereiste abonnee-PIN en taal in, schakel globaal in en test de opgeslagen toegang. Controleer je eigen TVDB-licentie.
+2. Iedere gebruiker, ook de admin, schakelt onder `/preferences#metadata` persoonlijk metadata in. Globaal en persoonlijk staan standaard uit; globaal uit blokkeert iedereen zonder persoonlijke keuzes te wissen.
+3. Open een volledige filmdetail of serie-/afleveringsdetail. Metadata verschijnt asynchroon; oorspronkelijke titel, omschrijving, reacties en NZB/SAB/lightbox blijven bruikbaar.
+
+Automatisch matchen vereist een unieke exact genormaliseerde titel/alias/vertaling, plus hetzelfde jaar bij films. Nummerprefix `03. ` en suffixen zoals IMAX, Theatrical Version, 4K, Ultra HD en Blu-ray worden opgeschoond, numerieke titels zoals 1917 blijven intact. Gelijknamige remakes worden niet gegokt; ontbrekend jaar kan een automatische filmkeuze voorkomen.
+
+`SxxEyy`/`NxYY` gebruiken officiele afleveringnummering en verificatie van serie-ID, seizoen en nummer. Seizoens-/multiafleveringpakketten blijven op serieniveau. Ontbreekt het gevraagde paar, dan alleen seriedata met een expliciete onbevestigde seizoen-/afleveringsmelding, geen omzetting naar een andere ordering. Zo bood de publieke TVDB-pagina van De Bondgenoten bij onderzoek alleen officiele seizoenen 1-3, geen S04E01. Filmcollecties/trilogieen en meerdere BD-discs worden niet automatisch aan een enkele film gekoppeld.
+
+De hero toont beschikbare poster/fanart of een widescreen afleveringstill, synopsis, datum, speelduur en genres. Daaronder cast/crew en beschikbare bedrijven/netwerken; geen foto betekent een ronde lokale placeholder. Geen fictieve ratings: TVDB-`score` is populariteit, geen beoordeling.
+
+**TVDB link** linksboven opent status/opnieuw controleren. Alleen admins kunnen een gedeelde film/serie/aflevering zoeken/kiezen, automatisch matchen herstellen of metadata blokkeren. Een onvindbare handmatige aflevering overschrijft geen geldige keuze. De drawer blijft bruikbaar na asynchrone vervanging en sluit met focusherstel.
+
+Cache: providerrecords en geslaagde matches **zeven dagen**, zoeken/ontbrekende/ambigue matches **een dag**, fouten **vijf minuten**. Opnieuw controleren respecteert TTL; centraal budget **90 uitgaande requests/minuut**, locks en begrensde HTTPS-aanvragen. Parserupdates herbeoordelen oude matchresultaten met behoud van handmatige keuzes/blokkeringen; providerrecords houden hun eigen TTL.
+
+De gebruiker geeft toestemming om de titel met TVDB te delen en artwork rechtstreeks in de browser te laden. Globaal afbeeldingen uit onderdrukt ook TVDB-posters/fanart/cast. De lokale bronvermelding **Metadata van TheTVDB** met donker/licht-logo blijft zichtbaar bij getoonde metadata en linkt naar het betreffende record, conform de [attributierichtlijn](https://www.thetvdb.com/api-information#attribution). Zonder TVDB-data geen attributie. Key/PIN/token staan herstelbaar in de database, niet in HTML/audits; bescherm backups.
+
+## Console, onderhoud en updates
+
+```bash
+php bin/console help
+
+php bin/console db migrate
+php bin/console db status
+php bin/console db health
+php bin/console db cleanup --days=90
+
+php bin/console user list
+php bin/console user create <username> <password>
+php bin/console user create <username> <password> --admin=1
+php bin/console user edit <username> --admin=1
+php bin/console user edit <username> --admin=0
+php bin/console user password <username> <nieuwWachtwoord>
+php bin/console user delete <username>
+```
+
+Vervang placeholders en quote echte argumenten waar nodig. De retrieve-commando's staan hierboven.
+
+`db cleanup` verwijdert oude **lokale reacties**, retrieve-runs, loginpogingen en auditregels volgens de dagengrens, plus verlopen TVDB-providercache onafhankelijk van die grens. Dit is geen algemene spotretentie-purge; voer het niet blind uit als je die historie wilt bewaren.
+
+### Bestaande installatie bijwerken
+
+Maak een beveiligde databasebackup en configuratiebackup; pauzeer retrieve-jobs en webverkeer bij schemawijzigingen. Voer vanuit de bestaande deploymap op `nnspotty.hopseflop.nl` uit:
+
+```bash
+umask 022
+git status --short
+# Los onverwachte lokale wijzigingen eerst gericht op.
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+composer check-platform-reqs
+php bin/console db migrate
+php bin/console db status
+php bin/console db health
+php tests/run.php
+curl -fsS https://nnspotty.hopseflop.nl/health
+curl -fsS -o /dev/null -w 'CSS: %{http_code}\n' https://nnspotty.hopseflop.nl/assets/spotty.css
+```
+
+Hervat verkeer/jobs na geslaagde controles en herlaad met Ctrl+F5. Niet iedere presentatie-update vereist een migratie of nieuwe retrieve; volg de changelog en [Linux-serverchecks](./docs/linux-server-testing.md).
+
+`composer.json` en `composer.lock` horen in Git; `vendor/`, gegenereerde autoloads, `.env`, Composer-authenticatie, runtime/logs, dumps en coverage niet. Installeer dependencies op de server. Overschrijf de bestaande `.env` niet.
+
+**Oude installaties:** `.env` en `vendor/` waren eerder gevolgd; de eenmalige opschoning kan die bestanden bij pull verwijderen. Volg eerst de [backup-/restoreprocedure](./docs/linux-server-testing.md#git-opruimen-inhoudsinstellingen-en-afbeeldingsvergroting). `.gitignore` verwijdert geen oude secrets uit Git-historie: roteer credentials die ooit zijn vastgelegd.
+
+Bij upgrade vanaf de oude generieke headerindex: migreer, controleer de Spotnet-groepsrollen en haal echte spots op met `retrieve --days=30 --verbose`. Oude headers blijven bewaard maar worden niet als spots getoond; `db reindex-spots` is vervallen. Categorie-/commentmigraties herstellen bestaande data waar mogelijk; `--refresh-spots` kan ontbrekende bronmetadata aanvullen.
+
+## Tests en controles
+
+```bash
+# Zonder echte Usenet-/TVDB-/SABnzbd-verbinding of database:
+php tests/run.php
+# Equivalent:
+composer test
+```
+
+De suite bevat protocol-, parser-, categorie-, metadata-, NZB-, opmaak- en rendererchecks. Database-/HTTP-integratietests gebruiken synthetische providers en een **aparte** MySQL/MariaDB-testserver:
+
+```bash
+export NNSPOTTY_TEST_DSN='mysql:host=127.0.0.1;port=3306;charset=utf8mb4'
+export NNSPOTTY_TEST_USER='nnspotty_test'
+read -rsp 'Wachtwoord testdatabase: ' NNSPOTTY_TEST_PASSWORD; echo
+export NNSPOTTY_TEST_PASSWORD
+php tests/run.php --integration
+unset NNSPOTTY_TEST_DSN NNSPOTTY_TEST_USER NNSPOTTY_TEST_PASSWORD
+```
+
+Gebruik **geen productiecredentials**: de testgebruiker moet tijdelijke testschema's kunnen maken/verwijderen. Zie [Linux-serverchecks](./docs/linux-server-testing.md) voor voorwaarden, asset-/routechecks en echte productieacceptatie.
+
+Een fixturetest bewijst geen providerbeschikbaarheid. Controleer met je eigen accounts een echte spot, reacties, afbeelding, NZB-download, Prowlarr-zoekactie, SABnzbd-upload/wachtrij en TVDB-match. Test mobiel/desktop en donker/licht. Gedeelde VS Code-taken bieden syntaxcontrole en lokaal serveren; aanbevolen extensies staan in [extensions.json](./.vscode/extensions.json).
+
+## Beperkingen en vervolgwerk
+
+- Nog geen installatiewizard, ingebouwde scheduler/jobqueue of begin-/einddatumkalender voor historische retrieve; gebruik voorlopig console/cron en retentie in dagen.
+- Geen cryptografische Spotnet-handtekeningverificatie of geverifieerde spotteridentiteit; geregistreerde whitelist/blacklist is nog geen afgedwongen moderatiefilter.
+- Niet alle exotische Spotnet-tags/legacy-XML, dagelijkse/absolute afleveringscodes of multi-episodevarianten worden volledig ondersteund.
+- Geen Usenet-publicatie van lokale reacties, playback, reviews of verzonnen verificatie-/beoordelingsbadges.
+- Geen NZBGet-forwarding, afgeronde SABnzbd-historiesynchronisatie of SABnzbd-pauzeer/verwijderbediening.
+- Geen aparte IMDb-provider, klikbare cast-/crew-/studio-/netwerkontdekfilters of Newznab IMDb/TVDB-ID-zoeken. Externe IDs worden waar beschikbaar wel bewaard voor vervolgwerk.
+- Geen automatische filmkeuze voor onduidelijke collecties of niet-unieke titel-/jaarmatches.
+- Geimporteerde inhoud blijft onbevestigd; erotica-classificatie gebruikt categoriecodes, geen inhoudsanalyse. Zorg zelf voor passende toegang, providerabonnementen en rechten op inhoud.
+
+## Documentatie en bijdragen
+
+- [Installatie en hosting/troubleshooting](./docs/installation.md)
+- [Linux-serverupdates, backups en acceptatietests](./docs/linux-server-testing.md)
+- [Architectuur](./docs/architecture.md)
+- [Projectrichtlijnen en productdoelen](./docs/project-guidelines.md)
+- [Versioning en codenames](./docs/versioning.md)
+- [Second brain: besluiten en vervolgwerk](./docs/second-brain.md)
+- [Changelog](./CHANGELOG.md)
+- [UI-referenties](./docs/screenshots/)
+- [Huisstijlpresentatie](./docs/branding/presentation.png) en originele [logo](./docs/branding/logo.png), [favicon](./docs/branding/favicon.png), [placeholder](./docs/branding/placeholder.png)
+- [Copilot-projectinstructies](./.github/copilot-instructions.md)
+
+Houd bij nieuwe of gewijzigde features ook deze README actueel: functionaliteit, configuratie, installatie/retrieve-commando's, beperkingen en eventuele third-party afhankelijkheden. Werk bij besluiten/scopewijzigingen tevens de second brain en relevante vervolgdocumentatie bij. Productdoelen in de richtlijnen zijn niet automatisch al geimplementeerde functies.
+
+## Third-party applicaties, code en tools
+
+### Runtime en gebruikte code
+
+| Project | Gebruik in NNSpotty |
+|---|---|
+| [PHP](https://www.php.net/) | Backend en console; PDO/MySQL, DOM/SimpleXML, iconv, zlib en cURL voor opslag, parsing, decompressie en HTTP |
+| [php-nntp / rvdv/nntp](https://github.com/robinvdvleuten/php-nntp) | NNTP-client van Robin van der Vleuten, via Composer; vastgezet op v1.0.0, MIT |
+| [Composer](https://getcomposer.org/) | Dependencybeheer en PSR-4-autoloading; lockfile voor reproduceerbare installatie |
+| [MySQL](https://www.mysql.com/) / [MariaDB](https://mariadb.org/) | Applicatiedatabase, indexen, instellingen, historie en caches |
+| [Bootstrap 5.3.7](https://getbootstrap.com/) via [jsDelivr](https://www.jsdelivr.com/) | CSS/componentstyling; interacties via eigen JavaScript en native browserdialogen, geen vereiste Bootstrap-JavaScriptbundle |
+| [libcurl / cURL](https://curl.se/) | Via PHP-cURL voor TVDB/SABnzbd; CLI-curl voor serverchecks |
+
+`rvdv/nntp` is de enige externe Composer-package in de huidige lockfile. Er is geen verplicht frontendframework, npm-build, PHPUnit- of PHPStan-installatie; de applicatie heeft een eigen PHP-testharnas. Algemene runtime-/dependencylicenties blijven bij hun respectieve projecten; `composer.json` vermeldt MIT voor NNSpotty.
+
+### Providers, protocollen en externe applicaties
+
+| Project | Relatie |
+|---|---|
+| [TheTVDB](https://www.thetvdb.com/) en [API V4-specificatie](https://thetvdb.github.io/v4-api/) | Optionele metadata/artwork; eigen key/licentie vereist, met zichtbare [attributie](https://www.thetvdb.com/api-information#attribution) |
+| [SABnzbd](https://sabnzbd.org/) | Geimplementeerde NZB-forwarding en live wachtrij via de [SABnzbd API](https://sabnzbd.org/wiki/configuration/4.5/api) |
+| [Newznab API](https://newznab.readthedocs.io/en/latest/misc/api/) | XML-protocol en categoriecompatibiliteit; geen Newznab-codebasis ingebouwd |
+| [Prowlarr](https://prowlarr.com/), [Sonarr](https://sonarr.tv/), [Radarr](https://radarr.video/) | Externe clients via Newznab, eventueel via Prowlarr-synchronisatie; geen ingebouwde onderdelen |
+| [Spotweb](https://github.com/spotweb/spotweb) | Functionele/protocolreferentie voor Spotnet, categorieen en oude emoticoncodes; NNSpotty gebruikt een nieuwe eigen implementatie, geen legacy Spotweb-codebasis |
+| [Plex](https://www.plex.tv/) | Visuele inspiratie voor thema/detailpresentatie; geen Plex-koppeling of playback |
+| [NZBGet](https://nzbget.com/) en [IMDb](https://www.imdb.com/) | Genoemd als vervolgdoel, niet als huidige werkende downloader-/metadataprovider |
+
+### Hosting, ontwikkeling en validatie
+
+- [Apache HTTP Server](https://httpd.apache.org/) of [Nginx](https://nginx.org/) met [PHP-FPM](https://www.php.net/manual/en/install.fpm.php): productiehosting; geen meegeleverde complete serverinstallatie.
+- [Git](https://git-scm.com/) en [GitLab](https://about.gitlab.com/): versiebeheer en huidige repositoryhosting.
+- [cron](https://man7.org/linux/man-pages/man5/crontab.5.html) en [flock (util-linux)](https://man7.org/linux/man-pages/man1/flock.1.html): optionele periodieke retrieve met een extern runlock.
+- [Visual Studio Code](https://code.visualstudio.com/) en [GitHub Copilot](https://github.com/features/copilot): ontwikkelomgeving en ontwikkelassistentie.
+- [PowerShell](https://learn.microsoft.com/powershell/): Windows-ontwikkelcommando's en gedeelde VS Code-syntaxtaken; niet nodig voor installatie op Linux.
+- [Playwright](https://playwright.dev/): browserautomatisering voor UI-validatie tijdens ontwikkeling; geen productieafhankelijkheid of vereiste voor de PHP-tests.
+- Aanbevolen VS Code-extensies: [Intelephense](https://marketplace.visualstudio.com/items?itemName=bmewburn.vscode-intelephense-client), [PHP Debug](https://marketplace.visualstudio.com/items?itemName=xdebug.php-debug), [GitLens](https://marketplace.visualstudio.com/items?itemName=eamodio.gitlens) en [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode). Aanbevolen betekent niet dat deze tools verplicht zijn voor installatie of runtime.
