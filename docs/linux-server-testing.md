@@ -244,6 +244,39 @@ curl -fsS -D - https://nnspotty.hopseflop.nl/assets/presentation.js -o /dev/null
 
 Alle drie moeten HTTP 200 geven, met respectievelijk een CSS- en JavaScript-contenttype. Herlaad daarna de browser met Ctrl+F5. Geeft een verzoek nog 403, controleer dan de Apache-errorlog, parent-directoryrechten en eventuele ACL's met de serverbeheerder; maak niet de hele repository wereldleesbaar/schrijfbaar. Laat `.env` op 600 staan. Gebruik voor volgende Git/Composer-updates `umask 022`; beperk 077 tot het aanmaken van geheime backups in een subshell.
 
+## Ontbrekende reacties en extra spotdetails (migratie 0010)
+Voer vanuit de bestaande deploymap op `nnspotty.hopseflop.nl` uit. Maak eerst een databasebackup en pauzeer retrieve-jobs en webverkeer tijdens de migratie.
+
+```bash
+set -e
+umask 022
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+php bin/console db migrate
+php bin/console db status
+php bin/console db health
+php tests/run.php
+```
+
+Migratie `20261018_0010_spot_details_comments` herstelt bestaande foutieve reactiekoppelingen op basis van de Spotnet-reactie-ID. Dit downloadt niets opnieuw en verwijdert geen reacties. Controleer in admin de groep `comments:free.usenet` en schakel zowel **Usenet-reacties indexeren** als **Reacties weergeven** in.
+
+```bash
+# Reacties ophalen zonder eerst de spotgroep te verwerken.
+php bin/console retrieve --comments-only --days=7 --verbose
+
+# Eerder opgeslagen recente spots aanvullen met onder andere de clientnaam.
+php bin/console retrieve --refresh-spots --days=7 --verbose
+
+# Daarna periodiek verder vanaf de opgeslagen posities.
+php bin/console retrieve --since-last --verbose
+```
+
+`--comments-only` moet uitsluitend `comments free.usenet` melden, niet `spots free.pt`. Ook een datumsessie scant alle beschikbare headers van de geselecteerde groep; recente batches komen eerst, maar volledige afronding kan lang duren. Gebruik een ruimere periode voor oudere reacties/spots. De incrementele limiet geldt alleen bij `--since-last`; deze begint bij historische achterstand niet automatisch bij de nieuwste reacties.
+
+Controleer dezelfde spot als in Spotweb op basis van het exacte Message-ID, niet uitsluitend titel. Reeds verkeerd gekoppelde reacties moeten na migratie zichtbaar zijn; nog niet opgeslagen reacties pas na retrieval. Vergelijk de body, auteur en datum van reacties, en **Gepost met**, hoofdgroep, formaat, bron, bitrate en genre in detail en preview. De clientnaam verschijnt alleen als de provider/header/XML die levert; er wordt geen waarde verzonnen. Een identiek aantal reacties is niet gegarandeerd bij verschillende providerretentie, moderatie of retrievalperiodes. Bij nul reacties: controleer verbose output op `opgeslagen`, `te_oud`, `ongeldig`, `verdwenen` en transportfouten; deel die diagnostiek zonder serverwachtwoorden.
+
+Spotwebs geverifieerde spotter-ID, whiteliststatus, ratings/spamrapporten en NZB-downloads hebben nog geen gelijkwaardige implementatie in NNSpotty. De al beschikbare website, omschrijving en categoriegegevens blijven behouden; deze update verzint geen ontbrekende velden of verificatiestatus.
+
 ## Web checks via subdomein
 ```bash
 curl -i https://nnspotty.hopseflop.nl/health

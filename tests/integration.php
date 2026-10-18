@@ -57,6 +57,7 @@ try {
         && (int) $pdo->query("SELECT COUNT(*) FROM retrieval_cursors WHERE group_name = 'spotnet:comments:free.usenet'")->fetchColumn() === 0
         && count(array_filter($log, static fn (string $line): bool => str_contains($line, 'Reacties ophalen is uitgeschakeld'))) === 1,
         'Reacties uit slaat groep, opslag en cursor over en meldt dit expliciet');
+    rejects(static fn () => $service->run('days', 7, true, $logger, commentsOnly: true), 'Gerichte reactierun omzeilt adminblokkade niet');
     $pdo->exec("DELETE FROM retrieval_cursors WHERE group_name = 'spotnet:spots:free.pt'");
     $state->saveSpotContentSettings($contentDefaults);
     check((new AppStateRepository($pdo))->spotContentSettings() === $contentDefaults, 'Inhoudsinstellingen blijven na herladen behouden');
@@ -95,12 +96,43 @@ try {
     check($spot !== null && $spot['size'] === 4294967296, 'Spotinhoud en grootte correct in echte database');
     $comments = $spots->comments($spotId);
     check(count($comments) === 2 && str_contains($comments[0]['body'], "\r\n.Begint"), 'NNTP ARTICLE, dot-unstuffing en comment-koppeling werken');
+    check($spot['newsreader'] === 'Spotnet 1.9.0.8', 'Newsreader wordt via NNTP en database behouden');
+    $pdo->exec("UPDATE spotnet_comments SET spot_id = '" . str_repeat('a', 64) . "' WHERE message_id = 'spot-one.1.2.3@example.invalid'");
+    $pdo->exec('ALTER TABLE spotnet_spots DROP COLUMN newsreader');
+    $pdo->exec("DELETE FROM migrations WHERE name = '20261018_0010_spot_details_comments'");
+    $migrator->migrate();
+    $migrator->migrate();
+    check(count($spots->comments($spotId)) === 2, 'Migratie herstelt fout gekoppelde bestaande reacties zonder opnieuw downloaden of dupliceren');
+    check($spots->getSpot($spotId)['newsreader'] === '', 'Upgrade voegt clientveld veilig toe aan reeds gevulde spottabel zonder verzonnen waarde');
+    $spotCursorBefore = $pdo->query("SELECT last_article FROM retrieval_cursors WHERE group_name = 'spotnet:spots:free.pt'")->fetchColumn();
+    $pdo->exec("DELETE FROM spotnet_comments WHERE message_id = 'spot-one.1.2.3@example.invalid'");
+    $log = [];
+    $commentsOnlyRun = $service->run('days', 7, true, $logger, commentsOnly: true);
+    check($commentsOnlyRun['groups'] === 1 && $commentsOnlyRun['inserted'] === 1 && count($spots->comments($spotId)) === 2
+        && count(array_filter($log, static fn (string $line): bool => str_starts_with($line, 'spots free.pt:'))) === 0
+        && $pdo->query("SELECT last_article FROM retrieval_cursors WHERE group_name = 'spotnet:spots:free.pt'")->fetchColumn() === $spotCursorBefore,
+        'Gerichte reactierun haalt echte reacties op zonder spotgroep of spotcursor te benaderen');
+    rejects(static fn () => $service->run('since-last', null, true, $logger, refreshSpots: true), 'Metadata vernieuwen vereist expliciete backfillperiode');
+    rejects(static fn () => $service->run('days', 7, true, $logger, commentsOnly: true, refreshSpots: true), 'Conflicterende retrievalselectie wordt afgewezen');
+    $pdo->exec("UPDATE spotnet_spots SET newsreader = ''");
+    $commentCursorBefore = $pdo->query("SELECT last_article FROM retrieval_cursors WHERE group_name = 'spotnet:comments:free.usenet'")->fetchColumn();
+    $refreshedRun = $service->run('days', 7, true, $logger, refreshSpots: true);
+    check($refreshedRun['groups'] === 1 && $refreshedRun['inserted'] === 0 && $refreshedRun['refreshed'] === 2
+        && $spots->getSpot($spotId)['newsreader'] === 'Spotnet 1.9.0.8'
+        && $pdo->query("SELECT last_article FROM retrieval_cursors WHERE group_name = 'spotnet:comments:free.usenet'")->fetchColumn() === $commentCursorBefore,
+        'Metadata-refresh vernieuwt bestaande spots en bewaart reacties en hun cursor');
     $state->addComment($spotId, 'local-user', 'Een lokale reactie');
     check(count($spots->comments($spotId)) === 3, 'Lokale en Usenet reacties samen getoond');
     $imageService = new SpotImageService($spots, $state);
     $image = $imageService->load($spot);
     check($image['mime_type'] === 'image/png' && $image['image_data'] === Fixtures::image(), 'Afbeelding via NNTP gedecodeerd en als BLOB opgeslagen');
     check($imageService->load($spot) === $image, 'Afbeelding wordt uit databasecache gelezen');
+    $changedImage = SpotnetParser::spot('spot-one@example.invalid', Fixtures::headers(xml: str_replace(
+        'image@example.invalid', 'updated-image@example.invalid', Fixtures::xml()
+    )));
+    $spots->saveSpot($changedImage, 'free.pt', true);
+    check($spots->image($spotId) === null && count($spots->comments($spotId)) === 3, 'Expliciete metadatarefresh verwijdert een verouderde covercache maar bewaart reacties');
+    $spots->saveSpot(SpotnetParser::spot('spot-one@example.invalid', Fixtures::headers()), 'free.pt', true);
     $all = $service->run('all', null, true, $logger);
     check($spots->countSpots(null) === 3 && $all['inserted'] === 1, '--all negeert retentie en scant de volledige groep');
     $again = $service->run('since-last', null, true, $logger);

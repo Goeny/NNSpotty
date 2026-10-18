@@ -65,6 +65,10 @@ try {
     check($spot['description'] === 'Een omschrijving met [b]opmaak[/b] en <script>onveilig</script>.', 'Volledige omschrijving uit XML');
     check($spot['category'] === 'Beeld' && $spot['size'] === 4294967296, 'Categorie en grootte uit XML, niet uit overview');
     check($spot['image_segments'] === ['image@example.invalid'] && $spot['nzb_segments'] === ['nzb@example.invalid'], 'Afbeelding- en NZB-verwijzingen bewaard');
+    check($spot['newsreader'] === 'Spotnet 1.9.0.8', 'Newsreader uit NNTP-header wordt bewaard');
+    $xmlNewsreader = str_replace('</Spotnet>', '<Extra><Newsreader>XML-client</Newsreader></Extra></Spotnet>', Fixtures::xml());
+    check(SpotnetParser::spot('xml-reader@example.invalid', str_replace("X-Newsreader: Spotnet 1.9.0.8\r\n", '', Fixtures::headers('xml-reader@example.invalid', $xmlNewsreader)))['newsreader'] === 'XML-client', 'Newsreader uit Extra/Newsreader als header ontbreekt');
+    rejects(static fn () => SpotnetParser::spot('long-reader@example.invalid', str_replace('Spotnet 1.9.0.8', str_repeat('x', 513), Fixtures::headers('long-reader@example.invalid'))), 'Te lang newsreader-veld wordt expliciet geweigerd');
     $other = SpotnetParser::spot('spot-two@example.invalid', Fixtures::headers('spot-two@example.invalid'));
     check($other['id'] !== $spot['id'], 'Gelijke titels blijven afzonderlijke spots');
     check(SpotnetParser::spot('other@example.invalid', "Subject: Een gewone header\r\nDate: " . gmdate('r')) === null, 'Gewone headers worden geen spots');
@@ -89,6 +93,13 @@ try {
     check($comment['spot_id'] === $spot['id'] && $comment['poster'] === 'Reageerder', 'Reacties via References aan spot gekoppeld');
     $fallback = SpotnetParser::comment('spot-one.1.2.3@example.invalid', Fixtures::comment(''));
     check($fallback['spot_id'] === $spot['id'], 'Spotnet comment-ID fallback zonder References');
+    $wrongReference = SpotnetParser::comment('spot-one.1.2.3@example.invalid', Fixtures::comment('<wrong@example.invalid>'));
+    check($wrongReference['spot_id'] === $spot['id'], 'Spotnet reactie-ID heeft voorrang op onjuiste provider-References');
+    check(SpotnetParser::comment('spot-one.1.2.3@example.invalid', Fixtures::comment('provider garbage'))['spot_id'] === $spot['id'], 'Defect References-veld blokkeert geldige Spotnet-reactie niet');
+    check(SpotnetParser::commentReference('SpotCase.123.456@spot.net') === 'SpotCase@spot.net'
+        && SpotnetParser::commentReference('plain@domain.with.dots') === null, 'Reactiekoppeling behoudt hoofdletters en splitst uitsluitend lokaal deel');
+    rejects(static fn () => SpotnetParser::comment('comment@example.invalid', "Message-ID: <different@example.invalid>\r\n" . Fixtures::comment()), 'Verkeerd reactie message-ID wordt afgewezen');
+    rejects(static fn () => SpotnetParser::comment('comment@example.invalid', Fixtures::comment('')), 'Reactie zonder code of References wordt afgewezen');
     $encoded = "Date: " . gmdate('r') . "\r\nFrom: =?UTF-8?B?UmVhZ2VlcmRlcg==?= <a@example.invalid>\r\nReferences: <spot-one@example.invalid>\r\n"
         . "Content-Type: text/plain; charset=ISO-8859-1\r\nContent-Transfer-Encoding: base64\r\n\r\n" . base64_encode("caf\xe9");
     check(SpotnetParser::comment('encoded@example.invalid', $encoded)['body'] === 'café', 'MIME encoding en charset van reacties');
@@ -167,6 +178,11 @@ try {
     $comment['body'] = '<img src=x onerror=alert(1)>';
     $comment['source'] = 'Usenet';
     $html = SpotDetailPageRenderer::render('tester', false, $spot, [$comment], '<input name="_csrf" value="test">');
+    check(str_contains($html, '<dt>Gepost met</dt><dd>Spotnet 1.9.0.8</dd>')
+        && str_contains($html, '<dt>Hoofdcategorie</dt><dd>Beeld</dd>'), 'Detail toont hoofdgroep en newsreader naast bestaande technische details');
+    $unsafeReader = $spot;
+    $unsafeReader['newsreader'] = '<script>reader()</script>';
+    check(!str_contains(SpotDetailPageRenderer::summary($unsafeReader, true), '<script>reader()'), 'Newsreader is ook in preview geescapete tekst');
     check(!str_contains($html, '<script>') && !str_contains($html, '<img src=x') && str_contains($html, '&lt;script&gt;'), 'Onbetrouwbare inhoud wordt geescaped');
     check(str_contains($html, 'Omschrijving') && str_contains($html, 'Reacties (1)') && !str_contains($html, 'Onderdelen (headers)'), 'Spotdetail toont inhoud en reacties, geen headerdelen');
     $overview = SpotsPageRenderer::render('tester', false, [$spot, $other], null, 2, '');

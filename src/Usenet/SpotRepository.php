@@ -21,19 +21,35 @@ final class SpotRepository
     }
 
     /** @param array<string, mixed> $spot */
-    public function saveSpot(array $spot, string $group): void
+    public function saveSpot(array $spot, string $group, bool $refresh = false): void
     {
         $classification = SpotCategories::classify($spot['category'], $spot['subcategories']);
         $this->pdo->beginTransaction();
         try {
+            if ($refresh) {
+                $existing = $this->pdo->prepare('SELECT image_url, image_segments FROM spotnet_spots WHERE id = :id FOR UPDATE');
+                $existing->execute(['id' => $spot['id']]);
+                $image = $existing->fetch();
+                if (is_array($image) && ($image['image_url'] !== $spot['image_url']
+                    || json_decode($image['image_segments'], true, 512, JSON_THROW_ON_ERROR) !== $spot['image_segments'])) {
+                    $delete = $this->pdo->prepare('DELETE FROM spotnet_images WHERE spot_id = :id');
+                    $delete->execute(['id' => $spot['id']]);
+                }
+            }
             $statement = $this->pdo->prepare(
                 'INSERT INTO spotnet_spots
-                    (id, message_id, group_name, title, description, poster, category, subcategories, size,
+                    (id, message_id, group_name, title, description, poster, newsreader, category, subcategories, size,
                      posted_at, website, tag, image_url, image_segments, nzb_segments, full_xml, browse_type, is_erotica, created_at)
                  VALUES
-                    (:id, :message_id, :group_name, :title, :description, :poster, :category, :subcategories, :size,
+                    (:id, :message_id, :group_name, :title, :description, :poster, :newsreader, :category, :subcategories, :size,
                      :posted_at, :website, :tag, :image_url, :image_segments, :nzb_segments, :full_xml, :browse_type, :is_erotica, UTC_TIMESTAMP())
-                 ON DUPLICATE KEY UPDATE id = VALUES(id)'
+                 ON DUPLICATE KEY UPDATE ' . ($refresh ? 'title = VALUES(title), description = VALUES(description),
+                    poster = VALUES(poster), newsreader = VALUES(newsreader), category = VALUES(category),
+                    subcategories = VALUES(subcategories), size = VALUES(size), posted_at = VALUES(posted_at),
+                    website = VALUES(website), tag = VALUES(tag), image_url = VALUES(image_url),
+                    image_segments = VALUES(image_segments), nzb_segments = VALUES(nzb_segments),
+                    full_xml = VALUES(full_xml), browse_type = VALUES(browse_type), is_erotica = VALUES(is_erotica)'
+                    : 'id = VALUES(id)')
             );
             $parameters = $spot;
             $parameters['group_name'] = $group;
@@ -45,7 +61,7 @@ final class SpotRepository
                 $parameters[$key] = json_encode($parameters[$key], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
             }
             $statement->execute($parameters);
-            if ($statement->rowCount() === 1) {
+            if ($statement->rowCount() > 0) {
                 $this->indexCategories($spot['id'], $spot['category'], $classification);
             }
             $this->pdo->commit();

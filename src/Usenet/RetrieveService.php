@@ -20,8 +20,8 @@ final class RetrieveService
     ) {
     }
 
-    /** @return array{mode: string, days: ?int, status: string, message: string, inserted: int, groups: int} */
-    public function run(string $mode, ?int $days, bool $verbose = false, ?callable $logger = null): array
+    /** @return array{mode: string, days: ?int, status: string, message: string, inserted: int, refreshed: int, groups: int} */
+    public function run(string $mode, ?int $days, bool $verbose = false, ?callable $logger = null, bool $commentsOnly = false, bool $refreshSpots = false): array
     {
         if (!in_array($mode, ['all', 'days', 'since-last'], true) || ($mode === 'days' && ($days === null || $days < 1))) {
             throw new \InvalidArgumentException('Gebruik --all, --since-last of --days=<positief aantal>.');
@@ -31,6 +31,20 @@ final class RetrieveService
         };
         $settings = $this->state->getUsenetSettings();
         $groups = SpotnetParser::groups($settings['explicit_groups']);
+        if ($commentsOnly && $refreshSpots) {
+            throw new \InvalidArgumentException('--comments-only en --refresh-spots kunnen niet samen worden gebruikt.');
+        }
+        if ($refreshSpots && $mode === 'since-last') {
+            throw new \InvalidArgumentException('Gebruik --refresh-spots met --days=<n> of --all om bestaande spots opnieuw te lezen.');
+        }
+        if ($commentsOnly) {
+            $groups = array_filter($groups, static fn (string $role): bool => $role === 'comments');
+            if ($groups === [] || !$this->state->spotContentSettings()['retrieve_comments']) {
+                throw new \InvalidArgumentException('Configureer een reactiegroep en schakel Usenet-reacties indexeren in via admin.');
+            }
+        } elseif ($refreshSpots) {
+            $groups = array_filter($groups, static fn (string $role): bool => $role === 'spots');
+        }
         if (!$this->state->spotContentSettings()['retrieve_comments']) {
             $groups = array_filter($groups, static fn (string $role): bool => $role !== 'comments');
             $log('Reacties ophalen is uitgeschakeld; reactiegroepen en hun cursors blijven ongewijzigd.');
@@ -41,6 +55,7 @@ final class RetrieveService
         $runId = $this->startRun($mode, $days);
         $client = null;
         $inserted = 0;
+        $refreshed = 0;
         $processedGroups = 0;
         $skipped = 0;
         try {
@@ -79,7 +94,7 @@ final class RetrieveService
                     if (!is_array($rows)) {
                         throw new \RuntimeException('NNTP XOVER retourneerde geen overzicht.');
                     }
-                    $counts = ['te_oud' => 0, 'bestaand' => 0, 'geen_spot' => 0, 'ongeldig' => 0, 'verdwenen' => 0, 'opgeslagen' => 0];
+                    $counts = ['te_oud' => 0, 'bestaand' => 0, 'geen_spot' => 0, 'ongeldig' => 0, 'verdwenen' => 0, 'opgeslagen' => 0, 'vernieuwd' => 0];
                     $oldestDate = null;
                     $newestDate = null;
                     foreach ($rows as $row) {
@@ -109,7 +124,8 @@ final class RetrieveService
                                 $counts['te_oud']++;
                                 continue;
                             }
-                            if ($repository->exists(hash('sha256', $messageId), $role)) {
+                            $exists = $repository->exists(hash('sha256', $messageId), $role);
+                            if (!$refreshSpots && $exists) {
                                 $counts['bestaand']++;
                                 continue;
                             }
@@ -120,7 +136,7 @@ final class RetrieveService
                                     $counts['geen_spot']++;
                                     continue;
                                 }
-                                $repository->saveSpot($spot, $groupName);
+                                $repository->saveSpot($spot, $groupName, $refreshSpots);
                             } else {
                                 $article = $client->sendCommand(new \Rvdv\Nntp\Command\ArticleCommand('<' . $messageId . '>'));
                                 if (!is_string($article)) {
@@ -128,8 +144,13 @@ final class RetrieveService
                                 }
                                 $repository->saveComment(SpotnetParser::comment($messageId, $article));
                             }
-                            $inserted++;
-                            $counts['opgeslagen']++;
+                            if ($exists) {
+                                $refreshed++;
+                                $counts['vernieuwd']++;
+                            } else {
+                                $inserted++;
+                                $counts['opgeslagen']++;
+                            }
                         } catch (UnexpectedValueException $exception) {
                             $skipped++;
                             $counts['ongeldig']++;
@@ -162,9 +183,10 @@ final class RetrieveService
                 }
                 $processedGroups++;
             }
-            $message = 'Spotnet retrieve voltooid: ' . $inserted . ' spots/reacties opgeslagen; ' . $skipped . ' berichten overgeslagen.';
+            $message = 'Spotnet retrieve voltooid: ' . $inserted . ' nieuwe spots/reacties opgeslagen; '
+                . $refreshed . ' spots vernieuwd; ' . $skipped . ' berichten overgeslagen.';
             $this->finishRun($runId, 'completed', $message);
-            return ['mode' => $mode, 'days' => $days, 'status' => 'completed', 'message' => $message, 'inserted' => $inserted, 'groups' => $processedGroups];
+            return ['mode' => $mode, 'days' => $days, 'status' => 'completed', 'message' => $message, 'inserted' => $inserted, 'refreshed' => $refreshed, 'groups' => $processedGroups];
         } catch (Throwable $exception) {
             $this->finishRun($runId, 'failed', 'Spotnet retrieve mislukt: ' . $exception->getMessage());
             throw $exception;

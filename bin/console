@@ -166,6 +166,8 @@ function handleRetrieveCommand(array $argv, RetrieveService $service): void
     $sinceLast = optionBool($argv, '--since-last', false);
     $days = optionInt($argv, '--days', null);
     $verbose = optionBool($argv, '--verbose', false);
+    $commentsOnly = optionBool($argv, '--comments-only', false);
+    $refreshSpots = optionBool($argv, '--refresh-spots', false);
 
     $mode = 'since-last';
     $modeDays = null;
@@ -185,7 +187,9 @@ function handleRetrieveCommand(array $argv, RetrieveService $service): void
         $verbose,
         static function (string $message): void {
             fwrite(STDOUT, '[verbose] ' . $message . PHP_EOL);
-        }
+        },
+        $commentsOnly,
+        $refreshSpots
     );
     fwrite(STDOUT, 'Retrieve: mode=' . $result['mode'] . ' status=' . $result['status'] . ' groups=' . $result['groups'] . ' inserted=' . $result['inserted'] . PHP_EOL);
     fwrite(STDOUT, $result['message'] . PHP_EOL);
@@ -239,5 +243,5 @@ function showHelp(): void
     fwrite(STDOUT, "  bin/console user delete <username>\n");
     fwrite(STDOUT, "  bin/console user password <username> <newPassword>\n");
     fwrite(STDOUT, "  bin/console user edit <username> [--admin=1|0]\n");
-    fwrite(STDOUT, "  bin/console retrieve [--all|--since-last|--days=30] [--verbose]\n");
+    fwrite(STDOUT, "  bin/console retrieve [--all|--since-last|--days=30] [--comments-only|--refresh-spots] [--verbose]\n");
 }

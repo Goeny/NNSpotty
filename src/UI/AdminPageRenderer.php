@@ -96,6 +96,7 @@ HTML;
         {$contentOptions}
         <p class="form-text">Spots en hun omschrijving blijven de basis. Reacties indexeren uit: geen reactiegroepen ophalen of cursors verplaatsen. Weergave uit: ook bestaande en lokale reacties verborgen. Afbeeldingen worden alleen bij bekijken geladen en in de database gecachet; uit blokkeert ook gecachte afbeeldingen. Opgeslagen inhoud wordt niet verwijderd.</p>
         <p class="form-text">Retentie en max artikelen per incrementele run staan onder Usenet instellingen. Na opnieuw inschakelen van reacties haalt --since-last de achterstand vanaf de bestaande cursor op; --days of --all kan beschikbare historie aanvullen. Aanvullende IMDB/TVDB-metadata en NZB-downloads zijn nog niet beschikbaar.</p>
+        <p class="form-text">Reacties bijwerken zonder eerst de spotgroep te scannen: <code>php bin/console retrieve --comments-only --days=7 --verbose</code>. Ook deze datumsessie scant alle beschikbare reactienummers en kan lang duren. Opgeslagen spotmetadata aanvullen: <code>php bin/console retrieve --refresh-spots --days=7 --verbose</code>.</p>
         <button class="btn btn-primary" type="submit">Inhoudsinstellingen opslaan</button>
       </form>
     </section>

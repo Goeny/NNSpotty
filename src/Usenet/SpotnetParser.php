@@ -117,6 +117,10 @@ final class SpotnetParser
         foreach ($posting->Category->children() as $subcategory) {
             $subcategories[] = (string) $subcategory;
         }
+        $newsreader = self::text($headers['x-newsreader'][0] ?? (string) $xml->Extra->Newsreader);
+        if (strlen($newsreader) > 512) {
+            throw new UnexpectedValueException('Newsreader-veld is te lang.');
+        }
 
         return [
             'id' => hash('sha256', self::messageId($messageId)),
@@ -124,6 +128,7 @@ final class SpotnetParser
             'title' => $title,
             'description' => html_entity_decode(self::text((string) $posting->Description), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
             'poster' => self::text((string) $posting->Poster),
+            'newsreader' => $newsreader,
             'category' => $categories[$categoryIndex] ?? 'Overig',
             'subcategories' => $subcategories,
             'size' => $size === '' ? 0 : (int) $size,
@@ -147,18 +152,18 @@ final class SpotnetParser
         $headers = self::headers($parts[0]);
         $references = $headers['references'][0] ?? '';
         preg_match_all('/<([^<>]+)>/', $references, $matches);
-        if ($matches[1] !== []) {
+        $encodedReference = self::commentReference($messageId);
+        if ($encodedReference !== null) {
+            $spotMessageId = $encodedReference;
+        } elseif ($matches[1] !== []) {
             $spotMessageId = self::messageId($matches[1][0]);
         } elseif (trim($references) !== '') {
             $spotMessageId = self::messageId($references);
         } else {
-            // Spotnet encodes the original spot ID in older comment message IDs.
-            $id = self::messageId($messageId);
-            [$local, $domain] = explode('@', $id, 2);
-            if (!str_contains($local, '.')) {
-                throw new UnexpectedValueException('Reactie mist een verwijzing naar een spot.');
-            }
-            $spotMessageId = explode('.', $local, 2)[0] . '@' . $domain;
+            throw new UnexpectedValueException('Reactie mist een verwijzing naar een spot.');
+        }
+        if (isset($headers['message-id'][0]) && self::messageId($headers['message-id'][0]) !== self::messageId($messageId)) {
+            throw new UnexpectedValueException('Reactie verwijst naar een ander message-ID.');
         }
         $body = $parts[1];
         $encoding = strtolower($headers['content-transfer-encoding'][0] ?? '');
@@ -202,6 +207,17 @@ final class SpotnetParser
         $body = str_replace(["\r", "\n"], '', $body);
 
         return strtr($body, ['=A' => "\0", '=B' => "\r", '=C' => "\n", '=D' => '=']);
+    }
+
+    public static function commentReference(string $messageId): ?string
+    {
+        [$local, $domain] = explode('@', self::messageId($messageId), 2);
+        if (!str_contains($local, '.')) {
+            return null;
+        }
+
+        // Providers can replace References; Spotnet embeds the spot in the comment ID.
+        return self::messageId(explode('.', $local, 2)[0] . '@' . $domain);
     }
 
     private static function text(string $text): string

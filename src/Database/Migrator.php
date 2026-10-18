@@ -311,6 +311,13 @@ final class Migrator
                     FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             ],
+            '20261018_0010_spot_details_comments' => [
+                'ALTER TABLE spotnet_spots ADD COLUMN IF NOT EXISTS newsreader VARCHAR(512) NOT NULL DEFAULT \'\'',
+                'UPDATE spotnet_comments
+                 SET spot_id = SHA2(CONCAT(SUBSTRING_INDEX(SUBSTRING_INDEX(message_id, \'@\', 1), \'.\', 1),
+                     \'@\', SUBSTRING_INDEX(message_id, \'@\', -1)), 256)
+                 WHERE LOCATE(\'.\', SUBSTRING_INDEX(message_id, \'@\', 1)) > 1',
+            ],
         ];
     }
 }

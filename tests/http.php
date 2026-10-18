@@ -68,6 +68,25 @@ function httpFixture(int $port, string $path, string &$cookie, ?array $form = nu
 }
 
 try {
+    $cliPipes = [];
+    $cli = proc_open(
+        [PHP_BINARY, __DIR__ . '/../bin/console', 'retrieve', '--comments-only', '--days=7', '--verbose'],
+        [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']],
+        $cliPipes,
+        dirname(__DIR__),
+        $environment
+    );
+    if (!is_resource($cli)) {
+        throw new RuntimeException('Kon gerichte retrieve CLI-test niet starten.');
+    }
+    fclose($cliPipes[0]);
+    $cliOutput = stream_get_contents($cliPipes[1]);
+    $cliError = stream_get_contents($cliPipes[2]);
+    fclose($cliPipes[1]);
+    fclose($cliPipes[2]);
+    check(proc_close($cli) === 0 && $cliError === '' && str_contains($cliOutput, 'comments free.usenet:')
+        && !str_contains($cliOutput, 'spots free.pt:') && str_contains($cliOutput, 'groups=1'),
+        'Console geeft --comments-only werkelijk door aan retrieval met uitsluitend de testdatabase');
     $ready = false;
     for ($attempt = 0; $attempt < 40; $attempt++) {
         $connection = @stream_socket_client('tcp://127.0.0.1:' . $httpPort, $connectErrno, $connectError, 0.1);
@@ -119,6 +138,8 @@ try {
         && count(array_filter($stylesheet['headers'], static fn (string $header): bool => stripos($header, 'Content-Type: text/css') === 0)) === 1, 'Lokale stylesheet wordt met CSS MIME-type geserveerd');
     $detail = httpFixture($httpPort, '/spots/view?key=' . $spotId, $cookie);
     check($detail['status'] === 200 && str_contains($detail['body'], 'Reacties (3)') && str_contains($detail['body'], 'Een omschrijving'), 'HTTP-detail toont omschrijving en gekoppelde reacties');
+    check(str_contains($detail['body'], '<dt>Gepost met</dt><dd>Spotnet 1.9.0.8</dd>')
+        && str_contains($detail['body'], '<dt>Hoofdcategorie</dt><dd>Beeld</dd>'), 'Extra detailmetadata blijft zichtbaar via echte HTTP-route');
     $remoteComment = $pdo->prepare('SELECT id, body FROM spotnet_comments WHERE spot_id = :id LIMIT 1');
     $remoteComment->execute(['id' => $spotId]);
     $remoteComment = $remoteComment->fetch();

@@ -37,7 +37,11 @@ final class SpotDetailPageRenderer
                     ? SpotDescription::render($comment['body']) : nl2br(h($comment['body']))) . '</div></article>';
         }
         if ($commentHtml === '') {
-            $commentHtml = '<p class="text-body-secondary">Nog geen reacties opgehaald of geplaatst.</p>';
+            $commentHtml = '<p class="text-body-secondary">Nog geen reacties opgehaald of geplaatst. Dit betekent niet dat er op Usenet geen reacties zijn.</p>';
+            if ($isAdmin && $retrieveComments) {
+                $commentHtml .= '<p class="small text-body-secondary">Controleer of comments:free.usenet is ingesteld. Haal reacties afzonderlijk op met '
+                    . '<code>php bin/console retrieve --comments-only --days=7 --verbose</code>. Een normale run verwerkt eerst de spotgroep.</p>';
+            }
         }
         $count = count($comments);
         $retrievalNotice = !$retrieveComments ? '<div class="alert alert-info small">Usenet-reacties ophalen is uitgeschakeld. Hieronder staan alleen eerder opgeslagen en lokale reacties.</div>' : '';
@@ -91,12 +95,15 @@ HTML;
             . SpotPresentation::size((int) $spot['size']) . '</div></div>';
         $description = '<section class="card mb-3"><div class="card-header d-flex justify-content-between gap-2"><span>Omschrijving</span>' . $website
             . '</div><div class="card-body spot-description">' . SpotDescription::render($spot['description']) . '</div></section>';
-        $technical = '';
+        $technical = '<dt>Hoofdcategorie</dt><dd>' . h($spot['category']) . '</dd>';
         foreach ($details as $name => $values) {
             $technical .= '<dt>' . h($name) . '</dt><dd>' . h(implode(', ', $values)) . '</dd>';
         }
         if ($spot['tag'] !== '') {
             $technical .= '<dt>Tag</dt><dd>' . h($spot['tag']) . '</dd>';
+        }
+        if (($spot['newsreader'] ?? '') !== '') {
+            $technical .= '<dt>Gepost met</dt><dd>' . h($spot['newsreader']) . '</dd>';
         }
         $nzb = count($spot['nzb_segments']) > 0
             ? count($spot['nzb_segments']) . ' NZB-segment(en). Download/forwarding wordt nog niet ondersteund.'

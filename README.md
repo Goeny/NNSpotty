@@ -55,6 +55,8 @@ De focus ligt op:
 - `php bin/console user list|create|delete|edit|password ...`
 - `php bin/console retrieve --all|--since-last|--days=30`
 - `php bin/console retrieve --days=30 --verbose` (diagnostische detailoutput)
+- `php bin/console retrieve --comments-only --days=7 --verbose` (alleen reacties, zonder eerst spots te scannen)
+- `php bin/console retrieve --refresh-spots --days=7 --verbose` (bestaande spotmetadata opnieuw ophalen en aanvullen)
 
 ## Retrieve configuratie
 - `retrieve` verwerkt Spotnet-berichten, geen algemene Usenet-headerindex.
@@ -66,9 +68,12 @@ De focus ligt op:
 - Standaard: `spots:free.pt,comments:free.usenet`; leeg betekent deze defaults, niet auto-discovery.
 - Een spot wordt geidentificeerd door zijn message-ID. De `X-XML`-headers leveren titel, omschrijving, categorie, grootte en afbeelding-/NZB-verwijzingen. Gelijke titels worden niet samengevoegd.
 - Reacties worden uit `free.usenet` opgehaald en aan de originele spot gekoppeld. Lokale reacties kunnen op de detailpagina worden geplaatst; deze worden niet naar Usenet verstuurd.
+- De Spotnet-reactie-ID bepaalt de koppeling, ook als een provider een verkeerd `References`-veld levert. Alleen IDs zonder gecodeerde verwijzing gebruiken `References`. Migratie `20261018_0010_spot_details_comments` herstelt reeds opgeslagen koppelingen zonder opnieuw downloaden.
+- Detail en preview tonen ook de hoofdgroep en **Gepost met** uit `X-Newsreader` (of XML `Extra/Newsreader`). Voor eerder opgeslagen spots kun je dit aanvullen met `--refresh-spots --days=7`; gewone runs slaan duplicaten nog steeds over. Expliciete refresh vernieuwt XML, metadata en categorie-index atomair, behoudt reacties en wist alleen een covercache waarvan de bron verandert. Het voegt geen verificatie, ratings, spamrapporten of NZB-downloadfunctie toe.
 - Usenet-afbeeldingen worden op aanvraag opgehaald en in de database gecachet. Oudere externe afbeelding-URLs worden rechtstreeks door de browser geladen, niet door de server.
 - `--since-last` verwerkt maximaal het ingestelde aantal artikelen per groep, vanaf de oudste nog niet verwerkte positie. Herhaal dit commando om een achterstand weg te werken.
 - `--days=30` scant vanaf de hoogste artikelnummers terug, zodat doorgaans recente spots als eerste worden opgeslagen. De scan controleert nog steeds de volledige beschikbare historie: datums hoeven niet op artikelnummer gesorteerd te zijn. `--all` haalt ook oudere inhoud op, ongeacht retentie. Deze volledige scans kunnen lang duren.
+- Een normale run verwerkt eerst de spotgroep en daarna de reacties. `--comments-only` slaat de spotgroep volledig over en laat de spotcursor ongemoeid, maar blijft de admininstelling voor reacties respecteren. `--refresh-spots` verwerkt alleen spots en vereist `--days` of `--all`. De twee opties zijn niet combineerbaar; ook gerichte datumsessies blijven volledige headerscans van de geselecteerde groep.
 - `--verbose` toont per batch het datumbereik en aantallen `te_oud`, `bestaand`, `geen_spot`, `ongeldig`, `verdwenen` en `opgeslagen`. Ontbrekende optionele overview-velden zijn toegestaan; onbruikbare regels worden afzonderlijk gemeld en blokkeren de overige artikelen niet.
 - Onder **Op te halen inhoud** kan de admin Usenet-reacties indexeren, reacties weergeven/lokaal plaatsen en afbeeldingen ophalen/tonen afzonderlijk instellen. Alles staat standaard aan, zodat bestaande werking behouden blijft. Uitgeschakelde reactiegroepen worden niet benaderd en hun cursor blijft staan; bestaande inhoud wordt niet verwijderd.
 - Reacties weergeven kan aanblijven terwijl ophalen uit staat: de detailpagina toont dan eerder opgeslagen/lokale reacties met uitleg. Afbeeldingen worden alleen op aanvraag geladen en gecachet; uit blokkeert ook gecachte afbeeldingen en verwijdert alle afbeeldingsverwijzingen uit overzicht/preview/detail. Retentie en de incrementele artikellimiet blijven onder Usenet instellingen.

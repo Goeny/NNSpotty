@@ -17,7 +17,7 @@ final class Fixtures
     public static function headers(string $id = 'spot-one@example.invalid', ?string $xml = null): string
     {
         $xml ??= self::xml();
-        return "Message-ID: <{$id}>\r\nDate: " . gmdate('r') . "\r\nFrom: Testspotter <poster@example.invalid>\r\n"
+        return "Message-ID: <{$id}>\r\nDate: " . gmdate('r') . "\r\nFrom: Testspotter <poster@example.invalid>\r\nX-Newsreader: Spotnet 1.9.0.8\r\n"
             . 'X-XML: ' . substr($xml, 0, 120) . "\r\nX-XML: " . substr($xml, 120);
     }
 

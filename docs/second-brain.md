@@ -155,6 +155,12 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
 45. **Publieke assets moeten leesbaar blijven voor Apache**
     Na de Git-opruiming gaf de productieserver voor alle drie publieke CSS/JS-assets HTTP 403. De gegeven deploymentprocedure hield `umask 077` actief tijdens Git/Composer; dat kan publieke bestanden onleesbaar maken voor een afzonderlijke Apache-gebruiker. Deployment gebruikt voortaan 022, uitsluitend de geheime backupcreatie gebruikt 077 in een subshell. Gericht herstel: publieke directories 755, de drie assets 644; `.env` blijft 600. Geen applicatie-CSS-wijziging nodig; herstel op productie moet met HTTP 200 worden bevestigd.
 
+46. **Reactiekoppeling volgt Spotnet-ID, niet provider-References**
+    De vergelijking met dezelfde spot in Spotweb toont meer reacties en de clientnaam. Onderzoek van Spotweb bevestigt dat providers References kunnen verminken: de gecodeerde spotverwijzing in het reactie-ID is leidend. NNSpotty gaf foutief References voorrang. Parser en migratie 0010 corrigeren dit, zonder bestaande bodies opnieuw op te halen of lokale reacties te wijzigen. De screenshots alleen bewijzen niet of de productieretrieval de reactiegroep al bereikte; dat blijft een operationele controle.
+
+47. **Gerichte reactieretrieval en expliciete metadatarefresh**
+    Normale retrieval blijft spots eerst verwerken. `--comments-only` voorkomt dat een historische spotscan het binnenhalen van reacties ophoudt, respecteert adminbeleid en raakt de spotcursor niet aan. `--refresh-spots` met een expliciete backfillperiode leest opgeslagen spots opnieuw, vult onder andere X-Newsreader aan en vernieuwt metadata/XML/facetten atomair. Gewone duplicaten blijven ongemoeid; alleen gewijzigde afbeeldingsbronnen maken de cache ongeldig. Geen nagebootste ratings, spotterverificatie, spamrapportages of werkende NZB-knoppen. Volledige geselecteerde headerscans kunnen nog steeds lang duren.
+
 ## Open vragen (voor volgende stap)
 - Welk framework past het best bij verdere uitbreiding? De huidige basis gebruikt PHP 8.2+ en PDO/MySQL/MariaDB.
 - Welke metadata-provider krijgt prioriteit: IMDB, TVDB of beide vanaf start?

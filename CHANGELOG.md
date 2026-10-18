@@ -5,6 +5,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Added
+- Newsreader/clientnaam in detail en preview; expliciete `retrieve --refresh-spots --days=<n>` voor aanvullen van eerder opgeslagen metadata en `--comments-only` voor onafhankelijke reactieretrieval.
 - Gitignore voor dependencies, lokale configuratie, runtime/logs/dumps en testoutput; `.env` en `vendor/` uit de index gehaald, Composer-manifesten blijven gevolgd. Veilige eenmalige deploymentprocedure met configuratiebackup toegevoegd.
 - Coververgroting in detail en preview met native modaal lightboxvenster, toetsenbordfocus, Escape/sluiten, laadfeedback en proportionele schaling; linkfallback zonder JavaScript.
 - Adminschakelaars voor Usenet-reacties indexeren, reacties tonen/lokaal plaatsen en afbeeldingen ophalen/tonen. Standaard bestaand gedrag; geen dataverwijdering en geen cursorverplaatsing voor uitgeschakelde reactiegroepen.
@@ -20,6 +21,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 - Regressies voor alle categorielabels, legacy adult-codes, migratie/backfill, gebruikersisolatie en HTTP-zichtbaarheid inclusief gecachte afbeeldingen en beide reactieformulieren.
 
 ### Fixed
+- Spotnet-reactie-ID heeft voorrang op onbetrouwbare provider-References; migratie 0010 herstelt bestaande reactiekoppelingen. Lege reactiepanelen leggen uit dat nul lokaal opgeslagen reacties geen bewijs is dat er op Usenet geen reacties zijn.
 - Deploymentprocedure gebruikt umask 022 voor Git/Composer en beperkt 077 tot geheime backups; gericht rechtenherstel voor publieke CSS/JS na HTTP 403 gedocumenteerd.
 - Horizontale tabelscroll vervangen door instelbare kolommen, afbrekende waarden en compacte mobiele regels; hero-achtergrond duidelijker met minder blur.
 - Header en zoeken blijven vast in beeld; op brede schermen zijn lijst en volledig rechter detailpaneel afzonderlijk scrollbaar, ook met toetsenbordfocus.

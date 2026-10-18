@@ -72,7 +72,7 @@ while ($socket = stream_socket_accept($server, 60)) {
                 multiline($socket, '221 Header follows', $headers);
             }
         } elseif (preg_match('/^ARTICLE <([^>]+)>$/', $command, $matches)) {
-            multiline($socket, '220 Article follows', Fixtures::comment($matches[1] === 'comment@example.invalid' ? '<spot-one@example.invalid>' : ''));
+            multiline($socket, '220 Article follows', Fixtures::comment($matches[1] === 'comment@example.invalid' ? '<spot-one@example.invalid>' : '<wrong-provider-reference@example.invalid>'));
         } elseif ($command === 'BODY <image@example.invalid>') {
             $encoded = strtr(Fixtures::image(), ["\0" => '=A', "\r" => '=B', "\n" => '=C', '=' => '=D']);
             multiline($socket, '222 Body follows', rtrim(chunk_split($encoded, 32, "\r\n"), "\r\n"));
