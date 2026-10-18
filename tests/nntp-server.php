@@ -11,6 +11,7 @@ if ($server === false) {
 echo substr(strrchr(stream_socket_get_name($server, false), ':'), 1) . PHP_EOL;
 flush();
 $fail = in_array('--fail', $argv, true);
+$failLower = in_array('--fail-lower', $argv, true);
 
 function multiline($socket, string $status, string $data): void
 {
@@ -27,25 +28,30 @@ while ($socket = stream_socket_accept($server, 60)) {
     while (($line = fgets($socket)) !== false) {
         $command = rtrim($line, "\r\n");
         if ($command === 'LIST OVERVIEW.FMT') {
-            multiline($socket, '215 Overview format', "Subject:\r\nFrom:\r\nDate:\r\nMessage-ID:\r\nReferences:\r\n:bytes\r\n:lines");
+            multiline($socket, '215 Overview format', "Subject:\r\nFrom:\r\nDate:\r\nMessage-ID:\r\nReferences:\r\n:bytes\r\n:lines\r\nXref:full");
         } elseif (str_starts_with($command, 'GROUP ')) {
             $group = substr($command, 6);
-            fwrite($socket, $group === 'free.pt' ? "211 306 700 1005 free.pt\r\n" : "211 4 4000 4003 free.usenet\r\n");
+            fwrite($socket, $group === 'free.pt' ? "211 806 700 1505 free.pt\r\n" : "211 4 4000 4003 free.usenet\r\n");
         } elseif (preg_match('/^XOVER (\d+)-(\d+)$/', $command, $matches)) {
-            if ($fail) {
+            if ($fail || ($failLower && $group === 'free.pt' && (int) $matches[1] < 756)) {
                 fwrite($socket, "503 Temporary fixture failure\r\n");
                 continue;
             }
             $articles = $group === 'free.pt'
-                ? [812 => 'spot-one', 913 => 'spot-two', 914 => 'invalid', 915 => 'ordinary', 916 => 'old', 917 => 'expired']
+                ? [812 => 'spot-one', 913 => 'spot-two', 914 => 'invalid', 915 => 'ordinary', 916 => 'old', 917 => 'expired', 918 => 'truncated', 1400 => 'old']
                 : [4001 => 'comment', 4002 => 'spot-one.1.2.3'];
             $rows = [];
             foreach ($articles as $number => $id) {
                 if ($number < (int) $matches[1] || $number > (int) $matches[2]) {
                     continue;
                 }
+                if ($id === 'truncated') {
+                    $rows[] = $number . "\tAfgebroken";
+                    continue;
+                }
                 $date = $id === 'old' ? 'Thu, 01 Jan 2009 12:00:00 +0000' : gmdate('r');
-                $rows[] = $number . "\tEen individuele testspot\tPoster\t" . $date . "\t<" . $id . "@example.invalid>\t\t123\t5";
+                $rows[] = $number . "\tEen individuele testspot\tPoster\t" . $date . "\t<" . $id . "@example.invalid>"
+                    . ($id === 'spot-two' ? '' : "\t\t123\t5");
             }
             if ($rows === []) {
                 fwrite($socket, "420 No articles selected\r\n");

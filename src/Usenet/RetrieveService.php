@@ -58,44 +58,62 @@ final class RetrieveService
                 $end = $mode === 'since-last'
                     ? min($last, $start + $settings['max_articles_per_group'] - 1)
                     : $last;
+                $newestFirst = $mode === 'days';
                 if ($verbose) {
-                    $log($role . ' ' . $groupName . ': ' . $start . '-' . $end);
+                    $log($role . ' ' . $groupName . ': ' . $start . '-' . $end
+                        . ($newestFirst ? ' (hoogste artikelnummers eerst)' : ' (laagste artikelnummers eerst)')
+                        . '; datumgrens=' . ($cutoff?->format('Y-m-d H:i:s') ?? 'geen') . ' UTC');
                 }
-                for ($from = $start; $from <= $end; $from += 250) {
-                    $to = min($end, $from + 249);
+                for (
+                    $position = $newestFirst ? $end : $start;
+                    $newestFirst ? $position >= $start : $position <= $end;
+                    $position += $newestFirst ? -250 : 250
+                ) {
+                    $from = $newestFirst ? max($start, $position - 249) : $position;
+                    $to = $newestFirst ? $position : min($end, $position + 249);
                     $rows = $client->sendCommand(new SpotnetOverviewCommand($from, $to, $format));
                     if (!is_array($rows)) {
                         throw new \RuntimeException('NNTP XOVER retourneerde geen overzicht.');
                     }
+                    $counts = ['te_oud' => 0, 'bestaand' => 0, 'geen_spot' => 0, 'ongeldig' => 0, 'verdwenen' => 0, 'opgeslagen' => 0];
+                    $oldestDate = null;
+                    $newestDate = null;
                     foreach ($rows as $row) {
                         $overview = array_change_key_case($row, CASE_LOWER);
                         $number = (int) ($overview['number'] ?? 0);
-                        if ($number < $from || $number > $to) {
-                            throw new UnexpectedValueException('XOVER retourneert een ongeldig artikelnummer.');
+                        if (isset($overview['_overview_warning'])) {
+                            $log($groupName . ' artikel ' . $number . ' waarschuwing: ' . $overview['_overview_warning']);
                         }
                         try {
+                            if (isset($overview['_overview_error'])) {
+                                throw new UnexpectedValueException($overview['_overview_error']);
+                            }
                             $messageId = SpotnetParser::messageId((string) ($overview['message-id'] ?? ''));
-                            if ($cutoff !== null) {
-                                $date = trim((string) ($overview['date'] ?? ''));
-                                if ($date === '') {
-                                    throw new UnexpectedValueException('XOVER bericht mist een datum.');
-                                }
-                                try {
-                                    $postedAt = new DateTimeImmutable($date);
-                                } catch (\Exception $exception) {
-                                    throw new UnexpectedValueException('Ongeldige XOVER datum.', 0, $exception);
-                                }
-                                if ($postedAt < $cutoff) {
-                                    continue;
-                                }
+                            $date = trim((string) ($overview['date'] ?? ''));
+                            if ($date === '') {
+                                throw new UnexpectedValueException('XOVER bericht mist een datum.');
+                            }
+                            try {
+                                $postedAt = (new DateTimeImmutable($date))->setTimezone(new DateTimeZone('UTC'));
+                            } catch (\Exception $exception) {
+                                throw new UnexpectedValueException('Ongeldige XOVER datum.', 0, $exception);
+                            }
+                            $dateLabel = $postedAt->format('Y-m-d H:i:s');
+                            $oldestDate = $oldestDate === null ? $dateLabel : min($oldestDate, $dateLabel);
+                            $newestDate = $newestDate === null ? $dateLabel : max($newestDate, $dateLabel);
+                            if ($cutoff !== null && $postedAt < $cutoff) {
+                                $counts['te_oud']++;
+                                continue;
                             }
                             if ($repository->exists(hash('sha256', $messageId), $role)) {
+                                $counts['bestaand']++;
                                 continue;
                             }
                             if ($role === 'spots') {
                                 $spot = SpotnetParser::spot($messageId, $client->head('<' . $messageId . '>'));
                                 if ($spot === null) {
                                     $skipped++;
+                                    $counts['geen_spot']++;
                                     continue;
                                 }
                                 $repository->saveSpot($spot, $groupName);
@@ -107,14 +125,17 @@ final class RetrieveService
                                 $repository->saveComment(SpotnetParser::comment($messageId, $article));
                             }
                             $inserted++;
+                            $counts['opgeslagen']++;
                         } catch (UnexpectedValueException $exception) {
                             $skipped++;
+                            $counts['ongeldig']++;
                             $log($groupName . ' artikel ' . $number . ' overgeslagen: ' . $exception->getMessage());
                         } catch (NntpException $exception) {
                             if (!in_array($exception->getCode(), [423, 430], true)) {
                                 throw $exception;
                             }
                             $skipped++;
+                            $counts['verdwenen']++;
                             $log($groupName . ' artikel ' . $number . ' niet meer beschikbaar: ' . $exception->getMessage());
                         }
                     }
@@ -123,7 +144,13 @@ final class RetrieveService
                         $this->saveCursor($cursorKey, $to);
                     }
                     if ($verbose) {
-                        $log($groupName . ' batch ' . $from . '-' . $to . ': ' . count($rows) . ' headers, totaal opgeslagen=' . $inserted);
+                        $statistics = [];
+                        foreach ($counts as $reason => $count) {
+                            $statistics[] = $reason . '=' . $count;
+                        }
+                        $log($groupName . ' batch ' . $from . '-' . $to . ': ' . count($rows)
+                            . ' headers; datums=' . ($oldestDate ?? 'onbekend') . '..' . ($newestDate ?? 'onbekend')
+                            . ' UTC; ' . implode(' ', $statistics) . '; totaal opgeslagen=' . $inserted);
                     }
                 }
                 if ($mode !== 'since-last' && ($this->cursor($cursorKey) ?? 0) < $last) {

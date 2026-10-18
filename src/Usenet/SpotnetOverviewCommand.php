@@ -7,7 +7,6 @@ namespace NnSpotty\Usenet;
 use Rvdv\Nntp\Command\Command;
 use Rvdv\Nntp\Response\MultiLineResponse;
 use Rvdv\Nntp\Response\Response;
-use UnexpectedValueException;
 
 final class SpotnetOverviewCommand extends Command
 {
@@ -29,23 +28,49 @@ final class SpotnetOverviewCommand extends Command
     public function onOverviewInformationFollows(MultiLineResponse $response): array
     {
         $rows = [];
-        foreach ($response->getLines() as $line) {
+        foreach ($response->getLines() as $index => $line) {
             $fields = explode("\t", $line);
+            $fieldCount = count($fields);
             $format = ['number' => false] + $this->format;
-            if (count($fields) < count($format)) {
-                throw new UnexpectedValueException('Onvolledige NNTP overview; cursor is niet bijgewerkt.');
-            }
             $row = [];
+            $errors = [];
+            $warnings = [];
             foreach ($format as $name => $fullHeader) {
-                $value = array_shift($fields);
-                if ($fullHeader) {
+                $key = strtolower(str_replace('_', '-', trim($name, ':')));
+                // Providers may omit trailing optional overview fields.
+                $value = array_shift($fields) ?? '';
+                if ($fullHeader && $value !== '') {
                     $parts = explode(':', $value, 2);
-                    if (count($parts) !== 2) {
-                        throw new UnexpectedValueException('Ongeldig volledig overview-veld.');
+                    if (count($parts) !== 2 || strtolower(str_replace('_', '-', $parts[0])) !== $key) {
+                        $issue = 'Ongeldig volledig overview-veld ' . $key . '.';
+                        if (in_array($key, ['date', 'message-id'], true)) {
+                            $errors[] = $issue;
+                        } else {
+                            $warnings[] = $issue;
+                        }
+                        $value = '';
+                    } else {
+                        $value = ltrim($parts[1]);
                     }
-                    $value = ltrim($parts[1]);
                 }
-                $row[strtolower(str_replace('_', '-', trim($name, ':')))] = $value;
+                $row[$key] = $value;
+            }
+            if (!isset($row['number']) || !ctype_digit($row['number'])
+                || (int) $row['number'] < $this->from || (int) $row['number'] > $this->to) {
+                $errors[] = 'Ongeldig artikelnummer.';
+            }
+            foreach (['date', 'message-id'] as $required) {
+                if (trim($row[$required] ?? '') === '') {
+                    $errors[] = 'Verplicht overview-veld ' . $required . ' ontbreekt.';
+                }
+            }
+            $context = 'XOVER ' . $this->from . '-' . $this->to . ', regel ' . ($index + 1)
+                . ' (' . $fieldCount . '/' . count($format) . ' velden): ';
+            if ($errors !== []) {
+                $row['_overview_error'] = $context . implode(' ', $errors);
+            }
+            if ($warnings !== []) {
+                $row['_overview_warning'] = $context . implode(' ', $warnings);
             }
             $rows[] = $row;
         }

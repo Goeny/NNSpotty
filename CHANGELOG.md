@@ -4,6 +4,12 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
+### Fixed
+- Overviews met ontbrekende optionele staartvelden breken de retrieval niet meer af; werkelijk onbruikbare regels worden per regel gemeld met range, positie en veldaantallen.
+- `--days` begint bij de hoogste artikelnummers, zodat recente spots doorgaans eerder zichtbaar worden, zonder oudere ranges ongecontroleerd over te slaan.
+- Verbose batchlogging toont het UTC-datumbereik en afzonderlijke aantallen voor oude, bestaande, niet-Spotnet, ongeldige, verdwenen en opgeslagen berichten.
+- Regressietests voor afwijkende provider-overviews, aflopende volledige scans, niet-monotone datums en cursorbehoud bij transportfouten toegevoegd.
+
 ### Changed
 - Generieke onderwerp-/headergroepering vervangen door een eigen Spotnet-parser: individuele spots uit `free.pt`, omschrijving en metadata uit `X-XML`, reacties uit `free.usenet`.
 - Afbeeldingsegmenten worden op aanvraag gedecodeerd en in de database gecachet; oude externe afbeelding-URLs worden ondersteund.

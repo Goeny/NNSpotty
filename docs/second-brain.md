@@ -101,6 +101,12 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
 27. **Retrievalsemantiek gecorrigeerd en getest**
     `--all` verwerkt de volledige beschikbare historie zonder retentie. `--days` scant headers op datum zonder een arbitraire artikellimiet. `--since-last` werkt in begrensde hervatbare batches. Protocoltests en integratietests met een lokale NNTP-fixture en aparte MariaDB valideren deze paden.
 
+28. **Provider-overviews en eerste zichtbare resultaten verbeterd**
+    Een serverrun brak af rond artikel 1343002 door een te strikte overview-veldcontrole, na uitsluitend nul-opslagmeldingen. Ontbrekende optionele staartvelden zijn nu toegestaan; werkelijk onbruikbare regels worden per regel gemeld, zonder andere artikelen te blokkeren. `--days` verwerkt de hoogste artikelranges eerst, maar scant wel de hele groep voor volledigheid bij niet-monotone datums. De cursor schuift pas na een volledig geslaagde groepsscan vooruit. Batchlogging toont nu datums en redenen voor niet opslaan.
+
+29. **Afronden omvat committen en pushen**
+    Zodra taakgerelateerde aanpassingen gereed en gevalideerd zijn, worden ze zonder apart verzoek gecommit en naar de huidige Git-branch gepusht. Ongerelateerde wijzigingen en secrets blijven buiten de commit; force-push is niet toegestaan en fouten worden expliciet gemeld.
+
 ## Open vragen (voor volgende stap)
 - Welk framework past het best bij verdere uitbreiding? De huidige basis gebruikt PHP 8.2+ en PDO/MySQL/MariaDB.
 - Welke metadata-provider krijgt prioriteit: IMDB, TVDB of beide vanaf start?

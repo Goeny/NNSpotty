@@ -100,7 +100,35 @@ try {
     );
     check((new SpotnetOverviewCommand(700, 900, $libraryFormat))->onOverviewInformationFollows($response)[0]['message-id'] === '<spot@example.invalid>', 'php-nntp overview-veldnamen worden genormaliseerd');
     check($command->onNoArticlesSelected(Response::createFromString("420 No articles selected\r\n")) === [], 'Verlopen lege ranges zijn toegestaan');
-    rejects(static fn () => $command->onOverviewInformationFollows(new MultiLineResponse(Response::createFromString("224 Overview follows\r\n"), ["812\tTitel"])), 'Onvolledige overview faalt expliciet');
+    $shortRows = $command->onOverviewInformationFollows(new MultiLineResponse(
+        Response::createFromString("224 Overview follows\r\n"),
+        ["812\tTitel\tPoster\t" . gmdate('r') . "\t<spot@example.invalid>", "813\tAfgebroken", "814\tTitel\tPoster\t" . gmdate('r') . "\t<next@example.invalid>\t\t1\t2"]
+    ));
+    check(count($shortRows) === 3 && $shortRows[0]['references'] === '' && !isset($shortRows[0]['_overview_error']), 'Ontbrekende optionele overview-velden blokkeren een spot niet');
+    check(str_contains($shortRows[1]['_overview_error'], 'regel 2 (2/8 velden)')
+        && str_contains($shortRows[1]['_overview_error'], 'date ontbreekt'), 'Afgebroken regel heeft bruikbare diagnostiek zonder batch-afbreking');
+    check($shortRows[2]['message-id'] === '<next@example.invalid>' && !isset($shortRows[2]['_overview_error']), 'Geldige regels na een corrupte regel blijven behouden');
+    $extended = new SpotnetOverviewCommand(700, 900, $format + ['Xref' => true]);
+    check(!isset($extended->onOverviewInformationFollows($response)[0]['_overview_error']), 'Ontbrekende aangekondigde Xref:full is optioneel');
+    $badOptional = $extended->onOverviewInformationFollows(new MultiLineResponse(
+        Response::createFromString("224 Overview follows\r\n"),
+        ["812\tTitel\tPoster\t" . gmdate('r') . "\t<id@example.invalid>\t\t1\t2\tBroken"]
+    ));
+    check(isset($badOptional[0]['_overview_warning']) && !isset($badOptional[0]['_overview_error']),
+        'Corrupt optioneel veld wordt gemeld zonder een bruikbare spot te verliezen');
+    $badNumber = $command->onOverviewInformationFollows(new MultiLineResponse(
+        Response::createFromString("224 Overview follows\r\n"), ["wrong\tTitel\tPoster\t" . gmdate('r') . "\t<id@example.invalid>"]
+    ));
+    check(str_contains($badNumber[0]['_overview_error'], 'Ongeldig artikelnummer'), 'Ongeldig artikelnummer wordt expliciet gemeld per regel');
+    $full = new SpotnetOverviewCommand(700, 900, ['Subject' => false, 'From' => false, 'Date' => true, 'Message-ID' => true]);
+    $fullRows = $full->onOverviewInformationFollows(new MultiLineResponse(
+        Response::createFromString("224 Overview follows\r\n"), ["812\tTitel\tPoster\tDate: " . gmdate('r') . "\tMessage-ID: <id@example.invalid>"]
+    ));
+    check($fullRows[0]['message-id'] === '<id@example.invalid>' && !isset($fullRows[0]['_overview_error']), 'Volledige verplichte overview-velden worden correct gelezen');
+    $badFull = $full->onOverviewInformationFollows(new MultiLineResponse(
+        Response::createFromString("224 Overview follows\r\n"), ["812\tTitel\tPoster\tBroken: " . gmdate('r') . "\tMessage-ID: <id@example.invalid>"]
+    ));
+    check(str_contains($badFull[0]['_overview_error'], 'Ongeldig volledig overview-veld date'), 'Foutief gelabeld verplicht overview-veld wordt gemeld');
     $spot['title'] = '<script>titel</script>';
     $comment['body'] = '<img src=x onerror=alert(1)>';
     $comment['source'] = 'Usenet';

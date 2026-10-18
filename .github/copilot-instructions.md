@@ -59,6 +59,8 @@ NNSpotty is een volledig nieuwe webapplicatie (geen voortbouw op legacy Spotweb-
 
 ## Werkwijze bij wijzigingen
 - Als er wijzigingen zijn, lever altijd concrete Linux server-commando's mee voor testen op `nnspotty.hopseflop.nl`.
+- Zodra aanpassingen gereed en gevalideerd zijn, commit en push de taakgerelateerde wijzigingen naar de huidige Git-branch zonder een apart verzoek af te wachten.
+- Neem geen ongerelateerde wijzigingen of secrets mee. Gebruik geen force-push; meld expliciet als committen of pushen niet lukt.
 
 ## Versioning en codenaambeleid
 - Start development op **0.0.1**.

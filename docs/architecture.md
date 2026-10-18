@@ -11,7 +11,7 @@ Een binary-release groeperen op onderwerp levert geen Spotnet-spot op. Een spot 
 
 De huidige pipeline:
 1. `RetrieveService` selecteert expliciete groepen: standaard `free.pt` voor spots en `free.usenet` voor reacties. Er is geen algemene groepsdiscovery.
-2. `SpotnetOverviewCommand` leest XOVER, normaliseert de veldnamen van php-nntp en gebruikt het daadwerkelijke artikelnummer, niet de array-index. Verlopen lege ranges zijn toegestaan; protocol- en transportfouten falen expliciet.
+2. `SpotnetOverviewCommand` leest XOVER, normaliseert de veldnamen van php-nntp en gebruikt het daadwerkelijke artikelnummer, niet de array-index. Ontbrekende optionele staartvelden (zoals References, bytes, lines of Xref) zijn toegestaan. Regels zonder bruikbaar artikelnummer, datum of message-ID krijgen een expliciete fout met range, regelnummer en veldaantallen en worden afzonderlijk overgeslagen. Verlopen lege ranges zijn toegestaan; transport-/commandofouten falen expliciet.
 3. Per spot wordt `HEAD <message-id>` opgehaald. `SpotnetParser` voegt herhaalde `X-XML`-headers samen en leest `Spotnet/Posting`.
 4. Titel, omschrijving, poster, categorie/subcategorieen, grootte, tag, website en afbeelding-/NZB-segmenten worden opgeslagen.
 5. Reacties worden via `ARTICLE` opgehaald. Koppeling gebeurt via `References`, of de Spotnet comment-ID-structuur als die header ontbreekt. Reacties mogen eerder binnenkomen dan de bijbehorende spot.
@@ -30,10 +30,11 @@ Migratie `20261018_0006_spotnet` voegt de nieuwe tabellen toe en corrigeert uits
 
 ## Retrievalsemantiek
 - `--since-last`: vanaf de laatst voltooide batch, met de ingestelde artikellimiet per groep. Bij de eerste run begint dit bij het oudste beschikbare artikel. Cursors worden pas na een succesvolle batch opgeslagen.
-- `--days=N`: alle beschikbare headers scannen en alleen inhoud binnen het tijdvenster ophalen. Een artikelnummer is geen betrouwbare datum; de artikellimiet mag geen recente spots verbergen.
+- `--days=N`: vanaf de hoogste artikelnummers terug scannen en alleen inhoud binnen het tijdvenster ophalen. Dit levert doorgaans eerder zichtbare recente spots op. Een artikelnummer is geen betrouwbare datum: alle ranges blijven gescand worden, ook na oude of lege batches. De artikellimiet mag geen recente spots verbergen. De incrementele cursor wordt pas na een volledig geslaagde groepsscan naar het groepseinde verplaatst; een afgebroken omgekeerde scan mag oudere ongelezen ranges niet overslaan.
 - `--all`: volledige beschikbare historie, zonder retentiefilter.
 - Opnieuw uitvoeren is idempotent. Gelijke titels met verschillende message-IDs blijven verschillende spots.
 - Corrupte XML en verdwenen artikelen worden geteld en gemeld. Transport- of databasefouten breken de run af; er wordt geen lege succesvolle fallback gemaakt.
+- Verbose batchoutput toont het geldige UTC-datumbereik en afzonderlijke aantallen te oud, bestaand, geen spot, ongeldig, verdwenen en opgeslagen. Het totale aantal opgeslagen berichten blijft zichtbaar. Een corrupt optioneel volledig veld geeft een waarschuwing, geen afwijzing van verder bruikbare spotmetadata.
 
 ## Web en beveiligingsgrenzen
 - `/spots`: individuele spots, categorieen, paginering en thumbnails.

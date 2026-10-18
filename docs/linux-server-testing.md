@@ -40,7 +40,18 @@ php bin/console retrieve --all
 php bin/console retrieve --days=30 --verbose
 ```
 
-`--since-last` verwerkt vanaf de oudste nog niet verwerkte positie maximaal het ingestelde aantal artikelen per groep. Herhaal dit om achterstand in te lopen. `--days` en `--all` scannen alle beschikbare headers en kunnen lang duren; `--all` negeert retentie.
+`--since-last` verwerkt vanaf de oudste nog niet verwerkte positie maximaal het ingestelde aantal artikelen per groep. Herhaal dit om achterstand in te lopen. `--days` scant vanaf de hoogste artikelranges terug en slaat recente spots direct op. Ook na oude of lege batches gaat de scan door, omdat artikelnummers niet betrouwbaar op datum gesorteerd zijn. `--days` en `--all` scannen alle beschikbare headers en kunnen lang duren; `--all` negeert retentie.
+
+Bij verbose output staat nu per batch het UTC-datumbereik en `te_oud`, `bestaand`, `geen_spot`, `ongeldig`, `verdwenen`, `opgeslagen` plus het totale aantal opgeslagen berichten. `te_oud=250` verklaart bijvoorbeeld waarom een batch niets opslaat. Ontbrekende optionele overview-velden zijn toegestaan. Een echt afgebroken regel wordt met range, regelnummer en veldaantallen gemeld en overgeslagen; de overige regels gaan door. Een transportfout blijft fataal.
+
+Voor de overview-fix is geen extra databasemigratie nodig. Na deployment:
+
+```bash
+php tests/run.php
+php bin/console retrieve --days=30 --verbose
+```
+
+Controleer dat de eerste `free.pt batch` nu bij het hoogste artikelnummer eindigt. Herhaal de run na een fout gerust: opgeslagen spots/reacties worden niet verdubbeld en een onvolledige omgekeerde scan verplaatst de incrementele cursor niet voorbij ongelezen historie.
 
 ## Upgrade en functionele Spotnet-controle
 Voer vanuit de bestaande deploymap op `nnspotty.hopseflop.nl` uit (overschrijf je bestaande `.env` niet):

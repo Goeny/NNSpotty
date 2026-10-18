@@ -53,9 +53,27 @@ try {
     check($cursor === 799, 'Cursor bevat het echte laatste verwerkte artikelnummer');
     $service->run('since-last', null, true, $logger);
     check($spots->countSpots(null) === 1, 'Volgende incrementele run slaat geen tussengelegen spot over');
+    $log = [];
     $days = $service->run('days', 30, true, $logger);
     check($spots->countSpots(null) === 2, '--days vindt alle recente spots buiten de incrementele artikellimiet');
     check($days['inserted'] === 1, 'Herladen is idempotent, oude spots worden gefilterd');
+    $spotBatches = array_values(array_filter($log, static fn (string $line): bool => str_starts_with($line, 'free.pt batch ')));
+    check(count($spotBatches) === 4
+        && str_contains($spotBatches[0], '1256-1505')
+        && str_contains($spotBatches[1], '1006-1255')
+        && str_contains($spotBatches[2], '756-1005')
+        && str_contains($spotBatches[3], '700-755'), '--days scant nieuwste ranges eerst, volledig en zonder gaten of overlap');
+    check(str_contains($spotBatches[0], 'te_oud=1') && str_contains($spotBatches[2], 'opgeslagen=1'),
+        'Oude batch stopt de scan niet: recente spot met lager artikelnummer blijft vindbaar');
+    check(str_contains($spotBatches[2], 'datums=2009-01-01 12:00:00..')
+        && str_contains($spotBatches[2], 'bestaand=1')
+        && str_contains($spotBatches[2], 'geen_spot=1')
+        && str_contains($spotBatches[2], 'ongeldig=2')
+        && str_contains($spotBatches[2], 'verdwenen=1'), 'Batchlog verklaart datums en elke reden voor niet opslaan');
+    check(count(array_filter($log, static fn (string $line): bool => str_contains($line, '918 overgeslagen: XOVER 756-1005')
+        && str_contains($line, '2/9 velden'))) === 1, 'Afgebroken overview-regel wordt gemeld, andere spots worden opgeslagen');
+    check((int) $pdo->query("SELECT last_article FROM retrieval_cursors WHERE group_name = 'spotnet:spots:free.pt'")->fetchColumn() === 1505,
+        'Volledig geslaagde omgekeerde scan zet cursor op het groepseinde');
     $spotId = hash('sha256', 'spot-one@example.invalid');
     $spot = $spots->getSpot($spotId);
     check($spot !== null && $spot['size'] === 4294967296, 'Spotinhoud en grootte correct in echte database');
@@ -96,27 +114,37 @@ try {
     $migrator->migrate();
     check($state->getUsenetSettings()['explicit_groups'] === 'spots:free.pt,comments:free.usenet', 'Migratie corrigeert uitsluitend de oude standaard reactiegroep');
     $settings['explicit_groups'] = 'spots:free.pt,comments:free.usenet';
-    proc_terminate($server);
-    foreach ($pipes as $pipe) {
-        fclose($pipe);
+    foreach (['--fail-lower' => 'days', '--fail' => 'since-last'] as $failureFlag => $failureMode) {
+        proc_terminate($server);
+        foreach ($pipes as $pipe) {
+            fclose($pipe);
+        }
+        proc_close($server);
+        $pipes = [];
+        $server = proc_open([PHP_BINARY, __DIR__ . '/nntp-server.php', $failureFlag], [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']], $pipes);
+        if (!is_resource($server)) {
+            throw new RuntimeException('Kon falende NNTP fixture niet starten.');
+        }
+        $settings['port'] = (int) trim(fgets($pipes[1]));
+        $state->saveUsenetSettings($settings);
+        $pdo->exec("UPDATE retrieval_cursors SET last_article = 750 WHERE group_name = 'spotnet:spots:free.pt'");
+        if ($failureMode === 'days') {
+            $pdo->exec("DELETE FROM spotnet_spots WHERE message_id = 'spot-two@example.invalid'");
+        }
+        try {
+            $service->run($failureMode, $failureMode === 'days' ? 30 : null, true, $logger);
+            throw new LogicException('Transportfout ten onrechte als succes behandeld.');
+        } catch (\Rvdv\Nntp\Exception\UnknownHandlerException $exception) {
+            check($pdo->query('SELECT status FROM retrieval_runs ORDER BY id DESC LIMIT 1')->fetchColumn() === 'failed',
+                $failureMode . ': transportfout faalt expliciet en wordt opgeslagen');
+        }
+        $cursorAfterFailure = (int) $pdo->query("SELECT last_article FROM retrieval_cursors WHERE group_name = 'spotnet:spots:free.pt'")->fetchColumn();
+        check($cursorAfterFailure === 750, $failureMode . ': transportfout schuift cursor niet naar ongelezen artikelen vooruit');
+        if ($failureMode === 'days') {
+            check($spots->getSpot(hash('sha256', 'spot-two@example.invalid')) !== null,
+                'Nieuwe spot wordt al opgeslagen voordat een lagere historische range faalt');
+        }
     }
-    proc_close($server);
-    $pipes = [];
-    $server = proc_open([PHP_BINARY, __DIR__ . '/nntp-server.php', '--fail'], [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']], $pipes);
-    if (!is_resource($server)) {
-        throw new RuntimeException('Kon falende NNTP fixture niet starten.');
-    }
-    $settings['port'] = (int) trim(fgets($pipes[1]));
-    $state->saveUsenetSettings($settings);
-    $pdo->exec("UPDATE retrieval_cursors SET last_article = 750 WHERE group_name = 'spotnet:spots:free.pt'");
-    try {
-        $service->run('since-last', null, true, $logger);
-        throw new LogicException('Transportfout ten onrechte als succes behandeld.');
-    } catch (\Rvdv\Nntp\Exception\UnknownHandlerException $exception) {
-        check($pdo->query('SELECT status FROM retrieval_runs ORDER BY id DESC LIMIT 1')->fetchColumn() === 'failed', 'Transportfout faalt expliciet en wordt opgeslagen');
-    }
-    $cursorAfterFailure = (int) $pdo->query("SELECT last_article FROM retrieval_cursors WHERE group_name = 'spotnet:spots:free.pt'")->fetchColumn();
-    check($cursorAfterFailure === 750, 'Transportfout schuift cursor niet naar ongelezen artikelen vooruit');
 } finally {
     if (is_resource($server)) {
         proc_terminate($server);
