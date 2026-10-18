@@ -86,15 +86,16 @@ HTML;
         }
         $website = $spot['website'] !== '' ? '<a href="' . h($spot['website']) . '" target="_blank" rel="noopener noreferrer">Website van de spot</a>' : '';
         $action = $preview
-            ? '<a class="btn btn-primary" href="/spots/view?key=' . rawurlencode($spot['id']) . '">' . ($showComments ? 'Volledige spot en reacties' : 'Volledige spot') . '</a>'
-            : ($showComments ? '<a class="btn btn-warning" href="#comments">Bekijk reacties</a>' : '');
+            ? '<a class="btn btn-sm btn-primary" href="/spots/view?key=' . rawurlencode($spot['id']) . '">' . ($showComments ? 'Volledige spot en reacties' : 'Volledige spot') . '</a>'
+            : ($showComments ? '<a class="btn btn-sm btn-warning" href="#comments">Reacties</a>' : '');
         if ($spot['nzb_segments'] !== []) {
-            $action .= ' <a class="btn btn-primary" href="/spots/nzb?key=' . rawurlencode($spot['id']) . '">NZB downloaden</a>';
-            $action .= ' <button class="btn btn-warning" type="button" data-sab-send="' . h($spot['id']) . '">Naar SABnzbd</button>';
+            $action .= ' <a class="btn btn-sm btn-primary" href="/spots/nzb?key=' . rawurlencode($spot['id']) . '">NZB</a>';
+            $action .= ' <button class="btn btn-sm btn-warning" type="button" data-sab-send="' . h($spot['id']) . '">SABnzbd</button>';
         }
         $hero = '<section class="spot-hero">' . SpotPresentation::backdrop($spot, 'hero-backdrop', $imagesEnabled)
+            . ($action !== '' ? '<div class="hero-actions" role="group" aria-label="Spotacties">' . $action . '</div>' : '')
             . '<div class="hero-poster">' . $image . '</div><div class="hero-copy"><p class="text-body-secondary mb-2">'
-            . $type . '</p><' . $tag . '>' . $title . '</' . $tag . '><div class="tag-row">' . $chips . '</div>' . $action . '</div></section>';
+            . $type . '</p><' . $tag . '>' . $title . '</' . $tag . '><div class="tag-row">' . $chips . '</div></div></section>';
         $metadata = '<div class="metadata-strip"><div><small>Spotter</small>' . h($spot['poster'])
             . '</div><div><small>Geplaatst (UTC)</small>' . h($spot['posted_at']) . '</div><div><small>Grootte</small>'
             . SpotPresentation::size((int) $spot['size']) . '</div></div>';

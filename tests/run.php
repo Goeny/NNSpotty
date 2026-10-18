@@ -243,7 +243,8 @@ try {
     $noImage = $spot;
     $noImage['image_segments'] = [];
     $noImage['image_url'] = '';
-    check(SpotPresentation::backdrop($noImage, 'hero-backdrop') === '' && str_contains(SpotPresentation::image($noImage, false), 'Geen afbeelding'), 'Zonder cover blijft er een expliciete placeholder zonder kapotte achtergrond');
+    check(str_contains(SpotPresentation::backdrop($noImage, 'hero-backdrop'), 'src="/assets/images/placeholder.png"')
+        && str_contains(SpotPresentation::image($noImage, false), 'Geen afbeelding'), 'Zonder cover wordt de placeholder ook de hero-achtergrond');
     check(str_contains(SpotPresentation::image($noImage, false), '/assets/images/placeholder.png')
         && str_contains(SpotPresentation::image($noImage, true), '/assets/images/placeholder-small.png')
         && !str_contains(SpotPresentation::image($noImage, false), 'data-image-lightbox'),
@@ -253,8 +254,22 @@ try {
         'Afbeeldingen uitschakelen blijft ook de nieuwe placeholder blokkeren');
     check(str_contains($poster, 'data-image-fallback hidden')
         && str_contains($poster, '/assets/images/placeholder.png')
-        && str_contains($poster, 'Afbeelding niet beschikbaar. Controleer de serverlog.'),
-        'Mislukte cover krijgt een lokale placeholder zonder foutfeedback te verbergen');
+        && !str_contains($poster, 'Afbeelding niet beschikbaar. Controleer de serverlog.')
+        && !str_contains($poster, '[role=status]'),
+        'Mislukte cover krijgt uitsluitend de lokale placeholder zonder waarschuwingstekst');
+    check(SpotPresentation::backdrop($noImage, 'hero-backdrop', false) === ''
+        && str_contains(SpotPresentation::backdrop($spot, 'hero-backdrop'), "this.src='/assets/images/placeholder.png'"),
+        'Hero-achtergrond valt bij laadfout terug op placeholder maar blijft uit bij uitgeschakelde afbeeldingen');
+    foreach ([false, true] as $previewMode) {
+        $summary = SpotDetailPageRenderer::summary($noImage, $previewMode);
+        $dom = new DOMDocument();
+        $dom->loadHTML('<?xml encoding="UTF-8">' . $summary, LIBXML_NOERROR | LIBXML_NOWARNING);
+        $xpath = new DOMXPath($dom);
+        check($xpath->query('//section[contains(@class,"spot-hero")]/div[@class="hero-actions"]')->length === 1
+            && $xpath->query('//div[@class="hero-actions"]/*[not(contains(@class,"btn-sm"))]')->length === 0
+            && $xpath->query('//div[@class="hero-copy"]//a | //div[@class="hero-copy"]//button')->length === 0,
+            'Preview en detail groeperen alle compacte acties apart boven de hero-inhoud');
+    }
     $brandingPages = [
         \NnSpotty\UI\LoginPageRenderer::render(null, ''),
         \NnSpotty\UI\HomePageRenderer::render(new \NnSpotty\Config\AppConfig('NNSpotty', 'test', false, 'http://localhost', '0.0.1', 'Delta Integrale'), null, ''),

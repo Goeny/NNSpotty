@@ -17,18 +17,16 @@ final class SpotPresentation
             return self::placeholder($thumbnail);
         }
         $class = $thumbnail ? 'spot-thumbnail' : 'spot-poster-image';
-        $statusClass = $thumbnail ? 'visually-hidden' : 'alert alert-warning small';
         $background = $thumbnail ? '' : self::backdrop($spot, 'poster-backdrop');
         $image = '<img class="' . $class . '" src="' . h($source)
             . '" alt="Afbeelding bij ' . h($spot['title']) . '" loading="lazy" referrerpolicy="no-referrer"'
-            . ' onerror="this.hidden=true;this.closest(\'figure\').classList.add(\'image-failed\');this.closest(\'figure\').querySelector(\'[data-image-fallback]\').hidden=false;this.closest(\'figure\').querySelector(\'[role=status]\').hidden=false">';
+            . ' onerror="this.hidden=true;this.closest(\'figure\').classList.add(\'image-failed\');this.closest(\'figure\').querySelector(\'[data-image-fallback]\').hidden=false">';
         if (!$thumbnail) {
             $image = '<a class="poster-enlarge" href="' . h($source) . '" target="_blank" rel="noopener noreferrer" data-image-lightbox'
                 . ' data-image-title="' . h($spot['title']) . '" aria-label="Afbeelding vergroten: ' . h($spot['title']) . '">' . $image . '</a>';
         }
         return '<figure class="' . ($thumbnail ? 'mb-0' : 'spot-poster mb-0') . '">' . $background . $image
             . '<div data-image-fallback hidden>' . self::placeholder($thumbnail) . '</div>'
-            . '<p class="' . $statusClass . '" role="status" hidden>Afbeelding niet beschikbaar. Controleer de serverlog.</p>'
             . '</figure>';
     }
 
@@ -56,8 +54,8 @@ final class SpotPresentation
             return '';
         }
         $source = self::imageSource($spot);
-        return $source === '' ? '' : '<img class="' . h($class) . '" src="' . h($source)
-            . '" alt="" aria-hidden="true" referrerpolicy="no-referrer" onerror="this.hidden=true">';
+        return '<img class="' . h($class) . '" src="' . h($source === '' ? '/assets/images/placeholder.png' : $source)
+            . '" alt="" aria-hidden="true" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src=\'/assets/images/placeholder.png\'">';
     }
 
     public static function size(int $bytes): string

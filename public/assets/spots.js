@@ -14,6 +14,7 @@
     let loading = false;
     let failed = false;
     let previewRequest = null;
+    let previewTimer = null;
     let lastTrigger = null;
     let observer = null;
     more.hidden = !more.dataset.next;
@@ -34,6 +35,7 @@
     }
 
     function closePreview() {
+        clearTimeout(previewTimer);
         previewRequest?.abort();
         drawer.classList.remove('is-open');
         drawer.setAttribute('aria-hidden', 'true');
@@ -84,7 +86,24 @@
         const row = event.target.closest('[data-spot-id]');
         if (!row) return;
         event.preventDefault();
-        openPreview(row.querySelector('[data-preview]'));
+        clearTimeout(previewTimer);
+        if (event.detail > 1) return;
+        const trigger = row.querySelector('[data-preview]');
+        if (event.detail === 0) {
+            openPreview(trigger);
+        } else {
+            // Let a double-click finish before the drawer can cover the clicked row.
+            previewTimer = setTimeout(() => openPreview(trigger), 500);
+        }
+    });
+    rows.addEventListener('dblclick', event => {
+        if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        const row = event.target.closest('[data-spot-id]');
+        if (!row) return;
+        event.preventDefault();
+        clearTimeout(previewTimer);
+        previewRequest?.abort();
+        window.location.assign(row.querySelector('[data-preview]').href);
     });
     close.addEventListener('click', closePreview);
     document.addEventListener('keydown', event => {

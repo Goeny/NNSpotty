@@ -20,7 +20,9 @@ for asset in favicon-32.png brand-icon.png apple-touch-icon.png logo.png placeho
 done
 ```
 
-Alle zes afbeeldingen moeten HTTP 200 geven. Herlaad met Ctrl+F5 en controleer het tabbladicoon, het logo op start/login en het headericoon. Open een spot zonder afbeelding: overzicht, preview en detail moeten de eigen coverplaceholder tonen. Een mislukte cover toont daarnaast foutfeedback; uitgeschakelde postafbeeldingen blijven tekst zonder placeholder. Test mobiel en beide thema's. De presentatie en ongewijzigde bronbestanden staan onder `docs/branding/`; alleen verkleinde afgeleiden worden publiek geladen. Houd de nieuwe directories voor de webserver toegankelijk en PNG's leesbaar, zonder `.env`-rechten te verruimen.
+Alle zes afbeeldingen moeten HTTP 200 geven. Herlaad met Ctrl+F5 en controleer het tabbladicoon, het logo op start/login en het headericoon. Open een spot zonder afbeelding: overzicht, preview en detail moeten de eigen coverplaceholder tonen, zonder waarschuwingstekst. Ook de hero gebruikt deze als blurred achtergrond, net als bij een mislukte cover. Uitgeschakelde postafbeeldingen blijven tekst zonder placeholder of achtergrond. Test mobiel en beide thema's. De presentatie en ongewijzigde bronbestanden staan onder `docs/branding/`; alleen verkleinde afgeleiden worden publiek geladen. Houd de nieuwe directories voor de webserver toegankelijk en PNG's leesbaar, zonder `.env`-rechten te verruimen.
+
+Controleer enkele klik op een overzichtsregel (slide-in-preview) en dubbelklik (direct volledige detailpagina), ook na lazy loading en op andere cellen dan de titel. Ctrl/Cmd-klik op de titel blijft een gewone browseractie; Enter op de titel opent de preview en Escape sluit die. Controleer compacte reacties/NZB/SABnzbd-knoppen rechtsboven in de hero, afbrekend zonder overlap op 320px, in preview en volledige detailview. NZB-download en SABnzbd-bevestiging moeten ongewijzigd werken.
 
 ## SABnzbd, categorietoewijzing en downloadpaneel
 Maak eerst een beveiligde databasebackup volgens de procedure hieronder en pauzeer retrieval en webverkeer tijdens de schema-update. Voer daarna in de bestaande projectmap op `nnspotty.hopseflop.nl` uit:
@@ -52,7 +54,7 @@ Ga alleen verder wanneer Composer geen ontbrekende extensies meldt. Migratie `20
 2. Voer het SABnzbd-**basisadres** in: bijvoorbeeld `http://192.168.1.10:8080` of `https://sab.example.nl/sabnzbd`, zonder `/api`. Interne adressen zijn uitsluitend voor admins toegestaan. Kies bij voorkeur HTTPS; TLS-verificatie staat altijd aan en self-signed certificaten zonder vertrouwde CA werken niet.
 3. Gebruik de **volledige API-key** uit SABnzbd Config > General, niet de beperkte NZB-key. Schakel de verbinding in, sla op en klik **Opgeslagen verbinding testen**. De test toont de beschikbare categorienamen. Een leeg keyveld bewaart de bestaande key, zonder die terug te tonen.
 4. Stel exacte namen per spottype in, bijvoorbeeld Films `movies`, Series `tv`, Muziek `music`, Boeken `books`. Maak deze namen eerst in SABnzbd aan. Leeg betekent Default. Deze mapping geldt ook voor persoonlijke verbindingen; dezelfde namen moeten op die hosts bestaan.
-5. Open een spot met NZB, klik **Naar SABnzbd**, kies **Centrale SABnzbd (admin)** en controleer titel/categorie. Bevestig de upload. Controleer zowel de NNSpotty-verzendhistorie als de werkelijke SABnzbd-wachtrij en uiteindelijke verwerking. Een geslaagde verbindingstest alleen is niet voldoende.
+5. Open een spot met NZB, klik **SABnzbd**, kies **Centrale SABnzbd (admin)** en controleer titel/categorie. Bevestig de upload. Controleer zowel de NNSpotty-verzendhistorie als de werkelijke SABnzbd-wachtrij en uiteindelijke verwerking. Een geslaagde verbindingstest alleen is niet voldoende.
 
 ### Persoonlijke koppeling en afscherming
 1. Open als gewone gebruiker `/preferences#downloads` en voer je eigen publiek bereikbare SABnzbd-basisadres/key in. Gebruik HTTPS. Een proxy mag een subpad hebben, maar aanvullende Basic Auth, interactieve logins en redirects zijn niet ondersteund. Bestaande SABnzbd-host-whitelisting/firewall moet NNSpotty toestaan; zet geen SABnzbd-beveiliging globaal uit.
@@ -105,7 +107,7 @@ Controleer in `.env` dat `APP_URL=https://nnspotty.hopseflop.nl` staat, zonder `
 5. Controleer de gebruikelijke Prowlarr-appsync naar Sonarr. Een geslaagde caps-test bewijst niet dat iedere release correct herkend of via jouw provider nog gedownload kan worden.
 6. Vernieuw de key onder Voorkeuren: oude links moeten direct falen. Werk Prowlarr daarna bij. Intrekken werkt ook wanneer admin Newznab uitzet.
 7. Controleer persoonlijke/globale erotica-blokkades ook met de API-key. Globaal uit blokkeert zelfs admins; publieke caps adverteren geen XXX.
-8. In detail/preview werkt **NZB downloaden** met een browsersessie ook als Newznab uit staat. Een providerfout levert een zichtbare fout op, geen leeg succesbestand.
+8. In detail/preview werkt **NZB** met een browsersessie ook als Newznab uit staat. Een providerfout levert een zichtbare fout op, geen leeg succesbestand.
 
 Protocolcontrole zonder key in de shellhistorie of procesargumenten:
 
