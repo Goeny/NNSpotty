@@ -20,6 +20,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 - Regressies voor alle categorielabels, legacy adult-codes, migratie/backfill, gebruikersisolatie en HTTP-zichtbaarheid inclusief gecachte afbeeldingen en beide reactieformulieren.
 
 ### Fixed
+- Deploymentprocedure gebruikt umask 022 voor Git/Composer en beperkt 077 tot geheime backups; gericht rechtenherstel voor publieke CSS/JS na HTTP 403 gedocumenteerd.
 - Horizontale tabelscroll vervangen door instelbare kolommen, afbrekende waarden en compacte mobiele regels; hero-achtergrond duidelijker met minder blur.
 - Header en zoeken blijven vast in beeld; op brede schermen zijn lijst en volledig rechter detailpaneel afzonderlijk scrollbaar, ook met toetsenbordfocus.
 - Alleen hoofdcategorieen staan bovenin; alle bijbehorende subcategorieen verschijnen links, ook zonder resultaten, met behoud van de erotica-instellingen.

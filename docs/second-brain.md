@@ -152,6 +152,9 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
 44. **Spotnet-bracketcodes zijn opmaak, geen HTML**
     De aangeleverde `[br]`-omschrijving bevestigt Spotnet/BBCode-inhoud. Een eigen begrensde tekstparser ondersteunt regeleinden, nadruk, citaten, code, lijsten en veilige links naast de bestaande DOM-allowlist. Kleur/font/grootte/uitlijning voeren geen remote stijlen uit. Onbekende tags blijven tekst, afbeeldingen/actieve inhoud worden niet toegestaan. Usenet-reacties delen de renderer; lokale reacties blijven tekst. Geen nieuwe retrieval nodig voor bestaande omschrijvingen.
 
+45. **Publieke assets moeten leesbaar blijven voor Apache**
+    Na de Git-opruiming gaf de productieserver voor alle drie publieke CSS/JS-assets HTTP 403. De gegeven deploymentprocedure hield `umask 077` actief tijdens Git/Composer; dat kan publieke bestanden onleesbaar maken voor een afzonderlijke Apache-gebruiker. Deployment gebruikt voortaan 022, uitsluitend de geheime backupcreatie gebruikt 077 in een subshell. Gericht herstel: publieke directories 755, de drie assets 644; `.env` blijft 600. Geen applicatie-CSS-wijziging nodig; herstel op productie moet met HTTP 200 worden bevestigd.
+
 ## Open vragen (voor volgende stap)
 - Welk framework past het best bij verdere uitbreiding? De huidige basis gebruikt PHP 8.2+ en PDO/MySQL/MariaDB.
 - Welke metadata-provider krijgt prioriteit: IMDB, TVDB of beide vanaf start?

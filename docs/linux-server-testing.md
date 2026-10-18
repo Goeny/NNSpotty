@@ -177,10 +177,10 @@ De afzonderlijke integratiesuite test ook EN binnen/tussen dimensies, keysets me
 
 ```bash
 set -e
-umask 077
+umask 022
 
 # Configuratie buiten de repository bewaren. Toon alleen het backuppad, nooit de inhoud.
-env_backup="$(mktemp /tmp/nnspotty-env.XXXXXX)"
+env_backup="$(umask 077; mktemp /tmp/nnspotty-env.XXXXXX)"
 cp -- .env "$env_backup"
 printf 'Bewaar dit configuratiebackuppad tot de update geslaagd is: %s\n' "$env_backup"
 
@@ -225,6 +225,24 @@ Controleer ingelogd:
 7. Gewone gebruikers kunnen deze admininstellingen niet wijzigen. Test de erotica-blokkade ook na herinschakelen; deze blijft onafhankelijk gelden.
 
 De integratiesuite met een aparte testdatabase controleert bovenstaande opslag-/HTTP-/NNTP-beleidsregels. Een schone Composer-installatie moet dezelfde suite kunnen draaien zonder dependencies uit Git. Gebruik nooit je productiedatabase voor `--integration`.
+
+### Herstel bij ontbrekende layout na de eenmalige update
+De oorspronkelijke updateprocedure liet `umask 077` actief tijdens Git/Composer. Daardoor kunnen gewijzigde publieke bestanden modus 600 en nieuwe directories modus 700 krijgen. Als Apache onder een andere gebruiker draait, geeft het voor CSS/JavaScript HTTP 403, ook als PHP-pagina's nog werken. Dit is geen verwijderde stylesheet en geen browsercacheprobleem.
+
+Voer vanuit de bestaande deploymap uit:
+
+```bash
+set -e
+umask 022
+chmod 755 public public/assets
+chmod 644 public/assets/spotty.css public/assets/spots.js public/assets/presentation.js
+
+curl -fsS -D - https://nnspotty.hopseflop.nl/assets/spotty.css -o /dev/null
+curl -fsS -D - https://nnspotty.hopseflop.nl/assets/spots.js -o /dev/null
+curl -fsS -D - https://nnspotty.hopseflop.nl/assets/presentation.js -o /dev/null
+```
+
+Alle drie moeten HTTP 200 geven, met respectievelijk een CSS- en JavaScript-contenttype. Herlaad daarna de browser met Ctrl+F5. Geeft een verzoek nog 403, controleer dan de Apache-errorlog, parent-directoryrechten en eventuele ACL's met de serverbeheerder; maak niet de hele repository wereldleesbaar/schrijfbaar. Laat `.env` op 600 staan. Gebruik voor volgende Git/Composer-updates `umask 022`; beperk 077 tot het aanmaken van geheime backups in een subshell.
 
 ## Web checks via subdomein
 ```bash
