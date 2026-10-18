@@ -244,6 +244,40 @@ try {
     $noImage['image_segments'] = [];
     $noImage['image_url'] = '';
     check(SpotPresentation::backdrop($noImage, 'hero-backdrop') === '' && str_contains(SpotPresentation::image($noImage, false), 'Geen afbeelding'), 'Zonder cover blijft er een expliciete placeholder zonder kapotte achtergrond');
+    check(str_contains(SpotPresentation::image($noImage, false), '/assets/images/placeholder.png')
+        && str_contains(SpotPresentation::image($noImage, true), '/assets/images/placeholder-small.png')
+        && !str_contains(SpotPresentation::image($noImage, false), 'data-image-lightbox'),
+        'Ontbrekende covers gebruiken huisstijl in poster en thumbnail zonder fictieve vergroting');
+    check(!str_contains(SpotPresentation::image($noImage, false, false), '<img')
+        && str_contains(SpotPresentation::image($noImage, false, false), 'Afbeeldingen uitgeschakeld'),
+        'Afbeeldingen uitschakelen blijft ook de nieuwe placeholder blokkeren');
+    check(str_contains($poster, 'data-image-fallback hidden')
+        && str_contains($poster, '/assets/images/placeholder.png')
+        && str_contains($poster, 'Afbeelding niet beschikbaar. Controleer de serverlog.'),
+        'Mislukte cover krijgt een lokale placeholder zonder foutfeedback te verbergen');
+    $brandingPages = [
+        \NnSpotty\UI\LoginPageRenderer::render(null, ''),
+        \NnSpotty\UI\HomePageRenderer::render(new \NnSpotty\Config\AppConfig('NNSpotty', 'test', false, 'http://localhost', '0.0.1', 'Delta Integrale'), null, ''),
+        SpotLayout::render('Branding', 'reader', false, '', ''),
+    ];
+    foreach ($brandingPages as $brandingPage) {
+        check(str_contains($brandingPage, 'rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon-32.png"')
+            && str_contains($brandingPage, 'rel="apple-touch-icon" sizes="180x180"'),
+            'Start-, login- en gedeelde layout bevatten lokale favicon en touch-icon');
+    }
+    check(str_contains($brandingPages[0], '/assets/images/logo.png') && str_contains($brandingPages[1], '/assets/images/logo.png')
+        && str_contains($brandingPages[2], '/assets/images/brand-icon.png') && !str_contains($brandingPages[1], 'images.unsplash.com'),
+        'Eigen logo en appicoon vervangen generieke branding en externe demoafbeeldingen');
+    foreach (['favicon-32.png' => [32, 32], 'brand-icon.png' => [64, 64], 'apple-touch-icon.png' => [180, 180],
+        'logo.png' => [768, 512], 'placeholder.png' => [320, 480], 'placeholder-small.png' => [84, 126]] as $asset => $dimensions) {
+        $assetPath = __DIR__ . '/../public/assets/images/' . $asset;
+        $imageSize = getimagesize($assetPath);
+        check([$imageSize[0], $imageSize[1]] === $dimensions && $imageSize['mime'] === 'image/png'
+            && filesize($assetPath) < 220000, 'Webafbeelding heeft correct formaat en begrensde bestandsgrootte: ' . $asset);
+    }
+    foreach (['logo.png', 'favicon.png', 'placeholder.png', 'presentation.png'] as $original) {
+        check(is_file(__DIR__ . '/../docs/branding/' . $original), 'Origineel huisstijlbestand bewaard: ' . $original);
+    }
     check(SpotDescription::render('Eerste regel' . "\n" . 'Tweede & laatste') === "Eerste regel<br />\nTweede &amp; laatste", 'Platte omschrijving behoudt regels en tekst');
     check(SpotDescription::render('<p>Een <strong>opgemaakte</strong> tekst.</p><ul><li>Item</li></ul>') === '<p>Een <strong>opgemaakte</strong> tekst.</p><ul><li>Item</li></ul>', 'HTML-alineas, nadruk en lijsten worden als opmaak gerenderd');
     check(SpotDescription::render('<div style="position:fixed" class="topbar" id="content" onclick="evil()">Veilig <b onmouseover="evil()">vet</b></div>') === '<div>Veilig <b>vet</b></div>', 'Remote attributen, CSS en eventhandlers worden niet overgenomen');

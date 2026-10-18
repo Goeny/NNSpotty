@@ -22,6 +22,9 @@ De focus ligt op:
 - [Linux server testen](./docs/linux-server-testing.md)
 - [Changelog](./CHANGELOG.md)
 - [UI-referentie screenshots](./docs/screenshots/)
+- [Huisstijlpresentatie](./docs/branding/presentation.png) en originele [logo](./docs/branding/logo.png), [favicon](./docs/branding/favicon.png) en [coverplaceholder](./docs/branding/placeholder.png).
+
+De originele huisstijlbestanden staan ongewijzigd in `docs/branding/`. De website gebruikt verkleinde PNG-versies in `public/assets/images/`: favicon (32px), headericoon (64px), touch-icon (180px), logo (768x512), coverplaceholder (320x480) en lijstplaceholder (84x126). Ontbrekende of onbereikbare covers krijgen de placeholder; bij laadfouten blijft foutfeedback zichtbaar. De admininstelling om postafbeeldingen uit te schakelen blijft leidend. De presentatie is documentatie, geen publiek geladen UI-asset.
 
 ## Quick start
 1. Installeer dependencies:

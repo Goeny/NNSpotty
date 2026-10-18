@@ -14,20 +14,29 @@ final class SpotPresentation
         }
         $source = self::imageSource($spot);
         if ($source === '') {
-            return '<div class="cover-placeholder' . ($thumbnail ? ' small' : '') . '">Geen afbeelding</div>';
+            return self::placeholder($thumbnail);
         }
         $class = $thumbnail ? 'spot-thumbnail' : 'spot-poster-image';
+        $statusClass = $thumbnail ? 'visually-hidden' : 'alert alert-warning small';
         $background = $thumbnail ? '' : self::backdrop($spot, 'poster-backdrop');
         $image = '<img class="' . $class . '" src="' . h($source)
             . '" alt="Afbeelding bij ' . h($spot['title']) . '" loading="lazy" referrerpolicy="no-referrer"'
-            . ' onerror="this.hidden=true;this.closest(\'figure\').classList.add(\'image-failed\');this.closest(\'figure\').querySelector(\'[role=status]\').hidden=false">';
+            . ' onerror="this.hidden=true;this.closest(\'figure\').classList.add(\'image-failed\');this.closest(\'figure\').querySelector(\'[data-image-fallback]\').hidden=false;this.closest(\'figure\').querySelector(\'[role=status]\').hidden=false">';
         if (!$thumbnail) {
             $image = '<a class="poster-enlarge" href="' . h($source) . '" target="_blank" rel="noopener noreferrer" data-image-lightbox'
                 . ' data-image-title="' . h($spot['title']) . '" aria-label="Afbeelding vergroten: ' . h($spot['title']) . '">' . $image . '</a>';
         }
         return '<figure class="' . ($thumbnail ? 'mb-0' : 'spot-poster mb-0') . '">' . $background . $image
-            . '<p class="alert alert-warning small" role="status" hidden>Afbeelding niet beschikbaar. Controleer de serverlog.</p>'
+            . '<div data-image-fallback hidden>' . self::placeholder($thumbnail) . '</div>'
+            . '<p class="' . $statusClass . '" role="status" hidden>Afbeelding niet beschikbaar. Controleer de serverlog.</p>'
             . '</figure>';
+    }
+
+    private static function placeholder(bool $thumbnail): string
+    {
+        $file = $thumbnail ? 'placeholder-small.png' : 'placeholder.png';
+        return '<div class="cover-placeholder has-image' . ($thumbnail ? ' small' : '') . '">'
+            . '<img src="/assets/images/' . $file . '" alt="Geen afbeelding" loading="lazy" width="320" height="480"></div>';
     }
 
     /** @param array<string, mixed> $spot */

@@ -35,24 +35,20 @@ final class HomePageRenderer
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{$name}</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/images/apple-touch-icon.png">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/assets/spotty.css" rel="stylesheet">
   <style>
     body {
       min-height: 100vh;
-      background: linear-gradient(135deg, rgba(9,17,28,0.95), rgba(22,40,62,0.9)),
-                  url('https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1920&q=60') center/cover no-repeat fixed;
+      background: linear-gradient(135deg, #09111c, #16283e);
       color: #fff;
     }
     .hero-card {
       background: rgba(12, 20, 34, 0.78);
       border: 1px solid rgba(255, 255, 255, 0.08);
       backdrop-filter: blur(4px);
-    }
-    .poster {
-      border-radius: 14px;
-      width: 100%;
-      max-width: 280px;
-      box-shadow: 0 12px 26px rgba(0, 0, 0, 0.45);
     }
   </style>
 </head>
@@ -61,7 +57,7 @@ final class HomePageRenderer
     <section class="hero-card rounded-4 p-4 p-lg-5">
       <div class="row g-4 align-items-center">
         <div class="col-lg-4 text-center">
-          <img class="poster" src="https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&w=650&q=60" alt="Cover image voorbeeld">
+          <img class="application-logo" src="/assets/images/logo.png" width="768" height="512" alt="NNSpotty">
         </div>
         <div class="col-lg-8">
           <h1 class="display-5 fw-bold mb-3">{$name}</h1>

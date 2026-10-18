@@ -39,6 +39,8 @@ final class SpotLayout
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{$safeTitle} - NNSpotty</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/images/apple-touch-icon.png">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="/assets/spotty.css" rel="stylesheet">
   <script src="/assets/presentation.js" defer></script>
@@ -49,7 +51,7 @@ final class SpotLayout
   <a class="visually-hidden-focusable skip-link" href="#content">Naar inhoud</a>
   <header class="topbar">
     <div class="header-menu">
-      <a class="brand" href="/spots"><span class="brand-mark" aria-hidden="true">N</span>NNSpotty</a>
+      <a class="brand" href="/spots"><img class="brand-mark" src="/assets/images/brand-icon.png" width="34" height="34" alt="">NNSpotty</a>
       <nav class="category-pills" aria-label="Hoofdcategorieen">{$mainNavigation}</nav>
       <a class="account-link" href="/preferences">{$safeUsername}</a>
       <button class="btn btn-sm btn-outline-secondary" type="button" data-sab-open="personal">Downloads</button>

@@ -5,6 +5,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Added
+- Eigen NNSpotty-huisstijl: lokale favicon/touch-icon op alle pagina's, headericoon, logo op start/login en coverplaceholder in overzicht/preview/detail, ook met expliciete feedback bij laadfouten. Originele beelden en presentatie bewaard onder docs/branding, kleinere webversies onder public/assets/images.
 - SABnzbd-forwarding met centrale adminverbinding en persoonlijke verbindingen, globale categorietoewijzing per spottype, volledige-key-invoer zonder terugtonen, verbindingstest en echte multipart NZB-upload vanuit detail/preview.
 - SABnzbd downloadpaneel met slide-in/out, echte wachtrij/voortgang/snelheid, vijfminutengrafiek, begrensde polling, paginering, foutfeedback en persistente lokale verzendhistorie. Herhaalde bevestigingen uploaden niet opnieuw; onzekerheid na verzending blijft expliciet zichtbaar.
 - Migratie `20261018_0012_sabnzbd` voor verbindingen, categorietoewijzing en historie; PHP-extensie curl als platformvereiste. Persoonlijke publieke hosts voor gewone gebruikers, centrale/interne hosts alleen admins, DNS-validatie/pinning en geen redirects/proxies.

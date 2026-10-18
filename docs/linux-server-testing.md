@@ -8,6 +8,20 @@ cp .env.example .env
 # vul daarna .env met jouw basis app + DB gegevens
 ```
 
+## Huisstijl en lokale afbeeldingen
+Deze update vereist geen migratie of retrieval. Voer vanuit de bestaande deploymap uit:
+
+```bash
+umask 022
+git pull --ff-only origin main
+php tests/run.php
+for asset in favicon-32.png brand-icon.png apple-touch-icon.png logo.png placeholder.png placeholder-small.png; do
+  curl -fsS -o /dev/null -w "$asset: %{http_code}\n" "https://nnspotty.hopseflop.nl/assets/images/$asset"
+done
+```
+
+Alle zes afbeeldingen moeten HTTP 200 geven. Herlaad met Ctrl+F5 en controleer het tabbladicoon, het logo op start/login en het headericoon. Open een spot zonder afbeelding: overzicht, preview en detail moeten de eigen coverplaceholder tonen. Een mislukte cover toont daarnaast foutfeedback; uitgeschakelde postafbeeldingen blijven tekst zonder placeholder. Test mobiel en beide thema's. De presentatie en ongewijzigde bronbestanden staan onder `docs/branding/`; alleen verkleinde afgeleiden worden publiek geladen. Houd de nieuwe directories voor de webserver toegankelijk en PNG's leesbaar, zonder `.env`-rechten te verruimen.
+
 ## SABnzbd, categorietoewijzing en downloadpaneel
 Maak eerst een beveiligde databasebackup volgens de procedure hieronder en pauzeer retrieval en webverkeer tijdens de schema-update. Voer daarna in de bestaande projectmap op `nnspotty.hopseflop.nl` uit:
 
