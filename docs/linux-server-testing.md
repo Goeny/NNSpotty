@@ -8,6 +8,26 @@ cp .env.example .env
 # vul daarna .env met jouw basis app + DB gegevens
 ```
 
+## Browser-terug naar de plek in de spotlijst
+Deze update vereist geen nieuwe migratie of retrieve. Voer vanuit de bestaande deploymap op `nnspotty.hopseflop.nl` uit:
+
+```bash
+git status --short
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+php tests/run.php
+curl -fsS https://nnspotty.hopseflop.nl/health
+curl -fsS -o /dev/null -w 'Spotlijst-JS: %{http_code}\n' https://nnspotty.hopseflop.nl/assets/spots.js
+```
+
+Herlaad eerst met Ctrl+F5 om de nieuwe JavaScriptversie te laden:
+
+1. Kies een hoofdgroep en zoekterm/filters met voldoende resultaten. Laad minimaal 500 en daarna 1000 spots, scroll naar een herkenbare regel en open de volledige detailpagina via dubbelklik. Browser-terug moet dezelfde regel op dezelfde plek tonen met minstens de eerder geladen lijstlengte, niet alleen de eerste batch.
+2. Herhaal via enkele klik, preview en de knop voor de volledige spot. Test terug/vooruit/terug en meerdere afzonderlijke zoek-/filteroverzichten: iedere geschiedenisvermelding houdt zijn eigen plek; een nieuw overzicht start normaal bovenaan.
+3. Test zowel desktop (interne lijstscroll) als mobiel (paginascroll). Dit moet ook werken als de browser de pagina niet in de back-forward-cache bewaart; dan worden benodigde batches opnieuw geladen met zichtbare voortgang.
+4. Simuleer een mislukte batchrequest tijdens herstel: een zichtbare waarschuwing verschijnt. Na herstel van de verbinding gaat **Meer resultaten laden** verder met het herstel van de oorspronkelijke plek. Een verlopen login wordt expliciet gemeld.
+5. Er wordt geen spotinhoud in browseropslag bewaard. De server bepaalt opnieuw de actuele resultaten en zichtbaarheid. Een veranderde index kan regels verschuiven; een bestaand zichtbaar spotanker corrigeert de positie. Een verwijderde spot kan niet worden hersteld.
+
 ## Persoonlijke nieuwtellers en Plex-accenten
 Maak een beveiligde databasebackup volgens de bestaande procedure hieronder. Pauzeer webverkeer en retrieve-jobs tijdens de migratie: de ALTER van de spotstabel kan bij een grote index tijd kosten. Voer vanuit de bestaande deploymap op `nnspotty.hopseflop.nl` uit, zonder `.env` te overschrijven:
 

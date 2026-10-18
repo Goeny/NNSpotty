@@ -50,6 +50,7 @@ final class SpotsPageRenderer
             . h('/spots?' . http_build_query(array_merge($query, ['cursor' => $nextCursor]))) . '">Volgende resultaten</a></noscript>';
         $loaded = count($spots);
         $endText = $nextCursor === null ? 'Alle resultaten geladen.' : '';
+        $browseUser = h($username);
         $content = <<<HTML
 <div class="page-heading">
   <div><h1 class="h2 mb-1">{$heading}</h1><span class="text-body-secondary">{$totalItems} individuele spots</span></div>
@@ -63,7 +64,7 @@ final class SpotsPageRenderer
   <a class="btn btn-outline-secondary btn-sm" href="/spots">Wis filters</a>
   <div class="active-filters">{$activeFilters}</div>
 </form>
-<div class="browse-grid" data-spot-browser>
+<div class="browse-grid" data-spot-browser data-browse-user="{$browseUser}">
   <section class="card spot-list" aria-label="Spotlijst">
     <div class="table-responsive" id="spot-scroll">
       <table class="table table-hover align-middle mb-0 spot-table">

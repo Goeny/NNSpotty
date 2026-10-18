@@ -5,6 +5,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Added
+- Browser-terug/-vooruit herstelt eerder bijgeladen spotlijsten en hun scrollpositie, met een eigen gebruikersgebonden positie per geschiedenisvermelding, desktop-/mobielondersteuning, zichtbaar herstel en opnieuw proberen bij ophaalfouten. Geen spot-HTML in browseropslag; ontbrekende batches worden opnieuw opgehaald met de bestaande filters.
 - Persoonlijke filterbadges met nieuw geimporteerde spots sinds het vorige browsebezoek, met vaste grens tijdens de huidige browsersessie; overzichttotalen blijven totaalwaarden. Eerste bezoek begint zonder historische nieuwmeldingen. Ook detail-sidebars tonen dezelfde tellers; zoeken/EN-filters/zichtbaarheid blijven gelden.
 - Migratie `20261018_0014_browse_visits` voor username-gebonden browseactiviteit, microseconde-importtijden en tijdindex; refresh/duplicaten tellen niet opnieuw als nieuw.
 - Plex-geinspireerde oranje/gouden kleuraccenten voor knoppen, badges, filterlabels en schakelaars; bestaande layout en semantische statuskleuren blijven behouden. Metadata voor muziek/games/software/boeken vastgelegd als toekomstwerk, niet als bestaande koppelingen.

@@ -17,7 +17,43 @@
     let previewTimer = null;
     let lastTrigger = null;
     let observer = null;
+    let restoring = false;
+    let restoreTarget = null;
     more.hidden = !more.dataset.next;
+
+    const historyKey = 'nnspottyBrowse';
+    const saved = history.state?.[historyKey];
+    if (saved && browser.dataset.browseUser && saved.user === browser.dataset.browseUser && saved.url === location.href
+        && Number.isSafeInteger(saved.count) && saved.count >= 0
+        && [saved.listTop, saved.contentTop, saved.pageTop, saved.anchorOffset].every(Number.isFinite)
+        && (saved.anchor === null || typeof saved.anchor === 'string')) {
+        restoreTarget = saved;
+    }
+
+    function rememberVisit() {
+        // Store only position/cursor depth, never private spot HTML in browser history.
+        if (restoreTarget) return;
+        const top = Math.max(0, scroll.getBoundingClientRect().top);
+        const bottom = Math.min(innerHeight, scroll.getBoundingClientRect().bottom);
+        const anchor = [...rows.querySelectorAll('[data-spot-id]')].find(row => {
+            const rect = row.getBoundingClientRect();
+            return rect.bottom > top && rect.top < bottom;
+        });
+        try {
+            history.replaceState({...history.state, [historyKey]: {
+                user: browser.dataset.browseUser, url: location.href,
+                count: rows.querySelectorAll('[data-spot-id]').length,
+                listTop: scroll.scrollTop, contentTop: document.getElementById('content').scrollTop,
+                pageTop: window.scrollY, anchor: anchor?.dataset.spotId ?? null,
+                anchorOffset: anchor ? anchor.getBoundingClientRect().top - top : 0
+            }}, '');
+        } catch (exception) {
+            console.error('De plek in de spotlijst kon niet worden bewaard.', exception);
+            error.textContent = 'Je browser kon de plek in de spotlijst niet bewaren. Teruggaan kan daardoor bovenaan beginnen.';
+            error.hidden = false;
+        }
+    }
+    window.addEventListener('pagehide', rememberVisit);
 
     async function getJson(url, signal) {
         const response = await fetch(url, {credentials: 'same-origin', signal, headers: {'Accept': 'application/json'}});
@@ -112,12 +148,14 @@
     });
 
     async function loadMore() {
-        if (loading || !more.dataset.next) return;
+        if (loading || !more.dataset.next) return false;
         loading = true;
         failed = false;
         more.disabled = true;
         error.hidden = true;
-        status.textContent = 'Volgende resultaten laden...';
+        status.textContent = restoring
+            ? `Je plek in de lijst herstellen: ${rows.querySelectorAll('[data-spot-id]').length} van ${restoreTarget.count} resultaten...`
+            : 'Volgende resultaten laden...';
         const url = more.dataset.next;
         try {
             const data = await getJson(url);
@@ -129,6 +167,7 @@
             template.innerHTML = `<table><tbody>${data.html}</tbody></table>`;
             const newRows = template.content.querySelectorAll('tr[data-spot-id]');
             if (newRows.length !== data.count) throw new Error('De resultaatbatch heeft een onjuist aantal regels.');
+            if (data.next === url) throw new Error('De resultaatbatch verwijst opnieuw naar dezelfde pagina.');
             const ids = new Set([...rows.querySelectorAll('[data-spot-id]')].map(row => row.dataset.spotId));
             for (const row of newRows) {
                 if (!ids.has(row.dataset.spotId)) {
@@ -139,7 +178,9 @@
             more.dataset.next = data.next ?? '';
             more.hidden = data.next === null;
             document.getElementById('loaded-count').textContent = String(rows.querySelectorAll('[data-spot-id]').length);
-            status.textContent = data.next === null ? 'Alle resultaten geladen.' : '';
+            status.textContent = restoring
+                ? `Je plek in de lijst herstellen: ${rows.querySelectorAll('[data-spot-id]').length} van ${restoreTarget.count} resultaten...`
+                : (data.next === null ? 'Alle resultaten geladen.' : '');
         } catch (exception) {
             failed = true;
             error.textContent = `${exception.message} Gebruik de knop om opnieuw te proberen.`;
@@ -150,10 +191,40 @@
             more.disabled = false;
             if (!failed) requestAnimationFrame(checkNearEnd);
         }
+        return !failed;
+    }
+
+    async function restoreVisit() {
+        if (restoring || !restoreTarget) return;
+        restoring = true;
+        browser.setAttribute('aria-busy', 'true');
+        try {
+            while (rows.querySelectorAll('[data-spot-id]').length < restoreTarget.count && more.dataset.next) {
+                if (!await loadMore()) return;
+            }
+            const target = restoreTarget;
+            // Layout must include all restored rows before nested or mobile scrolling.
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            document.getElementById('content').scrollTop = target.contentTop;
+            scroll.scrollTop = target.listTop;
+            window.scrollTo({top: target.pageTop, behavior: 'instant'});
+            const anchor = [...rows.querySelectorAll('[data-spot-id]')].find(row => row.dataset.spotId === target.anchor);
+            if (anchor) {
+                const delta = anchor.getBoundingClientRect().top - Math.max(0, scroll.getBoundingClientRect().top) - target.anchorOffset;
+                if (['auto', 'scroll'].includes(getComputedStyle(scroll).overflowY)) scroll.scrollTop += delta;
+                else window.scrollBy({top: delta, behavior: 'instant'});
+            }
+            restoreTarget = null;
+            status.textContent = more.dataset.next ? '' : 'Alle resultaten geladen.';
+        } finally {
+            restoring = false;
+            browser.removeAttribute('aria-busy');
+            if (!restoreTarget) requestAnimationFrame(checkNearEnd);
+        }
     }
 
     function checkNearEnd() {
-        if (failed || loading || !more.dataset.next) return;
+        if (restoreTarget || restoring || failed || loading || !more.dataset.next) return;
         const root = scroll.getBoundingClientRect();
         const sentinel = document.getElementById('load-sentinel').getBoundingClientRect();
         if (sentinel.top < root.bottom + 400 && sentinel.top < innerHeight + 400) loadMore();
@@ -164,13 +235,17 @@
         const internal = ['auto', 'scroll'].includes(getComputedStyle(scroll).overflowY);
         if ('IntersectionObserver' in window) {
             observer = new IntersectionObserver(entries => {
-                if (!failed && entries.some(entry => entry.isIntersecting)) loadMore();
+                if (!restoreTarget && !restoring && !failed && entries.some(entry => entry.isIntersecting)) loadMore();
             }, {root: internal ? scroll : null, rootMargin: '400px 0px'});
             observer.observe(document.getElementById('load-sentinel'));
         }
         checkNearEnd();
     }
-    more.addEventListener('click', loadMore);
+    more.addEventListener('click', () => restoreTarget ? restoreVisit() : loadMore());
     observeEnd();
     window.addEventListener('resize', observeEnd);
+    window.addEventListener('pageshow', event => {
+        if (event.persisted) observeEnd();
+    });
+    restoreVisit();
 })();

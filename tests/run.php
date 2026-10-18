@@ -206,6 +206,8 @@ try {
     check(str_contains($light, '25 individuele spots') && str_contains($light, '1 nieuw sinds je vorige bezoek')
         && str_contains($light, 'Tellers blijven tijdens deze browsersessie staan.'),
         'Sidebar noemt persoonlijke nieuwe spots terwijl de overzichtskop het totaal behoudt');
+    check(str_contains($light, 'data-spot-browser data-browse-user="tester"'),
+        'Browsergeschiedenis van de spotlijst is gekoppeld aan de huidige gebruiker');
     $counterDetail = SpotDetailPageRenderer::render('tester', false, $spot, [], '', facets: [['code' => '0:a9', 'total' => 100]]);
     check(str_contains($counterDetail, '100 nieuw sinds je vorige bezoek'),
         'Volledige detailpagina kan dezelfde persoonlijke facetbadge tonen als het overzicht');
