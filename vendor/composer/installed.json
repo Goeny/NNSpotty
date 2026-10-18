@@ -57,6 +57,6 @@
             "install-path": "../rvdv/nntp"
         }
     ],
-    "dev": false,
+    "dev": true,
     "dev-package-names": []
 }

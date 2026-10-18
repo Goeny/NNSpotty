@@ -11,7 +11,9 @@ use NnSpotty\Http\Response;
 use NnSpotty\Security\Csrf;
 use NnSpotty\Security\LoginRateLimiter;
 use NnSpotty\State\AppStateRepository;
-use NnSpotty\Usenet\UsenetPostRepository;
+use NnSpotty\Usenet\SpotRepository;
+use NnSpotty\Usenet\SpotImageService;
+use NnSpotty\Usenet\SpotnetParser;
 use NnSpotty\Users\UserRepository;
 use NnSpotty\UI\AdminPageRenderer;
 use NnSpotty\UI\LoginPageRenderer;
@@ -39,7 +41,6 @@ require_once __DIR__ . '/../src/Database/ConnectionFactory.php';
 require_once __DIR__ . '/../src/Security/Csrf.php';
 require_once __DIR__ . '/../src/Security/LoginRateLimiter.php';
 require_once __DIR__ . '/../src/State/AppStateRepository.php';
-require_once __DIR__ . '/../src/Usenet/UsenetPostRepository.php';
 require_once __DIR__ . '/../src/Users/UserRepository.php';
 require_once __DIR__ . '/../src/UI/HomePageRenderer.php';
 require_once __DIR__ . '/../src/UI/AdminPageRenderer.php';
@@ -68,7 +69,7 @@ $auth = new SessionAuth($users);
 $csrf = new Csrf();
 $loginRateLimiter = new LoginRateLimiter($pdo);
 $auditLogs = new AuditLogRepository($pdo);
-$usenetPosts = new UsenetPostRepository($pdo);
+$spots = new SpotRepository($pdo);
 
 $router->get('/', static function (Request $_request) use ($config, $auth, $csrf): Response {
     $html = NnSpotty\UI\HomePageRenderer::render($config, $auth->user(), $csrf->field());
@@ -173,6 +174,12 @@ $router->post('/admin/settings', static function (Request $request) use ($state,
     $explicitGroups = str_replace("\n", ',', $explicitGroups);
     $explicitGroups = preg_replace('/\s*,\s*/', ',', $explicitGroups) ?? '';
     $explicitGroups = trim($explicitGroups, ',');
+
+    try {
+        SpotnetParser::groups($explicitGroups);
+    } catch (InvalidArgumentException $exception) {
+        return Response::redirect('/admin?status=' . rawurlencode($exception->getMessage()));
+    }
 
     if ($server === '' || $port < 1 || $port > 65535 || $retention < 0 || !in_array($encryption, ['none', 'ssl', 'tls'], true) || $discoverMaxGroups < 0 || $maxArticlesPerGroup < 100) {
         return Response::redirect('/admin?status=' . rawurlencode('Ongeldige usenet instellingen.'));
@@ -303,7 +310,7 @@ $router->get('/preferences', static function (Request $request) use ($state, $au
     return Response::html($html);
 });
 
-$router->get('/spots', static function (Request $request) use ($auth, $csrf, $state, $usenetPosts): Response {
+$router->get('/spots', static function (Request $request) use ($auth, $csrf, $state, $spots): Response {
     if (!$auth->isAuthenticated()) {
         return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
     }
@@ -319,7 +326,7 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
     $page = preg_match('/^\d+$/', $pageRaw) === 1 ? max(1, (int) $pageRaw) : 1;
     $preferences = $state->getPreferences($currentUser['username']);
     $perPage = max(10, min(200, (int) $preferences['items_per_page']));
-    $totalItems = $usenetPosts->countSpots($selectedCategory);
+    $totalItems = $spots->countSpots($selectedCategory);
     $totalPages = max(1, (int) ceil($totalItems / $perPage));
     $page = min($page, $totalPages);
     $offset = ($page - 1) * $perPage;
@@ -327,8 +334,8 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
     $html = SpotsPageRenderer::render(
         username: $currentUser['username'],
         isAdmin: $auth->isAdmin(),
-        categories: $usenetPosts->listCategoriesWithCounts(),
-        spots: $usenetPosts->listSpots($selectedCategory, $perPage, $offset),
+        categories: $spots->listCategoriesWithCounts(),
+        spots: $spots->listSpots($selectedCategory, $perPage, $offset),
         selectedCategory: $selectedCategory,
         currentPage: $page,
         totalPages: $totalPages,
@@ -339,7 +346,7 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
     return Response::html($html);
 });
 
-$router->get('/spots/view', static function (Request $request) use ($auth, $csrf, $usenetPosts): Response {
+$router->get('/spots/view', static function (Request $request) use ($auth, $csrf, $spots): Response {
     if (!$auth->isAuthenticated()) {
         return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
     }
@@ -349,12 +356,12 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
         return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
     }
 
-    $releaseKey = trim((string) ($request->query('key') ?? ''));
-    if ($releaseKey === '') {
+    $spotId = trim((string) ($request->query('key') ?? ''));
+    if ($spotId === '') {
         return Response::redirect('/spots');
     }
 
-    $spot = $usenetPosts->getSpot($releaseKey);
+    $spot = $spots->getSpot($spotId);
     if ($spot === null) {
         return Response::redirect('/spots');
     }
@@ -363,11 +370,58 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
         username: $currentUser['username'],
         isAdmin: $auth->isAdmin(),
         spot: $spot,
-        parts: $usenetPosts->listSpotParts($releaseKey, 500),
+        comments: $spots->comments($spotId),
+        statusMessage: $request->query('status'),
         csrfField: $csrf->field()
     );
 
     return Response::html($html);
+});
+
+$router->get('/spots/image', static function (Request $request) use ($auth, $spots, $state): Response {
+    if (!$auth->isAuthenticated()) {
+        return new Response(401, 'Login vereist.', ['Content-Type' => 'text/plain; charset=utf-8']);
+    }
+    $id = (string) ($request->query('key') ?? '');
+    $spot = $spots->getSpot($id);
+    if ($spot === null || $spot['image_segments'] === []) {
+        return Response::notFound();
+    }
+    try {
+        $image = (new SpotImageService($spots, $state))->load($spot);
+        return new Response(200, $image['image_data'], [
+            'Content-Type' => $image['mime_type'],
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, max-age=86400',
+        ]);
+    } catch (Throwable $exception) {
+        error_log('Spot image ' . $id . ': ' . $exception->getMessage());
+        return new Response(502, 'Afbeelding ophalen mislukt. Controleer de serverlog.', ['Content-Type' => 'text/plain; charset=utf-8']);
+    }
+});
+
+$router->post('/spots/comment', static function (Request $request) use ($auth, $csrf, $spots, $state): Response {
+    if (!$auth->isAuthenticated()) {
+        return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
+    }
+    $id = (string) ($request->input('spot_id') ?? '');
+    if ($spots->getSpot($id) === null) {
+        return Response::notFound();
+    }
+    $location = '/spots/view?key=' . rawurlencode($id);
+    if (!$csrf->verify($request->input('_csrf'))) {
+        return Response::redirect($location . '&status=' . rawurlencode('Ongeldige CSRF token.'));
+    }
+    $body = trim((string) ($request->input('comment') ?? ''));
+    if ($body === '' || strlen($body) > 10000 || preg_match('//u', $body) !== 1) {
+        return Response::redirect($location . '&status=' . rawurlencode('Een reactie moet geldige tekst bevatten en maximaal 10000 bytes lang zijn.'));
+    }
+    $user = $auth->user();
+    if ($user === null) {
+        return Response::redirect('/login');
+    }
+    $state->addComment($id, $user['username'], $body);
+    return Response::redirect($location . '&status=' . rawurlencode('Reactie lokaal geplaatst; niet naar Usenet verstuurd.'));
 });
 
 $router->post('/preferences', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {

@@ -3,6 +3,7 @@
 ## Vereisten
 - PHP 8.2 of hoger
 - Composer 2.x
+- MySQL/MariaDB en PHP-extensies `pdo_mysql`, `SimpleXML`, `iconv`, `zlib`
 
 ## Stappen
 1. Installeer dependencies:
@@ -35,7 +36,17 @@
    - `http://localhost:8080/login`
    - `http://localhost:8080/admin` (admin login vereist)
    - `http://localhost:8080/preferences` (login vereist)
-6. Stel via `/admin` je Usenet/retrieve instellingen in (server, login, retentie, group filters, max artikelen).
+6. Stel via `/admin` je Usenet/retrieve instellingen in (server, login, retentie, Spotnet-groepen, max artikelen per incrementele run).
+   Gebruik standaard `spots:free.pt,comments:free.usenet`; leeg gebruikt dezelfde defaults.
+7. Haal echte spots op met `php bin/console retrieve --days=30 --verbose` en open `/spots`.
+   Dit scant alle beschikbare headers om de datumfilter correct toe te passen en kan lang duren.
+
+## Upgrade vanaf de generieke headerindex
+- Voer `php bin/console db migrate` uit en controleer de Spotnet-groepen in admin.
+- De oude exacte standaardinstelling met `comments:free.ptd` wordt gemigreerd naar `comments:free.usenet`.
+- Aangepaste groepsinstellingen worden niet overschreven; vervang generieke `category:group` configuratie door de rollen `spots` en `comments`.
+- Voer `php bin/console retrieve --days=30 --verbose` uit. Oude headers blijven bewaard, maar worden niet als spots weergegeven.
+- `db reindex-spots` is vervangen door opnieuw ophalen van de echte Spotnet-inhoud.
 
 ## Opslag
 - Alle runtime data wordt opgeslagen in MySQL/MariaDB tabellen.

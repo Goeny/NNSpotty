@@ -9,14 +9,14 @@ final class SpotsPageRenderer
     /**
      * @param array<int, array{category: string, total: int}> $categories
      * @param array<int, array{
-     *   release_key: string,
-     *   release_title: string,
+     *   id: string,
+     *   title: string,
      *   category: string,
-     *   group_name: string,
      *   poster: string,
-     *   total_parts: int,
-     *   total_bytes: int,
-     *   last_posted_at: string
+     *   size: int,
+     *   posted_at: string,
+     *   image_url: string,
+     *   image_segments: list<string>
      * }> $spots
      */
     public static function render(
@@ -51,7 +51,7 @@ final class SpotsPageRenderer
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
       <div>
         <h1 class="h3 mb-1">Spots overzicht</h1>
-        <p class="text-body-secondary mb-0">Ingelogd als {$safeUsername} · Filter: {$activeCategory} · Releases: {$totalItems}</p>
+        <p class="text-body-secondary mb-0">Ingelogd als {$safeUsername} · Filter: {$activeCategory} · Spots: {$totalItems}</p>
       </div>
       <div class="d-flex gap-2">
         <a class="btn btn-outline-secondary btn-sm" href="/">Home</a>
@@ -74,16 +74,16 @@ final class SpotsPageRenderer
     </div>
 
     <div class="card">
-      <div class="card-header fw-semibold">Releases</div>
+      <div class="card-header fw-semibold">Individuele Spotnet-spots</div>
       <div class="table-responsive">
         <table class="table table-striped table-hover mb-0 align-middle">
           <thead>
             <tr>
+              <th>Afbeelding</th>
               <th>Datum</th>
               <th>Categorie</th>
               <th>Titel</th>
               <th>Spotter</th>
-              <th>Onderdelen</th>
               <th>Size</th>
               <th></th>
             </tr>
@@ -121,37 +121,36 @@ HTML;
 
     /**
      * @param array<int, array{
-     *   release_key: string,
-     *   release_title: string,
+     *   id: string,
+     *   title: string,
      *   category: string,
-     *   group_name: string,
      *   poster: string,
-     *   total_parts: int,
-     *   total_bytes: int,
-     *   last_posted_at: string
+     *   size: int,
+     *   posted_at: string,
+     *   image_url: string,
+     *   image_segments: list<string>
      * }> $spots
      */
     private static function renderSpotRows(array $spots): string
     {
         if ($spots === []) {
-            return '<tr><td colspan="7" class="text-body-secondary">Nog geen spots gevonden. Draai retrieve en daarna db reindex-spots.</td></tr>';
+            return '<tr><td colspan="7" class="text-body-secondary">Nog geen Spotnet-spots gevonden. Controleer spots:free.pt in admin en voer retrieve --days=30 uit.</td></tr>';
         }
 
         $rows = [];
         foreach ($spots as $spot) {
-            $date = $spot['last_posted_at'] !== '' ? h($spot['last_posted_at']) : '-';
+            $date = h($spot['posted_at']);
             $category = h($spot['category']);
-            $title = h($spot['release_title'] !== '' ? $spot['release_title'] : '(zonder titel)');
+            $title = h($spot['title']);
             $poster = h($spot['poster']);
-            $parts = max(1, (int) $spot['total_parts']);
-            $size = self::formatBytes((int) $spot['total_bytes']);
-            $detailsLink = '/spots/view?key=' . rawurlencode($spot['release_key']);
+            $size = self::formatBytes((int) $spot['size']);
+            $detailsLink = '/spots/view?key=' . rawurlencode($spot['id']);
             $rows[] = '<tr>'
+                . '<td>' . SpotPresentation::image($spot, true) . '</td>'
                 . '<td class="text-nowrap">' . $date . '</td>'
                 . '<td><span class="badge text-bg-secondary">' . $category . '</span></td>'
-                . '<td>' . $title . '</td>'
+                . '<td><a href="' . $detailsLink . '">' . $title . '</a></td>'
                 . '<td>' . $poster . '</td>'
-                . '<td class="text-nowrap">' . $parts . '</td>'
                 . '<td class="text-nowrap">' . $size . '</td>'
                 . '<td class="text-nowrap"><a class="btn btn-sm btn-outline-primary" href="' . $detailsLink . '">Details</a></td>'
                 . '</tr>';

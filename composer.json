@@ -6,6 +6,10 @@
   "license": "MIT",
   "require": {
     "php": "^8.2",
+    "ext-iconv": "*",
+    "ext-pdo_mysql": "*",
+    "ext-simplexml": "*",
+    "ext-zlib": "*",
     "rvdv/nntp": "^1.0"
   },
   "autoload": {
@@ -16,6 +20,7 @@
   "scripts": {
     "serve": "php -S localhost:8080 -t public",
     "check:syntax": "php -l public/index.php",
-    "console": "php bin/console"
+    "console": "php bin/console",
+    "test": "php tests/run.php"
   }
 }

@@ -3,11 +3,10 @@
 Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
 
 ## Snapshot
-- **Datum:** 2026-10-17
+- **Datum:** 2026-10-18
 - **Versie:** 0.0.1
 - **Codenaam:** Delta Integrale
-- **Fase:** Documentatie + scaffold
-- **Fase:** Documentatie + scaffold + database/console fundament
+- **Fase:** Database/console/auth-fundament met echte Spotnet-index en spotdetailweergave
 
 ## Context
 - Spotweb is verouderd en lastig onderhoudbaar door gegroeide complexiteit en gemengde oude/nieuwe codepatronen.
@@ -84,15 +83,30 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
 21. **Admin-first configuratie bevestigd**  
     `.env` blijft voor basis app/DB config; Usenet/retrieve operationele settings worden via admin beheerd.
 
+22. **Generieke headergroepering vervangen door Spotnet**
+    Onderzoek van `spotweb/spotweb` bevestigt dat spots uit `free.pt` komen, met volledige inhoud in de herhaalde `X-XML`-headers. Reacties komen uit `free.usenet`, niet `free.ptd`. Binaire afbeeldingen/NZB-verwijzingen komen uit de XML, niet uit onderwerpheuristieken.
+
+23. **Eigen protocolimplementatie, geen legacy-code overgenomen**
+    `SpotnetParser`, `SpotnetOverviewCommand`, `SpotRepository` en `SpotImageService` scheiden parsing, NNTP, opslag en rendering. Een message-ID is de identiteit van een spot; gelijke titels worden niet samengevoegd.
+
+24. **Niet-destructieve overgang**
+    Nieuwe `spotnet_*` tabellen en cursors worden naast oude headers/releases aangelegd. Historische generieke data blijft bewaard maar is niet zichtbaar als spot. Opnieuw ophalen is nodig; `db reindex-spots` kan ontbrekende XML niet reconstrueren.
+
+25. **Volledige inhoud en reacties in de UI**
+    De detailpagina toont omschrijving, metadata, afbeelding en Usenet/lokale reacties. Afbeeldingen worden op aanvraag uit Usenet gehaald en in de database gecachet. Lokale reacties worden niet naar Usenet gepubliceerd.
+
+26. **Expliciete grenzen van de eerste Spotnet-implementatie**
+    Inhoud wordt veilig als tekst weergegeven en als onbevestigd aangeduid. Handtekeningverificatie, uitgebreide Spotnet-opmaak, afwijkende legacy-XML, NZB-download/forwarding en Newznab zijn nog geen gerealiseerde capabilities.
+
+27. **Retrievalsemantiek gecorrigeerd en getest**
+    `--all` verwerkt de volledige beschikbare historie zonder retentie. `--days` scant headers op datum zonder een arbitraire artikellimiet. `--since-last` werkt in begrensde hervatbare batches. Protocoltests en integratietests met een lokale NNTP-fixture en aparte MariaDB valideren deze paden.
+
 ## Open vragen (voor volgende stap)
-- Welke PHP-versie en framework-keuze passen het best bij performance + onderhoudbaarheid?
-- Welke database-engine wordt primair ondersteund bij de eerste release?
-- Welke authenticatie/rollen zijn minimaal nodig voor 0.x?
+- Welk framework past het best bij verdere uitbreiding? De huidige basis gebruikt PHP 8.2+ en PDO/MySQL/MariaDB.
 - Welke metadata-provider krijgt prioriteit: IMDB, TVDB of beide vanaf start?
 - Welke Newznab endpoint-scope is minimaal vereist voor MVP?
-- Hoe richten we minimale auth/rollen in voor admin versus reguliere gebruikers?
-- Welke moderatieregels gelden bij conflicten tussen whitelist en blacklist?
-- Welke retrieve-strategie krijgt prioriteit (alles/sinds-laatste/per-retentie window)?
+- Welke moderatieregels gelden bij conflicten tussen whitelist en blacklist, na verificatie van de spotteridentiteit?
+- Hoe versnellen we grote historische scans zonder de volledigheid van datumfilters te verliezen?
 
 ## Volgende stappen
 1. Beslissen over definitieve stackkeuzes (framework ja/nee, DB, queue/caching).
@@ -102,9 +116,9 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
    - metadata-integratie
    - theming
    - newznab API
-3. Datalaag migreren van JSON prototype naar database-gedreven opslag (MySQL/MariaDB).
-4. Console-commando's opzetten (`retrieve`, `user`, `db`) voor beheer en operatie.
-5. Auth/rolscheiding toevoegen tussen adminfuncties en gewone gebruikers.
+3. Handtekeningverificatie, geverifieerde spotteridentiteiten en moderatie in de retrieval-laag toevoegen.
+4. Veilige Spotnet-opmaak en geteste compatibiliteit voor afwijkende legacy-XML uitwerken.
+5. Grote backfills en commentretrieval optimaliseren; scheduling en jobs toevoegen.
 6. Installatieflow verder uitwerken (wizard + validaties).
 
 ## Updateprotocol

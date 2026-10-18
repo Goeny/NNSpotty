@@ -2,6 +2,19 @@
 
 Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
+## [Unreleased] - 0.0.1 - Delta Integrale
+
+### Changed
+- Generieke onderwerp-/headergroepering vervangen door een eigen Spotnet-parser: individuele spots uit `free.pt`, omschrijving en metadata uit `X-XML`, reacties uit `free.usenet`.
+- Afbeeldingsegmenten worden op aanvraag gedecodeerd en in de database gecachet; oude externe afbeelding-URLs worden ondersteund.
+- Spotsoverzicht en detailpagina tonen individuele spots, omschrijving, afbeelding en reacties; lokale reacties zijn CSRF-beveiligd en worden niet naar Usenet gepubliceerd.
+- Nieuwe niet-destructieve migratie `20261018_0006_spotnet`, aparte Spotnet-cursors en behoud van historische generieke data buiten het overzicht.
+- `db reindex-spots` geeft nu een expliciete instructie om echte Spotnet-inhoud opnieuw op te halen.
+- `--days` scant alle beschikbare headers voor een volledige datumfilter; `--all` negeert retentie; `--since-last` gebruikt de ingestelde artikellimiet zonder artikelranges over te slaan.
+- Transportfouten falen expliciet; corrupte XML en verlopen artikelen worden gemeld in plaats van als lege succesvolle resultaten behandeld.
+- Vereiste PHP-extensies toegevoegd aan Composer en protocol-/integratietests toegevoegd met synthetische NNTP-fixtures.
+- Usenet-identiteit/inhoud wordt expliciet als onbevestigd getoond; handtekeningverificatie en geavanceerde opmaak zijn nog niet aanwezig.
+
 ## [0.0.1] - 2026-10-17 - Delta Integrale
 
 ### Added

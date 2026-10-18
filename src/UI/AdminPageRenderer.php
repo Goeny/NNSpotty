@@ -32,8 +32,6 @@ final class AdminPageRenderer
         $password = h($settings['password']);
         $encryption = $settings['encryption'];
         $explicitGroups = h(str_replace(',', "\n", $settings['explicit_groups']));
-        $groupPattern = h($settings['group_pattern']);
-        $discoverMaxGroups = (int) $settings['discover_max_groups'];
         $maxArticlesPerGroup = (int) $settings['max_articles_per_group'];
         $noneSelected = self::selectedAttr($encryption, 'none');
         $sslSelected = self::selectedAttr($encryption, 'ssl');
@@ -110,22 +108,19 @@ final class AdminPageRenderer
                 <input class="form-control" id="password" name="password" type="password" value="{$password}">
               </div>
               <div class="mb-3">
-                <label class="form-label" for="group_pattern">Group pattern (optioneel, bv alt.binaries.*)</label>
-                <input class="form-control" id="group_pattern" name="group_pattern" type="text" value="{$groupPattern}">
+                <input name="group_pattern" type="hidden" value="">
+                <input name="discover_max_groups" type="hidden" value="0">
               </div>
               <div class="mb-3">
-                <label class="form-label" for="explicit_groups">Expliciete groepen (optioneel, category:group per regel)</label>
-                <textarea class="form-control" id="explicit_groups" name="explicit_groups" rows="3" placeholder="movies:alt.binaries.movies&#10;series:alt.binaries.tv">{$explicitGroups}</textarea>
-                <div class="form-text">Leeg laten = auto-discovery gebruiken. Aanbevolen Spotnet-start: spots:free.pt en comments:free.ptd.</div>
+                <label class="form-label" for="explicit_groups">Spotnet-groepen (rol:groep per regel)</label>
+                <textarea class="form-control" id="explicit_groups" name="explicit_groups" rows="3" placeholder="spots:free.pt&#10;comments:free.usenet">{$explicitGroups}</textarea>
+                <div class="form-text">Leeg = spots:free.pt en comments:free.usenet. Alleen de rollen spots en comments worden verwerkt; geen algemene header-discovery.</div>
               </div>
               <div class="row g-2">
-                <div class="col-6">
-                  <label class="form-label" for="discover_max_groups">Max auto-discovery groepen (0 = geen limiet)</label>
-                  <input class="form-control" id="discover_max_groups" name="discover_max_groups" type="number" min="0" value="{$discoverMaxGroups}" required>
-                </div>
-                <div class="col-6">
-                  <label class="form-label" for="max_articles_per_group">Max artikelen per groep per run</label>
+                <div class="col-12">
+                  <label class="form-label" for="max_articles_per_group">Max artikelen per groep per incrementele run</label>
                   <input class="form-control" id="max_articles_per_group" name="max_articles_per_group" type="number" min="100" value="{$maxArticlesPerGroup}" required>
+                  <div class="form-text">Geldt voor --since-last. --all en --days scannen alle beschikbare headers voor een volledige backfill.</div>
                 </div>
               </div>
               <button class="btn btn-primary" type="submit">Instellingen opslaan</button>

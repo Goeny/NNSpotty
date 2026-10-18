@@ -37,7 +37,7 @@ final class AppStateRepository
             'username' => (string) ($settings['username'] ?? ''),
             'password' => (string) ($settings['password'] ?? ''),
             'encryption' => (string) ($settings['encryption'] ?? 'none'),
-            'explicit_groups' => (string) ($settings['explicit_groups'] ?? 'spots:free.pt,comments:free.ptd'),
+            'explicit_groups' => (string) ($settings['explicit_groups'] ?? \NnSpotty\Usenet\SpotnetParser::DEFAULT_GROUPS),
             'group_pattern' => (string) ($settings['group_pattern'] ?? ''),
             'discover_max_groups' => (int) ($settings['discover_max_groups'] ?? 250),
             'max_articles_per_group' => (int) ($settings['max_articles_per_group'] ?? 5000),

@@ -6,34 +6,45 @@ namespace NnSpotty\UI;
 
 final class SpotDetailPageRenderer
 {
-    /**
-     * @param array{
-     *   release_key: string,
-     *   release_title: string,
-     *   category: string,
-     *   group_name: string,
-     *   poster: string,
-     *   total_parts: int,
-     *   total_bytes: int,
-     *   first_posted_at: string,
-     *   last_posted_at: string
-     * } $spot
-     * @param array<int, array{
-     *   message_id: string,
-     *   subject: string,
-     *   article_number: int,
-     *   from_header: string,
-     *   posted_at: string,
-     *   bytes: int|null
-     * }> $parts
+    /** @param array<string, mixed> $spot
+     *  @param list<array<string, mixed>> $comments
      */
-    public static function render(string $username, bool $isAdmin, array $spot, array $parts, string $csrfField): string
-    {
+    public static function render(
+        string $username,
+        bool $isAdmin,
+        array $spot,
+        array $comments,
+        string $csrfField,
+        ?string $statusMessage = null
+    ): string {
+        $title = h($spot['title']);
         $safeUsername = h($username);
+        $id = h($spot['id']);
+        $poster = h($spot['poster']);
+        $category = h($spot['category']);
+        $date = h($spot['posted_at']);
+        $description = nl2br(h($spot['description']));
+        $tag = h($spot['tag']);
+        $messageId = h($spot['message_id']);
+        $size = number_format((int) $spot['size'] / 1048576, 2, ',', '.') . ' MiB';
         $adminLink = $isAdmin ? '<a class="btn btn-outline-primary btn-sm" href="/admin">Admin</a>' : '';
-        $safeTitle = h($spot['release_title'] !== '' ? $spot['release_title'] : '(zonder titel)');
-        $metaTable = self::renderMetaTable($spot);
-        $partsRows = self::renderPartsRows($parts);
+        $image = SpotPresentation::image($spot, false);
+        $website = $spot['website'] !== ''
+            ? '<a href="' . h($spot['website']) . '" target="_blank" rel="noopener noreferrer">Website van de spot</a>' : '';
+        $nzb = count($spot['nzb_segments']) > 0
+            ? count($spot['nzb_segments']) . ' NZB-segment(en) gevonden. Download/forwarding wordt nog niet ondersteund.'
+            : 'Geen NZB-verwijzing aanwezig.';
+        $status = $statusMessage !== null ? '<div class="alert alert-info" role="status">' . h($statusMessage) . '</div>' : '';
+        $commentHtml = '';
+        foreach ($comments as $comment) {
+            $commentHtml .= '<article class="border-bottom py-3"><div class="fw-semibold">' . h($comment['poster'])
+                . ' <small class="text-body-secondary">' . h($comment['posted_at']) . ' &middot; ' . h($comment['source'])
+                . '</small></div><div class="text-break">' . nl2br(h($comment['body'])) . '</div></article>';
+        }
+        if ($commentHtml === '') {
+            $commentHtml = '<p class="text-body-secondary">Nog geen reacties opgehaald of geplaatst.</p>';
+        }
+        $count = count($comments);
 
         return <<<HTML
 <!doctype html>
@@ -41,133 +52,55 @@ final class SpotDetailPageRenderer
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Spot details - NNSpotty</title>
+  <title>{$title} - NNSpotty</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-body-tertiary">
-  <main class="container-fluid py-4 px-3 px-lg-4">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-      <div>
-        <h1 class="h3 mb-1">{$safeTitle}</h1>
-        <p class="text-body-secondary mb-0">Ingelogd als {$safeUsername}</p>
-      </div>
-      <div class="d-flex gap-2">
+  <main class="container py-4">
+    <header class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+      <div><h1 class="h3">{$title}</h1><p class="text-body-secondary">Ingelogd als {$safeUsername}</p></div>
+      <div class="d-flex align-items-start gap-2">
         <a class="btn btn-outline-secondary btn-sm" href="/spots">Terug naar spots</a>
         {$adminLink}
-        <form method="post" action="/logout" class="d-inline">
-          {$csrfField}
-          <button class="btn btn-outline-danger btn-sm" type="submit">Logout</button>
+        <form method="post" action="/logout">{$csrfField}<button class="btn btn-outline-danger btn-sm">Logout</button></form>
+      </div>
+    </header>
+    {$status}
+    <div class="row g-4 mb-4">
+      <aside class="col-md-4">{$image}</aside>
+      <section class="col-md-8">
+        <div class="card mb-3"><div class="card-body">
+          <span class="badge text-bg-secondary">{$category}</span>
+          <dl class="row mt-3 mb-0">
+            <dt class="col-sm-3">Spotter</dt><dd class="col-sm-9">{$poster}</dd>
+            <dt class="col-sm-3">Datum</dt><dd class="col-sm-9">{$date} UTC</dd>
+            <dt class="col-sm-3">Grootte</dt><dd class="col-sm-9">{$size}</dd>
+            <dt class="col-sm-3">Tag</dt><dd class="col-sm-9 text-break">{$tag}</dd>
+          </dl>
+          {$website}
+          <p class="small text-body-secondary mt-3">{$nzb}</p>
+          <p class="small text-body-secondary text-break mb-0">Message-ID: {$messageId}</p>
+        </div></div>
+        <div class="card"><div class="card-header">Omschrijving</div><div class="card-body text-break">{$description}</div></div>
+      </section>
+    </div>
+    <div class="alert alert-secondary">Usenet-inhoud wordt als onbevestigd getoond. Spotterhandtekeningen worden nog niet geverifieerd. Opmaak in omschrijvingen en reacties wordt veilig als tekst weergegeven.</div>
+    <section class="card">
+      <div class="card-header">Reacties ({$count})</div>
+      <div class="card-body">
+        {$commentHtml}
+        <form method="post" action="/spots/comment" class="mt-3">
+          {$csrfField}<input type="hidden" name="spot_id" value="{$id}">
+          <label class="form-label" for="comment">Lokale reactie plaatsen</label>
+          <textarea class="form-control mb-2" name="comment" id="comment" rows="4" maxlength="10000" required></textarea>
+          <p class="form-text">Deze reactie blijft in NNSpotty en wordt niet op Usenet gepubliceerd.</p>
+          <button class="btn btn-primary" type="submit">Reactie plaatsen</button>
         </form>
       </div>
-    </div>
-
-    <div class="card mb-3">
-      <div class="card-header fw-semibold">Spot informatie</div>
-      <div class="card-body">
-        {$metaTable}
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header fw-semibold">Onderdelen (headers)</div>
-      <div class="table-responsive">
-        <table class="table table-striped table-hover mb-0 align-middle">
-          <thead>
-            <tr>
-              <th>Article #</th>
-              <th>Datum</th>
-              <th>Subject</th>
-              <th>Size</th>
-            </tr>
-          </thead>
-          <tbody>
-            {$partsRows}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    </section>
   </main>
 </body>
 </html>
 HTML;
-    }
-
-    /**
-     * @param array{
-     *   release_title: string,
-     *   category: string,
-     *   group_name: string,
-     *   poster: string,
-     *   total_parts: int,
-     *   total_bytes: int,
-     *   first_posted_at: string,
-     *   last_posted_at: string
-     * } $spot
-     */
-    private static function renderMetaTable(array $spot): string
-    {
-        $rows = [
-            'Titel' => h($spot['release_title']),
-            'Categorie' => h($spot['category']),
-            'Groep' => h($spot['group_name']),
-            'Spotter' => h($spot['poster']),
-            'Onderdelen' => (string) max(1, (int) $spot['total_parts']),
-            'Totale size' => self::formatBytes((int) $spot['total_bytes']),
-            'Eerste datum' => $spot['first_posted_at'] !== '' ? h($spot['first_posted_at']) : '-',
-            'Laatste datum' => $spot['last_posted_at'] !== '' ? h($spot['last_posted_at']) : '-',
-        ];
-
-        $htmlRows = [];
-        foreach ($rows as $label => $value) {
-            $htmlRows[] = '<tr><th style="width:220px">' . $label . '</th><td>' . $value . '</td></tr>';
-        }
-
-        return '<table class="table table-sm table-bordered mb-0"><tbody>' . implode('', $htmlRows) . '</tbody></table>';
-    }
-
-    /**
-     * @param array<int, array{
-     *   message_id: string,
-     *   subject: string,
-     *   article_number: int,
-     *   from_header: string,
-     *   posted_at: string,
-     *   bytes: int|null
-     * }> $parts
-     */
-    private static function renderPartsRows(array $parts): string
-    {
-        if ($parts === []) {
-            return '<tr><td colspan="4" class="text-body-secondary">Geen onderdelen beschikbaar.</td></tr>';
-        }
-
-        $rows = [];
-        foreach ($parts as $part) {
-            $rows[] = '<tr>'
-                . '<td>' . (int) $part['article_number'] . '</td>'
-                . '<td class="text-nowrap">' . h($part['posted_at'] !== '' ? $part['posted_at'] : '-') . '</td>'
-                . '<td>' . h($part['subject']) . '</td>'
-                . '<td class="text-nowrap">' . self::formatBytes((int) ($part['bytes'] ?? 0)) . '</td>'
-                . '</tr>';
-        }
-
-        return implode('', $rows);
-    }
-
-    private static function formatBytes(int $bytes): string
-    {
-        if ($bytes <= 0) {
-            return '-';
-        }
-
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $value = (float) $bytes;
-        $unitIndex = 0;
-        while ($value >= 1024 && $unitIndex < count($units) - 1) {
-            $value /= 1024;
-            $unitIndex++;
-        }
-
-        return number_format($value, $unitIndex === 0 ? 0 : 2, '.', '') . ' ' . $units[$unitIndex];
     }
 }

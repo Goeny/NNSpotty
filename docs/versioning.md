@@ -19,7 +19,7 @@ Voorbeelden van geschikte stijl:
 ## Actuele release
 - **Versie:** `0.0.1`
 - **Codenaam:** `Delta Integrale`
-- **Status:** Initiële documentatiefase
+- **Status:** Developmentfundament met Spotnet-retrieval; geen stabiele of complete Spotweb-vervanger
 
 ## Releaseadministratie
 Bij elke versie-upgrade:

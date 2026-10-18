@@ -7,22 +7,22 @@ namespace Composer\Autoload;
 class ComposerStaticInit35cbfdd75e9a4bf3c0580045f2ae7022
 {
     public static $prefixLengthsPsr4 = array (
-        'R' => 
+        'R' =>
         array (
             'Rvdv\\Nntp\\' => 10,
         ),
-        'N' => 
+        'N' =>
         array (
             'NnSpotty\\' => 9,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'Rvdv\\Nntp\\' => 
+        'Rvdv\\Nntp\\' =>
         array (
             0 => __DIR__ . '/..' . '/rvdv/nntp/src',
         ),
-        'NnSpotty\\' => 
+        'NnSpotty\\' =>
         array (
             0 => __DIR__ . '/../..' . '/src',
         ),
@@ -46,11 +46,14 @@ class ComposerStaticInit35cbfdd75e9a4bf3c0580045f2ae7022
         'NnSpotty\\UI\\LoginPageRenderer' => __DIR__ . '/../..' . '/src/UI/LoginPageRenderer.php',
         'NnSpotty\\UI\\PreferencesPageRenderer' => __DIR__ . '/../..' . '/src/UI/PreferencesPageRenderer.php',
         'NnSpotty\\UI\\SpotDetailPageRenderer' => __DIR__ . '/../..' . '/src/UI/SpotDetailPageRenderer.php',
+        'NnSpotty\\UI\\SpotPresentation' => __DIR__ . '/../..' . '/src/UI/SpotPresentation.php',
         'NnSpotty\\UI\\SpotsPageRenderer' => __DIR__ . '/../..' . '/src/UI/SpotsPageRenderer.php',
         'NnSpotty\\Usenet\\NntpClientFactory' => __DIR__ . '/../..' . '/src/Usenet/NntpClientFactory.php',
         'NnSpotty\\Usenet\\RetrieveService' => __DIR__ . '/../..' . '/src/Usenet/RetrieveService.php',
-        'NnSpotty\\Usenet\\SpotSubjectParser' => __DIR__ . '/../..' . '/src/Usenet/SpotSubjectParser.php',
-        'NnSpotty\\Usenet\\UsenetPostRepository' => __DIR__ . '/../..' . '/src/Usenet/UsenetPostRepository.php',
+        'NnSpotty\\Usenet\\SpotImageService' => __DIR__ . '/../..' . '/src/Usenet/SpotImageService.php',
+        'NnSpotty\\Usenet\\SpotRepository' => __DIR__ . '/../..' . '/src/Usenet/SpotRepository.php',
+        'NnSpotty\\Usenet\\SpotnetOverviewCommand' => __DIR__ . '/../..' . '/src/Usenet/SpotnetOverviewCommand.php',
+        'NnSpotty\\Usenet\\SpotnetParser' => __DIR__ . '/../..' . '/src/Usenet/SpotnetParser.php',
         'NnSpotty\\Users\\UserRepository' => __DIR__ . '/../..' . '/src/Users/UserRepository.php',
         'Rvdv\\Nntp\\Client' => __DIR__ . '/..' . '/rvdv/nntp/src/Client.php',
         'Rvdv\\Nntp\\ClientInterface' => __DIR__ . '/..' . '/rvdv/nntp/src/ClientInterface.php',

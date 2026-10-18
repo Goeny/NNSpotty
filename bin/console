@@ -22,8 +22,6 @@ require_once __DIR__ . '/../src/Database/Migrator.php';
 require_once __DIR__ . '/../src/State/AppStateRepository.php';
 require_once __DIR__ . '/../src/Users/UserRepository.php';
 require_once __DIR__ . '/../src/Usenet/NntpClientFactory.php';
-require_once __DIR__ . '/../src/Usenet/SpotSubjectParser.php';
-require_once __DIR__ . '/../src/Usenet/UsenetPostRepository.php';
 require_once __DIR__ . '/../src/Usenet/RetrieveService.php';
 
 loadEnvFile(__DIR__ . '/../.env');
@@ -93,10 +91,7 @@ function handleDbCommand(array $argv, Migrator $migrator, PDO $pdo): void
     }
 
     if ($action === 'reindex-spots') {
-        $repository = new NnSpotty\Usenet\UsenetPostRepository($pdo);
-        $result = $repository->rebuildSpotIndex();
-        fwrite(STDOUT, 'Spot index herbouwd. releases=' . $result['releases'] . ' parts=' . $result['parts'] . PHP_EOL);
-        return;
+        throw new RuntimeException('Headergroepering is vervangen door Spotnet. Gebruik db migrate en retrieve --days=30 om echte spots opnieuw op te halen; oude headers blijven bewaard.');
     }
 
     throw new RuntimeException('Onbekende db actie: ' . $action);
@@ -239,7 +234,6 @@ function showHelp(): void
     fwrite(STDOUT, "NNSpotty console\n");
     fwrite(STDOUT, "Gebruik:\n");
     fwrite(STDOUT, "  bin/console db migrate|status|health|cleanup [--days=90]\n");
-    fwrite(STDOUT, "  bin/console db reindex-spots\n");
     fwrite(STDOUT, "  bin/console user list\n");
     fwrite(STDOUT, "  bin/console user create <username> <password> [--admin=1]\n");
     fwrite(STDOUT, "  bin/console user delete <username>\n");

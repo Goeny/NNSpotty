@@ -243,6 +243,48 @@ final class Migrator
                     INDEX idx_spot_releases_updated_at (updated_at)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             ],
+            '20261018_0006_spotnet' => [
+                'CREATE TABLE IF NOT EXISTS spotnet_spots (
+                    id CHAR(64) CHARACTER SET ascii PRIMARY KEY,
+                    message_id VARCHAR(250) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+                    group_name VARCHAR(191) NOT NULL,
+                    title TEXT NOT NULL,
+                    description MEDIUMTEXT NOT NULL,
+                    poster TEXT NOT NULL,
+                    category VARCHAR(32) NOT NULL,
+                    subcategories JSON NOT NULL,
+                    size BIGINT UNSIGNED NOT NULL,
+                    posted_at DATETIME NOT NULL,
+                    website TEXT NOT NULL,
+                    tag TEXT NOT NULL,
+                    image_url TEXT NOT NULL,
+                    image_segments JSON NOT NULL,
+                    nzb_segments JSON NOT NULL,
+                    full_xml MEDIUMTEXT NOT NULL,
+                    created_at DATETIME NOT NULL,
+                    INDEX idx_spotnet_spots_date (posted_at, id),
+                    INDEX idx_spotnet_spots_category_date (category, posted_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS spotnet_comments (
+                    id CHAR(64) CHARACTER SET ascii PRIMARY KEY,
+                    message_id VARCHAR(250) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+                    spot_id CHAR(64) CHARACTER SET ascii NOT NULL,
+                    poster TEXT NOT NULL,
+                    body MEDIUMTEXT NOT NULL,
+                    posted_at DATETIME NOT NULL,
+                    INDEX idx_spotnet_comments_spot_date (spot_id, posted_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS spotnet_images (
+                    spot_id CHAR(64) CHARACTER SET ascii PRIMARY KEY,
+                    mime_type VARCHAR(32) NOT NULL,
+                    image_data MEDIUMBLOB NOT NULL,
+                    FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'UPDATE app_settings
+                 SET `value` = JSON_SET(`value`, \'$.explicit_groups\', \'spots:free.pt,comments:free.usenet\'), updated_at = UTC_TIMESTAMP()
+                 WHERE `key` = \'admin.usenet_settings\' AND JSON_VALID(`value`)
+                   AND JSON_UNQUOTE(JSON_EXTRACT(`value`, \'$.explicit_groups\')) = \'spots:free.pt,comments:free.ptd\'',
+            ],
         ];
     }
 }
