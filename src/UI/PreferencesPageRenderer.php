@@ -62,7 +62,7 @@ final class PreferencesPageRenderer
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
       <h1 class="h3 mb-0">Gebruikersvoorkeuren</h1>
       <div class="d-flex flex-wrap gap-2">
-        <a class="btn btn-outline-secondary btn-sm" href="/">Terug naar home</a>
+        <a class="btn btn-outline-secondary btn-sm" href="/spots">Terug naar spots</a>
         {$adminLink}
         <form method="post" action="/logout" class="d-inline">
           {$csrfField}

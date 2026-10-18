@@ -31,7 +31,7 @@
    php -S localhost:8080 -t public
    ```
 5. Open:
-   - `http://localhost:8080`
+   - `http://localhost:8080` (verwijst naar het overzicht, via login indien nodig)
    - `http://localhost:8080/health`
    - `http://localhost:8080/login`
    - `http://localhost:8080/admin` (admin login vereist)
@@ -62,6 +62,7 @@
 - Admin `/admin#metadata`: centrale API V4-key, optionele abonnee-PIN, Nederlands-met-Engelse-fallback of Engels, globale schakelaar en test van opgeslagen toegang. Controleer je TVDB-licentie; keys zijn niet automatisch voor elk gebruik toegestaan. Lege key/PIN behouden eerdere waarden; PIN verwijderen heeft een aparte keuze.
 - Iedere gebruiker, ook de admin, kiest vervolgens zelf onder `/preferences#metadata` voor metadata. Beide schakelaars staan initieel uit; globaal uit blokkeert iedereen zonder persoonlijke keuzes te wissen.
 - Serveer `/assets/metadata.js` als JavaScript en herlaad met Ctrl+F5. Volledige details verrijken op aanvraag; overzicht/preview/retrieval blijven provideronafhankelijk. Originele informatie en foutmeldingen blijven beschikbaar.
+- Publiceer ook de aangeleverde `/assets/images/tvdb-dark.png` en `/assets/images/tvdb-light.png`: lokale thema-afhankelijke attributie bij getoonde data. De compacte **TVDB link** in de hero opent status en admin-only matchbeheer in een slide-inpaneel. Deze presentatie-update vereist geen extra migratie of retrieval.
 - Afbeeldingsbeleid geldt ook voor TVDB-posters, fanart en cast. Bescherm de database en backups: key, PIN en bearer token moeten voor uitgaande authenticatie herstelbaar blijven. Ze staan niet in de HTML, auditdetails of `.env`.
 - Zie de [TVDB-gebruikersuitleg](../README.md#thetvdb-films-series-en-afleveringen) en [Linux-productieacceptatie](./linux-server-testing.md#thetvdb-metadata-posters-en-fanart).
 

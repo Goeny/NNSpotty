@@ -35,11 +35,15 @@ $page = httpFixture($httpPort, '/spots/view?key=' . $httpMetaSpot['id'], $cookie
 $readerPage = httpFixture($httpPort, '/spots/view?key=' . $httpMetaSpot['id'], $readerCookie);
 check(str_contains($page['body'], 'data-tvdb-choice') && str_contains($readerPage['body'], 'data-tvdb')
     && !str_contains($readerPage['body'], 'data-tvdb-choice'), 'Detail laadt on-demand metadata; alleen admin ziet matchbeheer');
+check(str_contains($page['body'], 'data-tvdb-open') && str_contains($readerPage['body'], 'data-tvdb-open')
+    && str_contains($page['body'], '<dialog id="metadata-drawer"'), 'Admin en gebruiker openen TVDB-status vanuit compacte hero-link');
 $loaded = $tvdbPost(['action' => 'load', 'id' => $httpMetaSpot['id']], true);
 $data = json_decode($loaded['body'], true, 64, JSON_THROW_ON_ERROR);
 check($loaded['status'] === 200 && $data['state'] === 'matched' && str_contains($data['html'], 'metadata-hero')
     && str_contains($data['html'], 'Cast &amp; Crew') && in_array('Cache-Control: private, no-store', $loaded['headers'], true),
     'HTTP-metadata levert veilige verrijkte hero en cast uit gedeelde databasecache');
+check(str_contains($data['html'], 'data-tvdb-open') && str_contains($data['html'], 'metadata-attribution')
+    && !str_contains($data['html'], '<dialog'), 'Asynchrone vervanging behoudt heropenbare link en attributie zonder paneel te dupliceren');
 check(!str_contains(httpFixture($httpPort, '/admin', $cookie)['body'], 'fixture-http-tvdb-key')
     && !str_contains(httpFixture($httpPort, '/preferences', $readerCookie)['body'], 'fixture-http-tvdb-key')
     && !str_contains($loaded['body'], 'fixture-http-tvdb-key'), 'TVDB-key lekt niet via beheer, voorkeuren of metadata-JSON');
@@ -51,6 +55,8 @@ check($chosen['status'] === 200 && $tvdbRepo->match($httpMetaSpot['id'])['result
 $tvdbPost(['action' => 'block', 'id' => $httpMetaSpot['id']]);
 $blocked = json_decode($tvdbPost(['action' => 'load', 'id' => $httpMetaSpot['id']], true)['body'], true);
 check($blocked['state'] === 'blocked' && !str_contains($blocked['html'], 'metadata-hero'), 'Gedeelde blokkering trekt metadata voor andere gebruikers in');
+check(str_contains($blocked['html'], 'data-tvdb-open') && !str_contains($blocked['html'], 'metadata-attribution'),
+    'Ook na blokkering blijft matchpaneel bereikbaar zonder onterechte attributie');
 check($tvdbPost(['action' => 'reset', 'id' => $httpMetaSpot['id']])['status'] === 200
     && !$tvdbRepo->match($httpMetaSpot['id'])['result_json']['manual'], 'Reset herstelt automatische match via HTTP');
 check($tvdbPost(['action' => 'load', 'id' => ['bad']])['status'] === 400

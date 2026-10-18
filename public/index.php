@@ -44,7 +44,6 @@ require_once __DIR__ . '/../src/Security/Csrf.php';
 require_once __DIR__ . '/../src/Security/LoginRateLimiter.php';
 require_once __DIR__ . '/../src/State/AppStateRepository.php';
 require_once __DIR__ . '/../src/Users/UserRepository.php';
-require_once __DIR__ . '/../src/UI/HomePageRenderer.php';
 require_once __DIR__ . '/../src/UI/AdminPageRenderer.php';
 require_once __DIR__ . '/../src/UI/LoginPageRenderer.php';
 require_once __DIR__ . '/../src/UI/PreferencesPageRenderer.php';
@@ -85,11 +84,7 @@ $loginRateLimiter = new LoginRateLimiter($pdo);
 $auditLogs = new AuditLogRepository($pdo);
 $spots = new SpotRepository($pdo);
 
-$router->get('/', static function (Request $_request) use ($config, $auth, $csrf): Response {
-    $html = NnSpotty\UI\HomePageRenderer::render($config, $auth->user(), $csrf->field());
-
-    return Response::html($html);
-});
+$router->get('/', static fn (Request $_request): Response => Response::redirect('/spots'));
 
 $router->get('/health', static fn (Request $_request): Response => Response::json([
     'status' => 'ok',
@@ -100,7 +95,7 @@ $router->get('/health', static fn (Request $_request): Response => Response::jso
 
 $router->get('/login', static function (Request $request) use ($auth, $csrf): Response {
     if ($auth->isAuthenticated()) {
-        return Response::redirect('/');
+        return Response::redirect('/spots');
     }
 
     $html = LoginPageRenderer::render($request->query('status'), $csrf->field());
@@ -132,7 +127,7 @@ $router->post('/login', static function (Request $request) use ($auth, $csrf, $l
 
     $loginRateLimiter->registerAttempt($clientIp, $username, true);
 
-    return Response::redirect('/');
+    return Response::redirect('/spots');
 });
 
 $router->post('/logout', static function (Request $request) use ($auth, $csrf): Response {

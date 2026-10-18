@@ -26,6 +26,8 @@ De focus ligt op:
 
 De originele huisstijlbestanden staan ongewijzigd in `docs/branding/`. De website gebruikt verkleinde PNG-versies in `public/assets/images/`: favicon (32px), headericoon (64px), touch-icon (180px), logo (768x512), coverplaceholder (320x480) en lijstplaceholder (84x126). Ontbrekende of onbereikbare covers krijgen alleen de placeholder, zonder waarschuwingstekst; ook de blurred hero-achtergrond gebruikt deze als fallback. De admininstelling om postafbeeldingen uit te schakelen blijft leidend. De presentatie is documentatie, geen publiek geladen UI-asset.
 
+Na inloggen opent direct het spotsoverzicht. De oude homepage met knoppen is verwijderd; `/` verwijst naar `/spots` en vraagt zo nodig eerst om inloggen.
+
 Een enkele klik op een overzichtsregel opent de slide-in-preview; dubbelklikken opent direct de volledige detailpagina. De titellink blijft bruikbaar met toetsenbord, Ctrl/Cmd-klik of zonder JavaScript. Compacte knoppen voor reacties, NZB en SABnzbd staan rechtsboven in de hero en breken op smalle schermen af zonder de titel te overlappen.
 
 ## Quick start
@@ -42,7 +44,7 @@ Een enkele klik op een overzichtsregel opent de slide-in-preview; dubbelklikken 
    php -S localhost:8080 -t public
    ```
 4. Controle:
-   - `/` voor UI
+   - `/` verwijst direct naar het spotsoverzicht (login vereist)
    - `/health` voor health + versie-info
    - `/login` voor authenticatie
    - `/spots` voor individuele Spotnet-spots met afbeeldingen, omschrijving en reacties (ingelogd)
@@ -92,7 +94,9 @@ Een enkele klik op een overzichtsregel opent de slide-in-preview; dubbelklikken 
 
 De Plex-geinspireerde hero toont beschikbare poster, echte fanart zonder blur, synopsis, releasedatum, speelduur en genres. Een herkende losse aflevering krijgt het juiste seizoen/nummer, afleveringtitel, synopsis en still; pakketten blijven op serieniveau. Beschikbare cast/crew, studio en netwerk verschijnen eronder. Originele releasetitel, omschrijving, technische informatie, reacties en NZB/SABnzbd-acties blijven behouden; de lightbox werkt ook op TVDB-beelden.
 
-Automatisch koppelen vereist een unieke exact genormaliseerde titel/alias; films vereisen ook hetzelfde jaar. Remakes en twijfelgevallen krijgen geen gok. Alleen admins kunnen via **TVDB-match kiezen / wijzigen** zoeken, een gedeelde film/serie/aflevering kiezen, automatisch matchen herstellen of metadata voor de spot blokkeren. Niet elke releasenaam is automatisch herkenbaar; dagelijkse/absolute afleveringscodes worden niet herkend.
+Automatisch koppelen vereist een unieke exact genormaliseerde titel/alias; films vereisen ook hetzelfde jaar. Remakes en twijfelgevallen krijgen geen gok. De kleine **TVDB link** linksboven in de hero opent een rechts inschuivend paneel met matchstatus en opnieuw controleren. Alleen admins kunnen daar zoeken, een gedeelde film/serie/aflevering kiezen, automatisch matchen herstellen of metadata voor de spot blokkeren. Sluiten/Escape schuift het paneel uit en herstelt de focus; het blijft beschikbaar na een matchcorrectie of blokkering. Niet elke releasenaam is automatisch herkenbaar; dagelijkse/absolute afleveringscodes worden niet herkend.
+
+Zodra TVDB-data wordt getoond, staat **Metadata van TheTVDB** met een klein, lokaal donker/licht-logo bij de synopsis. Tekst en logo vormen samen een directe link naar het betreffende TVDB-record, conform de [attributierichtlijn](https://www.thetvdb.com/api-information#attribution). De aangeleverde logo's `tvdb-dark.png` en `tvdb-light.png` blijven ongewijzigd; de lokale bronvermelding blijft zichtbaar als postafbeeldingen uit staan. Zonder getoonde TVDB-data verschijnt geen attributie.
 
 Databasecache: metadata/providerrecords zeven dagen, zoekresultaten en ontbrekende/ambigue matches een dag, fouten vijf minuten. **Metadata opnieuw controleren** respecteert deze termijnen, geen geforceerde cachebypass. Een installatiebreed budget begrenst uitgaande aanvragen tot 90/minuut; fouten blijven zichtbaar met de oorspronkelijke spot als fallback. `db cleanup` verwijdert verlopen providercache. Afbeeldingen uitgeschakeld blokkeert ook TVDB-fanart/posters/castfoto's. Met toestemming wordt de titel met TVDB gedeeld; de browser laadt afbeeldingen rechtstreeks van toegestane TVDB-hosts. Keys, PIN en token staan herstelbaar in de database, nooit in HTML of auditdetails; bescherm backups.
 

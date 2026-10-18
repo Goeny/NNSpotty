@@ -38,12 +38,29 @@ Migratie `20261018_0013_tvdb` moet toegepast zijn. Beide assets moeten HTTP 200 
 ### Werkelijke functionele acceptatie
 1. Open een volledige filmdetail met een duidelijke titel en jaar. Eerst verschijnt de oorspronkelijke spot, daarna asynchroon de juiste TVDB-titel, synopsis, poster, echte fanart zonder blur en beschikbare genres/datum/speelduur. Controleer de attributielink en of de afbeelding werkelijk bij deze film hoort; alleen een geslaagde toegangstest is onvoldoende.
 2. Open een serie met `SxxEyy`, controleer **serie, seizoen en aflevering** tegen TheTVDB, inclusief afleveringtitel, synopsis en widescreen still. Een seizoens-/multiafleveringpakket mag niet als een losse aflevering verschijnen. Een niet-beschikbare aflevering toont eerlijk alleen de serie. Dagelijkse/absolute codes zijn nog niet ondersteund.
-3. Open als admin **TVDB-match kiezen / wijzigen**, zoek een bekende titel, kies en sla op; controleer de gedeelde correctie als gewone gebruiker. Test automatisch herstellen en **Geen metadata voor deze spot**. Onvindbare handmatige afleveringen mogen een geldige bestaande keuze niet overschrijven. Gewone gebruikers zien deze correctieacties niet en mogen ze ook niet via POST uitvoeren.
+3. Klik als admin op **TVDB link** linksboven in de hero. Alle matchinformatie staat in het rechts inschuivende paneel, niet meer boven de hero. Zoek een bekende titel, kies en sla op; controleer de gedeelde correctie als gewone gebruiker. Test automatisch herstellen en **Geen metadata voor deze spot**. De hero-link moet na iedere vervanging blijven werken. Onvindbare handmatige afleveringen mogen een geldige bestaande keuze niet overschrijven. Gewone gebruikers zien alleen status/opnieuw controleren, niet de correctieacties en mogen die ook niet via POST uitvoeren. Sluiten/Escape moet uitschuiven en focus op de actuele hero-link terugzetten, ook na een correctie; smalle panelen scrollen zelfstandig.
 4. Controleer cast/crew, studio/netwerk, originele releasetitel/omschrijving/technische informatie en reacties. Test de coverlightbox en bestaande NZB-/SABnzbd-acties na asynchroon laden. Ratings, reviews, playback en klikbare cast-/bedrijfsfilters zijn geen onderdeel van deze stap; populariteit is geen beoordeling.
 5. Heropen dezelfde spot en een andere release van dezelfde titel: databasecache moet herhaalde providerrequests beperken. Entiteiten/matches zeven dagen, zoeken/negatieve matches een dag, fouten vijf minuten. **Metadata opnieuw controleren** negeert deze TTL niet. Er is een centrale limiet van 90 uitgaande requests/minuut, geen onbegrensde achtergrondbackfill.
 6. Test een onduidelijke/gelijknamige titel: geen gegokte metadata. Test met tijdelijk ongeldige TVDB-toegang: expliciete fout, oorspronkelijke spot bruikbaar, geen retrylus. Na key/PIN/taalwijziging worden matchstatussen opnieuw controleerbaar; reeds gecachte providerrecords behouden hun eigen TTL.
 7. Schakel metadata persoonlijk uit: nieuwe details/requests mogen geen TVDB-data laden. Globaal uit blokkeert ook eerder toegestane admins/gebruikers, maar bewaart hun voorkeur. Test een verborgen spot/erotica: geen metadata-toegang. Schakel postafbeeldingen uit: ook TVDB-posters/fanart/castfoto's verdwijnen, tekst en oorspronkelijke spot blijven beschikbaar.
 8. Overzicht/preview en gewone retrieval mogen geen TVDB-requests starten. Test volledige film- en afleveringsdetails op 320/390/768/1440px in donker/licht, zonder horizontale pagina-overflow of overlappende acties.
+9. Controleer **Metadata van TheTVDB** met het passende kleine logo bij de synopsis; tekst/logo linken rechtstreeks naar het juiste TVDB-record. Ook met postafbeeldingen uit blijft deze lokale attributie zichtbaar. Zonder getoonde TVDB-data mag geen attributie staan.
+
+### Attributie-/paneelupdate op bestaande TVDB-installaties
+Geen nieuwe migratie of retrieval nodig bovenop 0013. Vanuit de bestaande projectmap op `nnspotty.hopseflop.nl`:
+
+```bash
+umask 022
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+php tests/run.php
+for asset in metadata.js spotty.css images/tvdb-dark.png images/tvdb-light.png; do
+  curl -fsS -o /dev/null -w "$asset: %{http_code}\n" "https://nnspotty.hopseflop.nl/assets/$asset"
+done
+curl -sS -o /dev/null -D - https://nnspotty.hopseflop.nl/
+```
+
+Alle vier assets moeten HTTP 200 geven; root moet naar `/spots` verwijzen. Herlaad met Ctrl+F5 en controleer na uit-/inloggen dat direct het overzicht verschijnt, zonder de oude homepage. Test vervolgens de paneel-/attributiechecks hierboven. De bestaande servercredentials en persoonlijke TVDB-toestemming blijven behouden.
 
 Lokale automatische regressies gebruiken synthetische TVDB-antwoorden en een echte aparte MariaDB; browsercontroles gebruiken voorgevulde cache en onderschepte testafbeeldingen, geen echte providerkey. Productieacceptatie hierboven blijft nodig voor jouw key/licentie, echte titels, artworkbeschikbaarheid en providerlimieten. Integratietests alleen met de afzonderlijke testdatabasecredentials volgens de bestaande sectie hieronder uitvoeren.
 
@@ -61,7 +78,7 @@ for asset in favicon-32.png brand-icon.png apple-touch-icon.png logo.png placeho
 done
 ```
 
-Alle zes afbeeldingen moeten HTTP 200 geven. Herlaad met Ctrl+F5 en controleer het tabbladicoon, het logo op start/login en het headericoon. Open een spot zonder afbeelding: overzicht, preview en detail moeten de eigen coverplaceholder tonen, zonder waarschuwingstekst. Ook de hero gebruikt deze als blurred achtergrond, net als bij een mislukte cover. Uitgeschakelde postafbeeldingen blijven tekst zonder placeholder of achtergrond. Test mobiel en beide thema's. De presentatie en ongewijzigde bronbestanden staan onder `docs/branding/`; alleen verkleinde afgeleiden worden publiek geladen. Houd de nieuwe directories voor de webserver toegankelijk en PNG's leesbaar, zonder `.env`-rechten te verruimen.
+Alle zes afbeeldingen moeten HTTP 200 geven. Herlaad met Ctrl+F5 en controleer het tabbladicoon, het logo op de loginpagina en het headericoon. Open een spot zonder afbeelding: overzicht, preview en detail moeten de eigen coverplaceholder tonen, zonder waarschuwingstekst. Ook de hero gebruikt deze als blurred achtergrond, net als bij een mislukte cover. Uitgeschakelde postafbeeldingen blijven tekst zonder placeholder of achtergrond. Test mobiel en beide thema's. De presentatie en ongewijzigde bronbestanden staan onder `docs/branding/`; alleen verkleinde afgeleiden worden publiek geladen. Houd de nieuwe directories voor de webserver toegankelijk en PNG's leesbaar, zonder `.env`-rechten te verruimen.
 
 Controleer enkele klik op een overzichtsregel (slide-in-preview) en dubbelklik (direct volledige detailpagina), ook na lazy loading en op andere cellen dan de titel. Ctrl/Cmd-klik op de titel blijft een gewone browseractie; Enter op de titel opent de preview en Escape sluit die. Controleer compacte reacties/NZB/SABnzbd-knoppen rechtsboven in de hero, afbrekend zonder overlap op 320px, in preview en volledige detailview. NZB-download en SABnzbd-bevestiging moeten ongewijzigd werken.
 

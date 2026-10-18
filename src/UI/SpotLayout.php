@@ -73,7 +73,7 @@ final class SpotLayout
       <hr>
       <a class="side-link" href="/preferences">Voorkeuren</a>
       {$admin}
-      <a class="side-link" href="/">Home</a>
+      <a class="side-link" href="/spots">Spotsoverzicht</a>
     </nav>
     <div class="sidebar-footer">
       <span class="small text-body-secondary">0.0.1 &middot; Delta Integrale</span>

@@ -5,6 +5,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Added
+- Zichtbare TVDB-attributie bij getoonde metadata: directe recordlink met klein origineel lokaal logo passend bij donker/licht. Compacte "TVDB link" linksboven in de hero opent matchstatus en admin-only handmatige opties in een rechts in-/uitschuivend toegankelijk paneel met Escape, zelfstandig scrollen en focusherstel na asynchrone correcties.
 - TheTVDB API V4-verrijking op volledige filmdetails en serie-/afleveringdetails, met centrale admin-key/optionele PIN, persoonlijke default-off toestemming, taal met Engelse fallback en asynchrone veilige weergave zonder wijziging van oorspronkelijke spotdata.
 - Conservatieve unieke titel-/jaarmatching, exacte officiële afleveringskoppeling en admin-only gedeelde zoek-/keuze-/reset-/blokkeeracties. Plex-geinspireerde hero met echte fanart/poster of afleveringstill, synopsis, genres, speelduur, cast/crew en studio/netwerk; bestaande reacties/NZB/SABnzbd/lightbox blijven werken.
 - Migratie `20261018_0013_tvdb`: instellingen/token, username-voorkeuren, provider- en matchcache in MySQL/MariaDB. Begrensde HTTPS-client met tokenhergebruik/401-vernieuwing, timeouts, vaste hosts, requestbudget, locks, expliciete fouten en verlopen-cachecleanup. Geen ratings afgeleid van populariteit en nog geen klikbare castfilters of Newznab-ID-zoeken.
@@ -47,6 +48,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 - Regressietests voor afwijkende provider-overviews, aflopende volledige scans, niet-monotone datums en cursorbehoud bij transportfouten toegevoegd.
 
 ### Changed
+- Homepage met knoppen verwijderd: root-URL en geslaagde login gaan direct naar het spotsoverzicht; navigatielinks in admin/voorkeuren aangepast.
 - Generieke onderwerp-/headergroepering vervangen door een eigen Spotnet-parser: individuele spots uit `free.pt`, omschrijving en metadata uit `X-XML`, reacties uit `free.usenet`.
 - Afbeeldingsegmenten worden op aanvraag gedecodeerd en in de database gecachet; oude externe afbeelding-URLs worden ondersteund.
 - Spotsoverzicht en detailpagina tonen individuele spots, omschrijving, afbeelding en reacties; lokale reacties zijn CSRF-beveiligd en worden niet naar Usenet gepubliceerd.

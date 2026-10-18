@@ -28,7 +28,7 @@ final class SpotDetailPageRenderer
         string $metadataControls = ''
     ): string {
         $id = h($spot['id']);
-        $summary = self::summary($spot, false, $imagesEnabled, $showComments);
+        $summary = self::summary($spot, false, $imagesEnabled, $showComments, metadataLink: $metadataControls !== '');
         $status = $statusMessage !== null ? '<div class="alert alert-info" role="status">' . h($statusMessage) . '</div>' : '';
         $commentHtml = '';
         foreach ($showComments ? $comments : [] as $comment) {
@@ -66,15 +66,15 @@ HTML;
         $content = <<<HTML
 <a class="btn btn-sm btn-outline-secondary mb-3" href="/spots">Terug naar spots</a>
 {$status}
-{$metadataControls}
 <div data-tvdb-content>{$summary}</div>
 {$commentsSection}
+{$metadataControls}
 HTML;
         return SpotLayout::render($spot['title'], $username, $isAdmin, $csrfField, $content, $categories, $spot['category'], $theme, showErotica: $showErotica);
     }
 
     /** @param array<string, mixed> $spot */
-    public static function summary(array $spot, bool $preview, bool $imagesEnabled = true, bool $showComments = true, ?array $metadata = null): string
+    public static function summary(array $spot, bool $preview, bool $imagesEnabled = true, bool $showComments = true, ?array $metadata = null, bool $metadataLink = false): string
     {
         $image = SpotPresentation::image($spot, false, $imagesEnabled);
         $title = h($spot['title']);
@@ -94,6 +94,7 @@ HTML;
             $action .= ' <a class="btn btn-sm btn-primary" href="/spots/nzb?key=' . rawurlencode($spot['id']) . '">NZB</a>';
             $action .= ' <button class="btn btn-sm btn-warning" type="button" data-sab-send="' . h($spot['id']) . '">SABnzbd</button>';
         }
+        if ($metadataLink && !$preview) $action = \NnSpotty\Metadata\View::link() . $action;
         $hero = '<section class="spot-hero">' . SpotPresentation::backdrop($spot, 'hero-backdrop', $imagesEnabled)
             . ($action !== '' ? '<div class="hero-actions" role="group" aria-label="Spotacties">' . $action . '</div>' : '')
             . '<div class="hero-poster">' . $image . '</div><div class="hero-copy"><p class="text-body-secondary mb-2">'

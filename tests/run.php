@@ -272,17 +272,15 @@ try {
     }
     $brandingPages = [
         \NnSpotty\UI\LoginPageRenderer::render(null, ''),
-        \NnSpotty\UI\HomePageRenderer::render(new \NnSpotty\Config\AppConfig('NNSpotty', 'test', false, 'http://localhost', '0.0.1', 'Delta Integrale'), null, ''),
         SpotLayout::render('Branding', 'reader', false, '', ''),
     ];
     foreach ($brandingPages as $brandingPage) {
         check(str_contains($brandingPage, 'rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon-32.png"')
             && str_contains($brandingPage, 'rel="apple-touch-icon" sizes="180x180"'),
-            'Start-, login- en gedeelde layout bevatten lokale favicon en touch-icon');
+            'Login- en gedeelde layout bevatten lokale favicon en touch-icon');
     }
-    check(str_contains($brandingPages[0], '/assets/images/logo.png') && str_contains($brandingPages[1], '/assets/images/logo.png')
-        && str_contains($brandingPages[2], '/assets/images/brand-icon.png') && !str_contains($brandingPages[1], 'images.unsplash.com'),
-        'Eigen logo en appicoon vervangen generieke branding en externe demoafbeeldingen');
+    check(str_contains($brandingPages[0], '/assets/images/logo.png') && str_contains($brandingPages[1], '/assets/images/brand-icon.png'),
+        'Login en gedeelde layout behouden eigen logo en appicoon zonder homepage');
     foreach (['favicon-32.png' => [32, 32], 'brand-icon.png' => [64, 64], 'apple-touch-icon.png' => [180, 180],
         'logo.png' => [768, 512], 'placeholder.png' => [320, 480], 'placeholder-small.png' => [84, 126]] as $asset => $dimensions) {
         $assetPath = __DIR__ . '/../public/assets/images/' . $asset;

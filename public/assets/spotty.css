@@ -128,6 +128,13 @@
 .spot-hero { position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: 230px minmax(0, 1fr); align-items: center; gap: 28px; padding: 30px; border-radius: 12px; background: var(--spot-panel); margin-bottom: 20px; }
 .hero-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .hero-actions .btn { font-size: .75rem; }
+.hero-actions .metadata-link { margin-right: auto; padding-left: 0; }
+.metadata-attribution { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.metadata-attribution img { width: 74px; height: 40px; object-fit: contain; }
+.tvdb-logo-light { display: none; }
+[data-bs-theme="light"] .tvdb-logo-dark { display: none; }
+[data-bs-theme="light"] .tvdb-logo-light { display: inline; }
+.metadata-drawer:not([open]) { display: none; }
 .metadata-hero .hero-backdrop { filter: none; object-fit: cover; transform: none; }
 .metadata-hero::after { background: linear-gradient(90deg, rgba(11,17,25,.48), rgba(11,17,25,.88)); }
 [data-bs-theme="light"] .metadata-hero::after { background: linear-gradient(90deg, rgba(255,255,255,.5), rgba(255,255,255,.94)); }

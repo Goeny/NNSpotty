@@ -49,11 +49,14 @@ final class View
         $release = Release::parse($spot);
         if ($release === null) return '';
         $context = $csrf . '<input type="hidden" name="id" value="' . h($spot['id']) . '">';
-        $html = '<section class="metadata-controls mb-3" data-tvdb data-spot="' . h($spot['id']) . '">'
+        $html = '<dialog id="metadata-drawer" class="download-drawer metadata-drawer" aria-labelledby="metadata-title" data-tvdb data-spot="' . h($spot['id']) . '">'
+            . '<div class="download-toolbar"><h2 class="h5 mb-0" id="metadata-title">TVDB link</h2>'
+            . '<button class="btn btn-sm btn-outline-secondary" type="button" data-tvdb-close aria-label="TVDB-paneel sluiten">Sluiten &times;</button></div>'
+            . '<div class="download-body">'
             . '<form data-tvdb-load method="post" action="/metadata">' . $context . '<input type="hidden" name="action" value="load"><p class="small text-body-secondary mb-2" role="status" data-tvdb-status>TVDB-metadata wordt opgehaald; de spot blijft hieronder beschikbaar.</p>'
             . '<button class="btn btn-sm btn-outline-secondary" type="submit">Metadata opnieuw controleren</button></form>';
         if ($admin) {
-            $html .= '<details class="mt-3"><summary>TVDB-match kiezen / wijzigen (admin)</summary>'
+            $html .= '<section class="mt-3" aria-label="TVDB-match kiezen / wijzigen (admin)"><h3 class="h6">Handmatig koppelen (admin)</h3>'
                 . '<form data-tvdb-search class="mt-3" method="post" action="/metadata">' . $context . '<input type="hidden" name="action" value="search"><label class="form-label" for="tvdb-query">Titel zoeken</label>'
                 . '<input class="form-control" id="tvdb-query" name="query" value="' . h($release['query']) . '" required minlength="2" maxlength="200">'
                 . '<label class="form-label mt-2" for="tvdb-type">Type</label><select class="form-select" id="tvdb-type" name="type"><option value="movie">Film</option>'
@@ -65,9 +68,16 @@ final class View
                 . '<div class="col"><label class="form-label" for="tvdb-episode">Aflevering</label><input class="form-control" type="number" min="1" max="9999" name="episode" id="tvdb-episode" value="' . h((string) ($release['episode'] ?? '')) . '"></div></div>'
                 . '<button class="btn btn-sm btn-primary mt-3" type="submit">Geselecteerde match opslaan</button></form>'
                 . '<div class="d-flex flex-wrap gap-2 mt-3"><button class="btn btn-sm btn-outline-secondary" type="button" data-tvdb-reset>Opnieuw automatisch matchen</button>'
-                . '<button class="btn btn-sm btn-outline-danger" type="button" data-tvdb-block>Geen metadata voor deze spot</button></div></details>';
+                . '<button class="btn btn-sm btn-outline-danger" type="button" data-tvdb-block>Geen metadata voor deze spot</button></div></section>';
+        } else {
+            $html .= '<p class="small text-body-secondary mt-3">Alleen een admin kan een gedeelde TVDB-match kiezen, wijzigen of uitschakelen.</p>';
         }
-        return $html . '<noscript><p>JavaScript is nodig voor TVDB-verrijking. De oorspronkelijke spot blijft hieronder volledig bruikbaar.</p></noscript></section>';
+        return $html . '</div></dialog><noscript><p>JavaScript is nodig voor TVDB-verrijking. De oorspronkelijke spot blijft hieronder volledig bruikbaar.</p></noscript>';
+    }
+
+    public static function link(): string
+    {
+        return '<button class="btn btn-sm btn-link metadata-link" type="button" data-tvdb-open aria-controls="metadata-drawer" aria-haspopup="dialog">TVDB link</button>';
     }
 
     public static function hero(array $spot, array $metadata, string $actions, bool $images): string
@@ -95,7 +105,10 @@ final class View
         if ($metadata['overview'] !== '') $copy .= '<p class="metadata-overview">' . nl2br(h($metadata['overview'])) . '</p>';
         if ($metadata['episode_missing']) $copy .= '<p class="small text-body-secondary">Serie gevonden; geen unieke aflevering. Er worden geen afleveringsgegevens verondersteld.</p>';
         $typePath = $metadata['type'] === 'movie' ? 'movies/' : ($metadata['type'] === 'episode' ? 'episodes/' : 'series/');
-        $copy .= '<a class="small" href="https://thetvdb.com/dereferrer/' . $typePath . (int) $metadata['id'] . '" target="_blank" rel="noopener noreferrer">Metadata van TheTVDB</a>';
+        $copy .= '<a class="metadata-attribution small" href="https://thetvdb.com/dereferrer/' . $typePath . (int) $metadata['id']
+            . '" target="_blank" rel="noopener noreferrer"><span>Metadata van TheTVDB</span>'
+            . '<img class="tvdb-logo-dark" src="/assets/images/tvdb-dark.png" width="74" height="40" alt="" aria-hidden="true">'
+            . '<img class="tvdb-logo-light" src="/assets/images/tvdb-light.png" width="74" height="40" alt="" aria-hidden="true"></a>';
         return '<section class="spot-hero metadata-hero' . ($metadata['type'] === 'episode' ? ' episode-hero' : '') . '">'
             . SpotPresentation::backdrop($backgroundSpot, 'hero-backdrop', $images)
             . '<div class="hero-actions" role="group" aria-label="Spotacties">' . $actions . '</div>'

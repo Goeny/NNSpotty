@@ -100,6 +100,9 @@ try {
     }
     check($ready, 'Echte HTTP-app gestart met uitsluitend de testdatabase');
     $cookie = '';
+    $rootPage = httpFixture($httpPort, '/', $cookie);
+    check($rootPage['status'] === 302 && in_array('Location: /spots', $rootPage['headers'], true),
+        'Voormalige homepage verwijst rechtstreeks naar spotsoverzicht');
     $anonymous = httpFixture($httpPort, '/spots/image?key=' . $spotId, $cookie);
     check($anonymous['status'] === 401, 'Afbeelding-endpoint vereist login');
     check(httpFixture($httpPort, '/spots/preview?key=' . $spotId, $cookie)['status'] === 401
@@ -108,7 +111,11 @@ try {
     preg_match('/name="_csrf" value="([^"]+)"/', $login['body'], $token);
     check($login['status'] === 200 && isset($token[1]), 'Loginpagina levert een CSRF token');
     $loginResult = httpFixture($httpPort, '/login', $cookie, ['_csrf' => $token[1], 'username' => 'http-tester', 'password' => $password]);
-    check($loginResult['status'] === 302, 'Sessie-login via echte HTTP-route');
+    check($loginResult['status'] === 302 && in_array('Location: /spots', $loginResult['headers'], true),
+        'Geslaagde sessie-login opent rechtstreeks het overzicht');
+    $loggedInLogin = httpFixture($httpPort, '/login', $cookie);
+    check($loggedInLogin['status'] === 302 && in_array('Location: /spots', $loggedInLogin['headers'], true),
+        'Ingelogde bezoeker van loginpagina gaat direct naar overzicht');
     $list = httpFixture($httpPort, '/spots', $cookie);
     check($list['status'] === 200 && substr_count($list['body'], 'data-preview=') === 3
         && str_contains($list['body'], 'aria-hidden="true" inert'), 'HTTP-overzicht bevat drie individuele spots en een gesloten detailpaneel');

@@ -57,6 +57,25 @@ check(str_contains($html, 'metadata-hero') && str_contains($html, 'Cast &amp; Cr
     && str_contains($html, 'Omschrijving') && str_contains($html, 'data-sab-send='),
     'Metadata verrijkt hero en cast veilig; originele titel, omschrijving en acties blijven aanwezig');
 $hiddenHtml = \NnSpotty\UI\SpotDetailPageRenderer::summary($metaSpot, false, false, true, $movieResult['metadata']);
+foreach ([$html, $hiddenHtml] as $attributedHtml) {
+    check(str_contains($attributedHtml, 'class="metadata-attribution small"')
+        && str_contains($attributedHtml, 'href="https://thetvdb.com/dereferrer/movies/1"')
+        && str_contains($attributedHtml, '/assets/images/tvdb-dark.png')
+        && str_contains($attributedHtml, '/assets/images/tvdb-light.png')
+        && str_contains($attributedHtml, 'Metadata van TheTVDB'),
+        'Zichtbare metadata krijgt klikbare TVDB-attributie met lokaal thema-logo, ook met postafbeeldingen uit');
+}
+$withLink = \NnSpotty\UI\SpotDetailPageRenderer::summary($metaSpot, false, metadataLink: true);
+check(str_contains($withLink, 'data-tvdb-open') && !str_contains($withLink, 'metadata-attribution'),
+    'Oorspronkelijke hero biedt matchpaneellink maar claimt zonder TVDB-data geen attributie');
+$drawer = MetadataView::controls($metaSpot, true, '');
+check(str_starts_with($drawer, '<dialog id="metadata-drawer"') && str_contains($drawer, 'aria-labelledby="metadata-title"')
+    && str_contains($drawer, 'data-tvdb-close') && !str_contains($drawer, '<details'),
+    'Alle matchinformatie en beheeropties staan in een aanvankelijk gesloten toegankelijk slide-in-dialoog');
+$fullMetadataPage = \NnSpotty\UI\SpotDetailPageRenderer::render('metadata-reader', true, $metaSpot, [], '', metadataControls: $drawer);
+check(strpos($fullMetadataPage, 'data-tvdb-open') < strpos($fullMetadataPage, '<dialog id="metadata-drawer"')
+    && !str_contains(\NnSpotty\UI\SpotDetailPageRenderer::summary($metaSpot, true), 'data-tvdb-open'),
+    'TVDB-link staat in hero, dialoog buiten vervangbare hero-inhoud; preview blijft zonder matchbeheer');
 check(!str_contains($hiddenHtml, 'https://artworks.thetvdb.com') && !str_contains($hiddenHtml, 'hero-backdrop'),
     'Afbeeldingen uit blokkeert ook TVDB-posters, fanart en castfoto');
 $metadata->choose($metaSpot, ['blocked' => true]);

@@ -130,6 +130,13 @@ De client heeft een vast HTTPS-origin, endpointallowlist, TLS-validatie, geen re
 
 TVDB-teksten worden als tekst geescapet, niet als HTML uitgevoerd, en UTF-8-veilig begrensd. Alleen HTTPS-afbeeldingen van toegestane TVDB-hosts gaan naar de browser, met no-referrer; geen serverfetch van provider-artwork. De globale afbeeldingenschakelaar onderdrukt ook poster/fanart/still/cast. Hero en cast worden afzonderlijk opgebouwd; de oorspronkelijke release, omschrijving, technische gegevens, reacties en bestaande acties blijven behouden. Attributie verwijst naar het juiste TVDB-record. `score` is geen beoordeling en wordt niet als rating weergegeven. Genormaliseerde persoon-/bedrijf-/externe IDs zijn bewaard, maar klikbare ontdekfilters en Newznab-ID-search blijven vervolgwerk.
 
+### Attributie en matchpaneel
+De [TVDB-attributierichtlijn](https://www.thetvdb.com/api-information#attribution) vereist een zichtbare directe TVDB-link wanneer eindgebruikers API-metadata zien. De hero bouwt daarom tekst en origineel lokaal logo samen op als recordlink; CSS selecteert `tvdb-dark.png` of `tvdb-light.png` op het daadwerkelijke thema. Dit lokale merkbeeld is geen postafbeelding en blijft bij uitgeschakelde postafbeeldingen zichtbaar. De link verschijnt uitsluitend bij getoonde TVDB-data, niet bij ontbrekende/geblokkeerde matches.
+
+De compacte trigger "TVDB link" staat links in de hero-actierij, overige acties rechts. De native modale dialoog deelt de bestaande downloadpaneel-layout/slide-animaties en respecteert reduced-motion; status en controles staan niet meer boven de hero. Het paneel blijft buiten de asynchroon vervangbare samenvatting; gedelegeerde triggers werken ook na matchen/blokkeren/reset. Alleen admins krijgen correctieformulieren; autorisatie blijft server-side. Gewone gebruikers zien status en kunnen opnieuw controleren. Escape/sluiten en klikken op de backdrop sluiten met focusherstel naar de actuele trigger, ook als de oorspronkelijke trigger door AJAX is vervangen. Bij requests blijft sluiten beschikbaar; focus op tijdelijk uitgeschakelde actieknoppen wordt na antwoord hersteld.
+
+De oude homepage-renderer is verwijderd. Root verwijst naar `/spots`; geslaagde login en een al ingelogde bezoeker op `/login` gaan daar direct heen. De normale login-/zichtbaarheidscontrole van het overzicht blijft leidend.
+
 ## Web en beveiligingsgrenzen
 - `/spots`: individuele spots, stapelbare type-/subcategoriefilters, titelzoekfunctie, keyset-batches, optionele thumbnails en een initieel gesloten preview.
 - `/spots/view?key=...`: afbeelding, metadata, omschrijving, reacties en een CSRF-beveiligd formulier voor lokale reacties.

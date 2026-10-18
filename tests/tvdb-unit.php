@@ -5,6 +5,11 @@ declare(strict_types=1);
 use NnSpotty\Metadata\Release;
 use NnSpotty\Metadata\Service;
 
+foreach (['tvdb-dark.png', 'tvdb-light.png'] as $logo) {
+    $size = getimagesize(__DIR__ . '/../public/assets/images/' . $logo);
+    check($size !== false && $size['mime'] === 'image/png' && $size[0] === 400 && $size[1] === 216,
+        'Aangeleverd TVDB-logo ongewijzigd beschikbaar: ' . $logo);
+}
 $filmSpot = $spot;
 $filmSpot['category'] = 'Beeld';
 $filmSpot['subcategories'] = ['1z00'];

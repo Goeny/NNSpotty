@@ -81,7 +81,7 @@ HTML;
       <h1 class="h3 mb-0">Admin Beheerpanel</h1>
       <div class="d-flex flex-wrap gap-2">
         <span class="badge text-bg-warning align-self-center">Admin: {$safeCurrentUsername}</span>
-        <a class="btn btn-outline-secondary btn-sm" href="/">Terug naar home</a>
+        <a class="btn btn-outline-secondary btn-sm" href="/spots">Terug naar spots</a>
         <form method="post" action="/logout" class="d-inline">
           {$csrfField}
           <button class="btn btn-outline-danger btn-sm" type="submit">Logout</button>
