@@ -1,0 +1,249 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use NnSpotty\Database\ConnectionFactory;
+use NnSpotty\Database\Migrator;
+use NnSpotty\Usenet\RetrieveService;
+use NnSpotty\Users\UserRepository;
+use NnSpotty\State\AppStateRepository;
+
+$autoloadPath = __DIR__ . '/../vendor/autoload.php';
+if (!is_file($autoloadPath)) {
+    fwrite(STDERR, "[ERROR] Composer autoload ontbreekt. Run: composer install --no-dev --optimize-autoloader\n");
+    exit(1);
+}
+require_once $autoloadPath;
+
+require_once __DIR__ . '/../src/helpers.php';
+require_once __DIR__ . '/../src/Database/ConnectionFactory.php';
+require_once __DIR__ . '/../src/Database/Migrator.php';
+require_once __DIR__ . '/../src/State/AppStateRepository.php';
+require_once __DIR__ . '/../src/Users/UserRepository.php';
+require_once __DIR__ . '/../src/Usenet/NntpClientFactory.php';
+require_once __DIR__ . '/../src/Usenet/SpotSubjectParser.php';
+require_once __DIR__ . '/../src/Usenet/UsenetPostRepository.php';
+require_once __DIR__ . '/../src/Usenet/RetrieveService.php';
+
+loadEnvFile(__DIR__ . '/../.env');
+
+$command = $argv[1] ?? null;
+
+if ($command === null || in_array($command, ['help', '--help', '-h'], true)) {
+    showHelp();
+    exit(0);
+}
+
+try {
+    $pdo = ConnectionFactory::fromEnvironment();
+    $migrator = new Migrator($pdo);
+    $state = new AppStateRepository($pdo);
+
+    switch ($command) {
+        case 'db':
+            handleDbCommand($argv, $migrator, $pdo);
+            break;
+        case 'user':
+            handleUserCommand($argv, new UserRepository($pdo));
+            break;
+        case 'retrieve':
+            handleRetrieveCommand($argv, new RetrieveService($pdo, $state));
+            break;
+        default:
+            throw new RuntimeException('Onbekend commando: ' . $command);
+    }
+} catch (Throwable $throwable) {
+    fwrite(STDERR, '[ERROR] ' . $throwable->getMessage() . PHP_EOL);
+    exit(1);
+}
+
+exit(0);
+
+function handleDbCommand(array $argv, Migrator $migrator, PDO $pdo): void
+{
+    $action = $argv[2] ?? 'status';
+    if ($action === 'migrate') {
+        $migrator->migrate();
+        fwrite(STDOUT, "Migrations uitgevoerd.\n");
+        return;
+    }
+
+    if ($action === 'status') {
+        $status = $migrator->status();
+        foreach ($status as $entry) {
+            $marker = $entry['executed'] ? '[x]' : '[ ]';
+            fwrite(STDOUT, $marker . ' ' . $entry['name'] . PHP_EOL);
+        }
+        return;
+    }
+
+    if ($action === 'health') {
+        $health = $migrator->health();
+        fwrite(STDOUT, 'Ping: ' . $health['ping'] . PHP_EOL);
+        fwrite(STDOUT, 'Server UTC: ' . $health['server_time_utc'] . PHP_EOL);
+        return;
+    }
+
+    if ($action === 'cleanup') {
+        $days = optionInt($argv, '--days', 90);
+        $result = $migrator->cleanup($days);
+        fwrite(STDOUT, 'Cleanup voltooid. comments=' . $result['post_comments_deleted'] . ' retrieval_runs=' . $result['retrieval_runs_deleted'] . ' login_attempts=' . $result['login_attempts_deleted'] . ' audit_logs=' . $result['audit_logs_deleted'] . PHP_EOL);
+        return;
+    }
+
+    if ($action === 'reindex-spots') {
+        $repository = new NnSpotty\Usenet\UsenetPostRepository($pdo);
+        $result = $repository->rebuildSpotIndex();
+        fwrite(STDOUT, 'Spot index herbouwd. releases=' . $result['releases'] . ' parts=' . $result['parts'] . PHP_EOL);
+        return;
+    }
+
+    throw new RuntimeException('Onbekende db actie: ' . $action);
+}
+
+function handleUserCommand(array $argv, UserRepository $users): void
+{
+    $action = $argv[2] ?? 'list';
+
+    if ($action === 'list') {
+        $list = $users->list();
+        foreach ($list as $user) {
+            $role = $user['is_admin'] === 1 ? 'admin' : 'user';
+            fwrite(STDOUT, $user['username'] . ' (' . $role . ') created=' . $user['created_at'] . PHP_EOL);
+        }
+        if ($list === []) {
+            fwrite(STDOUT, "Geen users gevonden.\n");
+        }
+        return;
+    }
+
+    if ($action === 'create') {
+        $username = $argv[3] ?? '';
+        $password = $argv[4] ?? '';
+        if ($username === '' || $password === '') {
+            throw new RuntimeException('Gebruik: bin/console user create <username> <password> [--admin=1]');
+        }
+        $isAdmin = optionBool($argv, '--admin', false);
+        $users->create($username, $password, $isAdmin);
+        fwrite(STDOUT, "User aangemaakt: {$username}\n");
+        return;
+    }
+
+    if ($action === 'delete') {
+        $username = $argv[3] ?? '';
+        if ($username === '') {
+            throw new RuntimeException('Gebruik: bin/console user delete <username>');
+        }
+        $affected = $users->delete($username);
+        fwrite(STDOUT, "User verwijderd: {$username} (rows={$affected})\n");
+        return;
+    }
+
+    if ($action === 'password') {
+        $username = $argv[3] ?? '';
+        $password = $argv[4] ?? '';
+        if ($username === '' || $password === '') {
+            throw new RuntimeException('Gebruik: bin/console user password <username> <newPassword>');
+        }
+        $affected = $users->updatePassword($username, $password);
+        fwrite(STDOUT, "Wachtwoord geüpdatet: {$username} (rows={$affected})\n");
+        return;
+    }
+
+    if ($action === 'edit') {
+        $username = $argv[3] ?? '';
+        if ($username === '') {
+            throw new RuntimeException('Gebruik: bin/console user edit <username> [--admin=1|0]');
+        }
+        $isAdmin = optionBool($argv, '--admin', false);
+        $affected = $users->setAdmin($username, $isAdmin);
+        fwrite(STDOUT, "User geüpdatet: {$username} (rows={$affected})\n");
+        return;
+    }
+
+    throw new RuntimeException('Onbekende user actie: ' . $action);
+}
+
+function handleRetrieveCommand(array $argv, RetrieveService $service): void
+{
+    $all = optionBool($argv, '--all', false);
+    $sinceLast = optionBool($argv, '--since-last', false);
+    $days = optionInt($argv, '--days', null);
+    $verbose = optionBool($argv, '--verbose', false);
+
+    $mode = 'since-last';
+    $modeDays = null;
+
+    if ($all) {
+        $mode = 'all';
+    } elseif ($days !== null) {
+        $mode = 'days';
+        $modeDays = $days;
+    } elseif ($sinceLast) {
+        $mode = 'since-last';
+    }
+
+    $result = $service->run(
+        $mode,
+        $modeDays,
+        $verbose,
+        static function (string $message): void {
+            fwrite(STDOUT, '[verbose] ' . $message . PHP_EOL);
+        }
+    );
+    fwrite(STDOUT, 'Retrieve: mode=' . $result['mode'] . ' status=' . $result['status'] . ' groups=' . $result['groups'] . ' inserted=' . $result['inserted'] . PHP_EOL);
+    fwrite(STDOUT, $result['message'] . PHP_EOL);
+}
+
+function optionValue(array $argv, string $name): ?string
+{
+    foreach ($argv as $argument) {
+        if (str_starts_with($argument, $name . '=')) {
+            return substr($argument, strlen($name) + 1);
+        }
+    }
+
+    return null;
+}
+
+function optionBool(array $argv, string $name, bool $default): bool
+{
+    $value = optionValue($argv, $name);
+    if ($value === null) {
+        return in_array($name, $argv, true) ? true : $default;
+    }
+
+    return in_array(strtolower($value), ['1', 'true', 'yes', 'on'], true);
+}
+
+/**
+ * @return int|null
+ */
+function optionInt(array $argv, string $name, ?int $default): ?int
+{
+    $value = optionValue($argv, $name);
+    if ($value === null) {
+        return $default;
+    }
+
+    if (!preg_match('/^-?\d+$/', $value)) {
+        throw new RuntimeException('Optie ' . $name . ' verwacht een geheel getal.');
+    }
+
+    return (int) $value;
+}
+
+function showHelp(): void
+{
+    fwrite(STDOUT, "NNSpotty console\n");
+    fwrite(STDOUT, "Gebruik:\n");
+    fwrite(STDOUT, "  bin/console db migrate|status|health|cleanup [--days=90]\n");
+    fwrite(STDOUT, "  bin/console db reindex-spots\n");
+    fwrite(STDOUT, "  bin/console user list\n");
+    fwrite(STDOUT, "  bin/console user create <username> <password> [--admin=1]\n");
+    fwrite(STDOUT, "  bin/console user delete <username>\n");
+    fwrite(STDOUT, "  bin/console user password <username> <newPassword>\n");
+    fwrite(STDOUT, "  bin/console user edit <username> [--admin=1|0]\n");
+    fwrite(STDOUT, "  bin/console retrieve [--all|--since-last|--days=30] [--verbose]\n");
+}

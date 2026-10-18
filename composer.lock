@@ -1,0 +1,74 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "35cbfdd75e9a4bf3c0580045f2ae7022",
+    "packages": [
+        {
+            "name": "rvdv/nntp",
+            "version": "v1.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/robinvdvleuten/php-nntp.git",
+                "reference": "e1604e72234416b452bdfa3b80c3217c2f74b94b"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/robinvdvleuten/php-nntp/zipball/e1604e72234416b452bdfa3b80c3217c2f74b94b",
+                "reference": "e1604e72234416b452bdfa3b80c3217c2f74b94b",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.95",
+                "phpstan/extension-installer": "^1.4",
+                "phpstan/phpstan": "^2.1",
+                "phpstan/phpstan-phpunit": "^2.0",
+                "phpunit/phpunit": "^11.5"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "1.0.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Rvdv\\Nntp\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Robin van der Vleuten",
+                    "email": "robin@webstronauts.com"
+                }
+            ],
+            "description": "Client for communicating with servers through the Network News Transfer Protocol (NNTP) protocol.",
+            "homepage": "https://github.com/robinvdvleuten/php-nntp",
+            "support": {
+                "issues": "https://github.com/robinvdvleuten/php-nntp/issues",
+                "source": "https://github.com/robinvdvleuten/php-nntp/tree/v1.0.0"
+            },
+            "time": "2026-05-27T07:44:12+00:00"
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "stable",
+    "stability-flags": [],
+    "prefer-stable": false,
+    "prefer-lowest": false,
+    "platform": {
+        "php": "^8.2"
+    },
+    "platform-dev": [],
+    "plugin-api-version": "2.6.0"
+}

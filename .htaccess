@@ -1,0 +1,9 @@
+RewriteEngine On
+
+# Laat echte bestaande files/directories door.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Alle overige requests naar front controller.
+RewriteRule ^ index.php [L,QSA]

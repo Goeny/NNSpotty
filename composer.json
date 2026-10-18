@@ -1,0 +1,21 @@
+{
+  "name": "nnspotty/nnspotty",
+  "version": "0.0.1",
+  "description": "NNSpotty - een moderne, modulaire opvolger van Spotweb",
+  "type": "project",
+  "license": "MIT",
+  "require": {
+    "php": "^8.2",
+    "rvdv/nntp": "^1.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "NnSpotty\\": "src/"
+    }
+  },
+  "scripts": {
+    "serve": "php -S localhost:8080 -t public",
+    "check:syntax": "php -l public/index.php",
+    "console": "php bin/console"
+  }
+}

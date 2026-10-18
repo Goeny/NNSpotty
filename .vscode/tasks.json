@@ -1,0 +1,46 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "php: check syntax",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"$files = Get-ChildItem -Path 'src','public' -Recurse -Filter '*.php'; foreach ($file in $files) { php -l $file.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }; Write-Host 'Syntax check passed.'"
+			],
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "php: serve",
+			"type": "shell",
+			"command": "php",
+			"args": [
+				"-S",
+				"localhost:8080",
+				"-t",
+				"public"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "php: verify scaffold",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"$files = Get-ChildItem -Path 'src','public' -Recurse -Filter '*.php'; foreach ($file in $files) { php -l $file.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }; Write-Host 'Syntax check passed.'"
+			],
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}
