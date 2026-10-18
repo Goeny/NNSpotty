@@ -34,7 +34,7 @@ final class SpotDetailPageRenderer
             $commentHtml .= '<article class="border-bottom py-3"><div class="fw-semibold">' . h($comment['poster'])
                 . '</div><small class="text-body-secondary">' . h($comment['posted_at']) . ' UTC &middot; ' . h($comment['source'])
                 . '</small><div class="comment-body spot-description mt-2">' . ($comment['source'] === 'Usenet'
-                    ? SpotDescription::render($comment['body']) : nl2br(h($comment['body']))) . '</div></article>';
+                    ? SpotDescription::render($comment['body']) : SpotEmoticons::plainText($comment['body'])) . '</div></article>';
         }
         if ($commentHtml === '') {
             $commentHtml = '<p class="text-body-secondary">Nog geen reacties opgehaald of geplaatst. Dit betekent niet dat er op Usenet geen reacties zijn.</p>';
@@ -55,6 +55,7 @@ final class SpotDetailPageRenderer
       {$csrfField}<input type="hidden" name="spot_id" value="{$id}">
       <label class="form-label" for="comment">Lokale reactie plaatsen</label>
       <textarea class="form-control mb-2" name="comment" id="comment" rows="4" maxlength="10000" required></textarea>
+      <p class="form-text">Emoticoncodes zoals [img=smile], [img=buigen], [img=klappen] en [img=respekt] worden als moderne emoji's weergegeven.</p>
       <p class="form-text">Deze reactie blijft in NNSpotty en wordt niet op Usenet gepubliceerd.</p>
       <button class="btn btn-primary" type="submit">Reactie plaatsen</button>
     </form>

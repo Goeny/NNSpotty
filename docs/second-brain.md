@@ -161,6 +161,9 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
 47. **Gerichte reactieretrieval en expliciete metadatarefresh**
     Normale retrieval blijft spots eerst verwerken. `--comments-only` voorkomt dat een historische spotscan het binnenhalen van reacties ophoudt, respecteert adminbeleid en raakt de spotcursor niet aan. `--refresh-spots` met een expliciete backfillperiode leest opgeslagen spots opnieuw, vult onder andere X-Newsreader aan en vernieuwt metadata/XML/facetten atomair. Gewone duplicaten blijven ongemoeid; alleen gewijzigde afbeeldingsbronnen maken de cache ongeldig. Geen nagebootste ratings, spotterverificatie, spamrapportages of werkende NZB-knoppen. Volledige geselecteerde headerscans kunnen nog steeds lang duren.
 
+48. **Oude emoticoncodes behouden, GIF-presentatie vervangen**
+    Gebruiker kiest statische moderne emoji's en compacte badges, zonder animatie of externe afbeeldingen. Vaste allowlist dekt alle 30 aangeleverde Spotweb-codes plus respect/respekt; wink/knipoog delen een symbool. Code, opslag en bron blijven intact; vervanging gebeurt uitsluitend bij renderen met toegankelijke vaste labels. Usenet-omschrijvingen/reacties delen de parser; lokale reacties krijgen alleen de emoticonuitzondering en blijven verder escaped tekst. Geen afbeeldings-URL-ondersteuning, migratie, retrieval of GIF-hergebruik nodig. Herhaalde badges moeten op smalle schermen zonder horizontale overflow afbreken. Dit verfijnt het eerdere beleid dat alle img-bracketcodes tekst bleven; externe afbeeldingen blijven geblokkeerd.
+
 ## Open vragen (voor volgende stap)
 - Welk framework past het best bij verdere uitbreiding? De huidige basis gebruikt PHP 8.2+ en PDO/MySQL/MariaDB.
 - Welke metadata-provider krijgt prioriteit: IMDB, TVDB of beide vanaf start?

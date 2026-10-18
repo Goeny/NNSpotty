@@ -144,13 +144,17 @@ try {
     $remoteComment->execute(['id' => $spotId]);
     $remoteComment = $remoteComment->fetch();
     $updateComment = $pdo->prepare('UPDATE spotnet_comments SET body = :body WHERE id = :id');
-    $updateComment->execute(['body' => '[b]Usenet-opmaak[/b][br]Een nieuwe regel', 'id' => $remoteComment['id']]);
-    $state->addComment($spotId, 'http-tester', '[b]Lokale tekst[/b]<script>localUnsafe()</script>');
+    $updateComment->execute(['body' => '[b]Usenet-opmaak[/b][br]Een nieuwe regel [img=buigen][img=respekt]', 'id' => $remoteComment['id']]);
+    $state->addComment($spotId, 'http-tester', '[b]Lokale tekst[/b]<script>localUnsafe()</script>[img=respect]');
     $localMarkupId = $pdo->lastInsertId();
     $commentDetail = httpFixture($httpPort, '/spots/view?key=' . $spotId, $cookie);
     check(str_contains($commentDetail['body'], '<strong>Usenet-opmaak</strong><br>Een nieuwe regel')
         && str_contains($commentDetail['body'], '[b]Lokale tekst[/b]&lt;script&gt;localUnsafe()&lt;/script&gt;')
         && !str_contains($commentDetail['body'], '<script>localUnsafe'), 'Usenet-reacties krijgen veilige Spotnet-opmaak; lokale reacties blijven geescapete tekst');
+    check(substr_count($commentDetail['body'], 'role="img" aria-label=') === 3
+        && str_contains($commentDetail['body'], \NnSpotty\UI\SpotEmoticons::render('[img=buigen]'))
+        && substr_count($commentDetail['body'], \NnSpotty\UI\SpotEmoticons::render('[img=respekt]')) === 2,
+        'Echte detailroute vertaalt oude emoticoncodes in lokale en Usenet-reacties zonder GIF-verzoeken');
     $updateComment->execute(['body' => $remoteComment['body'], 'id' => $remoteComment['id']]);
     $pdo->prepare('DELETE FROM post_comments WHERE id = :id')->execute(['id' => $localMarkupId]);
     $imageResponse = httpFixture($httpPort, '/spots/image?key=' . $spotId, $cookie);

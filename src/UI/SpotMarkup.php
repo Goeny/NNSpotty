@@ -10,7 +10,7 @@ final class SpotMarkup
 {
     public static function renderText(string $text, bool $allowLinks = true): string
     {
-        $tokens = preg_split('/(\[(?:\/?(?:b|i|u|s|quote|code|url|list|li|color|size|font|center|left|right)(?:=[^\]\r\n]*)?|br\s*\/?|hr\s*\/?|\*)\])/i', $text, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+        $tokens = preg_split('/(\[(?:\/?(?:b|i|u|s|quote|code|url|list|li|color|size|font|center|left|right)(?:=[^\]\r\n]*)?|img=[a-z]+|br\s*\/?|hr\s*\/?|\*)\])/i', $text, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
         if ($tokens === false) {
             throw new RuntimeException('Spotnet-opmaak kon niet worden verwerkt.');
         }
@@ -51,6 +51,8 @@ final class SpotMarkup
                 }
                 $html .= '<li>';
                 $listItemOpen = true;
+            } elseif (preg_match('/^\[img=[a-z]+\]$/iD', $token)) {
+                $html .= SpotEmoticons::render($token);
             } elseif (preg_match('/^\[(br|hr)\s*\/?\]$/iD', $token, $match)) {
                 $html .= '<' . strtolower($match[1]) . '>';
             } elseif (preg_match('/^\[(b|i|u|s|quote|code|url|list|li|color|size|font|center|left|right)(?:=([^\]]*))?\]$/iD', $token, $match)) {

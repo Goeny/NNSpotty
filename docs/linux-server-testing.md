@@ -277,6 +277,24 @@ Controleer dezelfde spot als in Spotweb op basis van het exacte Message-ID, niet
 
 Spotwebs geverifieerde spotter-ID, whiteliststatus, ratings/spamrapporten en NZB-downloads hebben nog geen gelijkwaardige implementatie in NNSpotty. De al beschikbare website, omschrijving en categoriegegevens blijven behouden; deze update verzint geen ontbrekende velden of verificatiestatus.
 
+## Moderne emoticons met oude Spotweb-codes
+Voer vanuit de bestaande deploymap op `nnspotty.hopseflop.nl` uit:
+
+```bash
+set -e
+umask 022
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+php tests/run.php
+curl -fsS -D - https://nnspotty.hopseflop.nl/assets/spotty.css -o /dev/null
+```
+
+Geen nieuwe migratie of retrieval nodig voor deze weergavewijziging. Als migratie 0010 van de vorige update nog niet is uitgevoerd, voer die eerst volgens de bovenstaande sectie uit. Herlaad met Ctrl+F5.
+
+Controleer een bestaande reactie met `Dank [img=buigen]` en een lange reeks `[img=respekt]`: moderne symbolen/badges, geen rauwe ondersteunde codes en geen horizontale overflow. Plaats een lokale testreactie met `[img=respect] [img=klappen] [img=wink]`; HTML en overige BBCode blijven daar tekst. Test 320/390/768/1440px en donker/licht. Screenreaders moeten betekenisvolle labels krijgen, niet alleen onbenoemde afbeeldingen. Geen animatie en geen GIF-/afbeeldingsverzoeken in het netwerkpaneel voor deze codes; emojiweergave kan per besturingssysteem verschillen.
+
+Ondersteunde namen (hoofdletterongevoelig): `biggrin`, `bloos`, `buigen`, `censored`, `clown`, `confused`, `cool`, `exactly`, `frown`, `grijns`, `heh`, `huh`, `klappen`, `knipoog`, `kwijl`, `lollig`, `maf`, `ogen`, `oops`, `pijl`, `redface`, `respekt`, `respect`, `schater`, `shiny`, `sleephappy`, `smile`, `uitroepteken`, `vlag`, `vraagteken`, `wink`. Onbekende namen en `[img=https://example.invalid/test.gif]` blijven tekst. In Usenet-codeblokken blijft `[img=buigen]` letterlijk. De adminschakelaar voor spotafbeeldingen blokkeert echte covers, niet deze tekstsymbolen.
+
 ## Web checks via subdomein
 ```bash
 curl -i https://nnspotty.hopseflop.nl/health

@@ -5,6 +5,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Added
+- Moderne statische emoji's en compacte badges voor alle 30 Spotweb-emoticoncodes, plus respect/respekt-alias; gedeeld door Usenet-/lokale reacties en omschrijvingen, zonder GIF's of externe afbeeldingsverzoeken.
 - Newsreader/clientnaam in detail en preview; expliciete `retrieve --refresh-spots --days=<n>` voor aanvullen van eerder opgeslagen metadata en `--comments-only` voor onafhankelijke reactieretrieval.
 - Gitignore voor dependencies, lokale configuratie, runtime/logs/dumps en testoutput; `.env` en `vendor/` uit de index gehaald, Composer-manifesten blijven gevolgd. Veilige eenmalige deploymentprocedure met configuratiebackup toegevoegd.
 - Coververgroting in detail en preview met native modaal lightboxvenster, toetsenbordfocus, Escape/sluiten, laadfeedback en proportionele schaling; linkfallback zonder JavaScript.

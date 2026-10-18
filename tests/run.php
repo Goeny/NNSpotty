@@ -9,6 +9,7 @@ require __DIR__ . '/Fixtures.php';
 use NnSpotty\UI\SpotDetailPageRenderer;
 use NnSpotty\UI\SpotsPageRenderer;
 use NnSpotty\UI\SpotDescription;
+use NnSpotty\UI\SpotEmoticons;
 use NnSpotty\UI\SpotLayout;
 use NnSpotty\UI\SpotPresentation;
 use NnSpotty\UI\SpotColumns;
@@ -298,6 +299,43 @@ try {
         $link = SpotDescription::render('[url=' . $url . '][b]Leesbaar[/b][/url]');
         check($link === '<strong>Leesbaar</strong>', 'Onveilige Spotnet-link blijft niet-klikbare tekst: ' . $url);
     }
+    $emoticonNames = explode(' ', 'biggrin bloos buigen censored clown confused cool exactly frown grijns heh huh klappen knipoog kwijl lollig maf ogen oops pijl redface respekt respect schater shiny sleephappy smile uitroepteken vlag vraagteken wink');
+    foreach ($emoticonNames as $name) {
+        $code = '[img=' . $name . ']';
+        $emoticon = SpotDescription::render($code);
+        check(str_contains($emoticon, 'class="spot-emoticon') && str_contains($emoticon, 'role="img" aria-label="')
+            && !str_contains($emoticon, $code) && !str_contains($emoticon, '<img') && !str_contains($emoticon, 'src='),
+            'Spotweb-emoticon krijgt toegankelijke moderne weergave zonder afbeelding: ' . $name);
+    }
+    check(SpotEmoticons::render('[img=respekt]') === SpotEmoticons::render('[img=respect]')
+        && SpotEmoticons::render('[IMG=RESPEKT]') === SpotEmoticons::render('[img=respect]'), 'Respect-aliassen en hoofdletters zijn compatibel');
+    check(SpotEmoticons::render('[img=wink]') === SpotEmoticons::render('[img=knipoog]'), 'Engelse en Nederlandse knipoog delen dezelfde weergave');
+    foreach (['[img=onbekend]', '[img=https://example.invalid/tracker.gif]', '[img=javascript:evil()]',
+        '[img=//example.invalid/tracker]', '[img=smile onerror=evil()]', '[img=smile.gif]', '[img=../smile]'] as $unknown) {
+        check(SpotDescription::render($unknown) === h($unknown), 'Onbekende code of afbeeldingsbron blijft tekst: ' . $unknown);
+    }
+    check(SpotDescription::render('[code][img=buigen][/code]') === '<pre><code>[img=buigen]</code></pre>'
+        && SpotDescription::render('<code>[img=respekt]</code>') === '<code>[img=respekt]</code>', 'Emoticoncodes blijven letterlijk in codeblokken');
+    check(SpotDescription::render('<script>[img=smile]</script><p title="[img=smile]">Veilig</p>') === '<p>Veilig</p>',
+        'Emoticoncodes worden niet in attributen of geblokkeerde inhoud verwerkt');
+    $repeatedEmoticons = SpotDescription::render(str_repeat('[img=respekt]', 50));
+    check(substr_count($repeatedEmoticons, 'role="img"') === 50 && !str_contains($repeatedEmoticons, '[img='),
+        'Aaneengesloten emoticons uit echte reacties worden allemaal verwerkt');
+    $localEmoticons = SpotEmoticons::plainText("[b]Tekst[/b]<script>unsafe()</script>\n[img=buigen][img=respekt]");
+    check(str_contains($localEmoticons, '[b]Tekst[/b]&lt;script&gt;unsafe()&lt;/script&gt;<br />')
+        && substr_count($localEmoticons, 'role="img"') === 2 && !str_contains($localEmoticons, '<script>'),
+        'Lokale reacties ondersteunen alleen emoticons, zonder HTML of overige BBCode te activeren');
+    $emoticonComments = [
+        ['poster' => 'Usenet-lezer', 'source' => 'Usenet', 'posted_at' => '2026-10-18 10:00:00', 'body' => 'Dank [img=buigen][img=respekt]'],
+        ['poster' => 'Lokale lezer', 'source' => 'NNSpotty', 'posted_at' => '2026-10-18 11:00:00', 'body' => '[b]Letterlijk[/b] [img=respect]'],
+    ];
+    $emoticonPage = SpotDetailPageRenderer::render('tester', false, $spot, $emoticonComments, '');
+    check(substr_count($emoticonPage, 'role="img" aria-label=') === 3
+        && str_contains($emoticonPage, '[b]Letterlijk[/b]'), 'Detail rendert moderne emoticons in zowel lokale als Usenet-reacties');
+    $emoticonDescription = $spot;
+    $emoticonDescription['description'] = '[img=buigen][img=respect]';
+    check(str_contains(SpotDetailPageRenderer::summary($emoticonDescription, true, false), SpotEmoticons::render('[img=respect]')),
+        'Preview ondersteunt dezelfde tekstemoticons, ook wanneer externe spotafbeeldingen uitstaan');
     check(SpotDescription::render('[url=https://example.invalid/?a=1&amp;b=2]Link[/url]') ===
         '<a href="https://example.invalid/?a=1&amp;b=2" target="_blank" rel="noopener noreferrer nofollow">Link</a>', 'BBCode-URL is veilig geescaped met vaste attributen');
     check(SpotDescription::render('[url]https://example.invalid/[/url]') ===
