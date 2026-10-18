@@ -372,6 +372,7 @@ try {
     $state->setEroticaAllowed(false);
     require __DIR__ . '/newznab-http.php';
     require __DIR__ . '/sab-http.php';
+    require __DIR__ . '/tvdb-http.php';
 } catch (Throwable $exception) {
     rewind($httpLog);
     fwrite(STDERR, stream_get_contents($httpLog));

@@ -24,7 +24,8 @@ final class SpotDetailPageRenderer
         bool $showErotica = false,
         bool $showComments = true,
         bool $imagesEnabled = true,
-        bool $retrieveComments = true
+        bool $retrieveComments = true,
+        string $metadataControls = ''
     ): string {
         $id = h($spot['id']);
         $summary = self::summary($spot, false, $imagesEnabled, $showComments);
@@ -65,14 +66,15 @@ HTML;
         $content = <<<HTML
 <a class="btn btn-sm btn-outline-secondary mb-3" href="/spots">Terug naar spots</a>
 {$status}
-{$summary}
+{$metadataControls}
+<div data-tvdb-content>{$summary}</div>
 {$commentsSection}
 HTML;
         return SpotLayout::render($spot['title'], $username, $isAdmin, $csrfField, $content, $categories, $spot['category'], $theme, showErotica: $showErotica);
     }
 
     /** @param array<string, mixed> $spot */
-    public static function summary(array $spot, bool $preview, bool $imagesEnabled = true, bool $showComments = true): string
+    public static function summary(array $spot, bool $preview, bool $imagesEnabled = true, bool $showComments = true, ?array $metadata = null): string
     {
         $image = SpotPresentation::image($spot, false, $imagesEnabled);
         $title = h($spot['title']);
@@ -96,7 +98,12 @@ HTML;
             . ($action !== '' ? '<div class="hero-actions" role="group" aria-label="Spotacties">' . $action . '</div>' : '')
             . '<div class="hero-poster">' . $image . '</div><div class="hero-copy"><p class="text-body-secondary mb-2">'
             . $type . '</p><' . $tag . '>' . $title . '</' . $tag . '><div class="tag-row">' . $chips . '</div></div></section>';
-        $metadata = '<div class="metadata-strip"><div><small>Spotter</small>' . h($spot['poster'])
+        $people = '';
+        if ($metadata !== null) {
+            $hero = \NnSpotty\Metadata\View::hero($spot, $metadata, $action, $imagesEnabled);
+            $people = \NnSpotty\Metadata\View::people($metadata, $imagesEnabled);
+        }
+        $spotMetadata = '<div class="metadata-strip"><div><small>Spotter</small>' . h($spot['poster'])
             . '</div><div><small>Geplaatst (UTC)</small>' . h($spot['posted_at']) . '</div><div><small>Grootte</small>'
             . SpotPresentation::size((int) $spot['size']) . '</div></div>';
         $description = '<section class="card mb-3"><div class="card-header d-flex justify-content-between gap-2"><span>Omschrijving</span>' . $website
@@ -117,6 +124,6 @@ HTML;
         $technical .= '<dt>Message-ID</dt><dd>' . h($spot['message_id']) . '</dd><dt>NZB</dt><dd>' . $nzb . '</dd>';
         $technical = '<section class="card mb-3"><div class="card-header">Technische details</div><div class="card-body"><dl class="technical">' . $technical . '</dl></div></section>';
         $notice = '<div class="alert alert-secondary small mb-0">Usenet-inhoud is onbevestigd. Spotterhandtekeningen worden nog niet geverifieerd. Alleen veilige omschrijvingsopmaak wordt weergegeven.</div>';
-        return $hero . $metadata . ($preview ? $description . $technical : '<div class="detail-grid"><div>' . $description . '</div><div>' . $technical . '</div></div>') . $notice;
+        return $hero . $spotMetadata . $people . ($preview ? $description . $technical : '<div class="detail-grid"><div>' . $description . '</div><div>' . $technical . '</div></div>') . $notice;
     }
 }

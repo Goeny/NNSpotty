@@ -23,7 +23,7 @@ final class AdminPageRenderer
      * @param array<int, array{post_id: string, username: string, comment: string, created_at: string}> $comments
      * @param array<int, array{actor_username: string, action: string, target_type: string, target_id: string, details_json: string, ip_address: string, created_at: string}> $auditLogs
      */
-    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = [], array $spotContent = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true], bool $apiEnabled = false, string $sabSettings = ''): string
+    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = [], array $spotContent = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true], bool $apiEnabled = false, string $sabSettings = '', string $metadataSettings = ''): string
     {
         $retention = (int) $settings['retention'];
         $server = h($settings['server']);
@@ -94,10 +94,12 @@ HTML;
       <a class="nav-link" href="#appearance">Inhoud en weergave</a>
       <a class="nav-link" href="#newznab">Newznab</a>
       <a class="nav-link" href="#downloads">SABnzbd</a>
+      <a class="nav-link" href="#metadata">TVDB metadata</a>
       <a class="nav-link" href="#moderation">Moderatie en reacties</a>
       <a class="nav-link" href="#audit">Auditlog</a>
     </nav>
     <div data-admin-panel="downloads">{$sabSettings}</div>
+    <div data-admin-panel="metadata">{$metadataSettings}</div>
     <div data-admin-panel="newznab">
     <section class="card my-4" id="newznab">
       <div class="card-header">Newznab API</div>

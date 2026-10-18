@@ -86,7 +86,7 @@ function handleDbCommand(array $argv, Migrator $migrator, PDO $pdo): void
     if ($action === 'cleanup') {
         $days = optionInt($argv, '--days', 90);
         $result = $migrator->cleanup($days);
-        fwrite(STDOUT, 'Cleanup voltooid. comments=' . $result['post_comments_deleted'] . ' retrieval_runs=' . $result['retrieval_runs_deleted'] . ' login_attempts=' . $result['login_attempts_deleted'] . ' audit_logs=' . $result['audit_logs_deleted'] . PHP_EOL);
+        fwrite(STDOUT, 'Cleanup voltooid. comments=' . $result['post_comments_deleted'] . ' retrieval_runs=' . $result['retrieval_runs_deleted'] . ' login_attempts=' . $result['login_attempts_deleted'] . ' audit_logs=' . $result['audit_logs_deleted'] . ' tvdb_cache=' . $result['tvdb_cache_deleted'] . PHP_EOL);
         return;
     }
 

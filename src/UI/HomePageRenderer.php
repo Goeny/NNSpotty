@@ -65,10 +65,10 @@ final class HomePageRenderer
           <div class="d-flex flex-wrap gap-2 mb-4">
             <span class="badge rounded-pill bg-primary">v{$version}</span>
             <span class="badge rounded-pill text-bg-light">Codenaam: {$codename}</span>
-            <span class="badge rounded-pill bg-success">Scaffold actief</span>
+            <span class="badge rounded-pill bg-success">Spotnet actief</span>
           </div>
           <div class="alert alert-info mb-0" role="alert">
-            Eerste basis staat live. Volgende stappen: usenet-indexing, NZB-forwarding, metadata-integratie en Newznab API.
+            Individuele spots, reacties, Newznab API, SABnzbd-downloads en optionele TheTVDB-metadata.
           </div>
           <div class="mt-3 d-flex flex-wrap gap-2">
             {$authActions}

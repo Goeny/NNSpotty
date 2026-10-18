@@ -128,6 +128,17 @@
 .spot-hero { position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: 230px minmax(0, 1fr); align-items: center; gap: 28px; padding: 30px; border-radius: 12px; background: var(--spot-panel); margin-bottom: 20px; }
 .hero-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .hero-actions .btn { font-size: .75rem; }
+.metadata-hero .hero-backdrop { filter: none; object-fit: cover; transform: none; }
+.metadata-hero::after { background: linear-gradient(90deg, rgba(11,17,25,.48), rgba(11,17,25,.88)); }
+[data-bs-theme="light"] .metadata-hero::after { background: linear-gradient(90deg, rgba(255,255,255,.5), rgba(255,255,255,.94)); }
+.metadata-overview { line-height: 1.7; white-space: normal; overflow-wrap: anywhere; }
+.metadata-facts, .metadata-release { overflow-wrap: anywhere; }
+.episode-hero .spot-poster { height: auto; aspect-ratio: 16 / 9; }
+.episode-hero .poster-enlarge { height: auto; aspect-ratio: 16 / 9; }
+.metadata-people .people-list { display: flex; gap: 22px; overflow-x: auto; padding-block: 12px; }
+.person-card { flex: 0 0 120px; text-align: center; display: flex; flex-direction: column; gap: 5px; overflow-wrap: anywhere; }
+.person-card img { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; }
+.person-card span, .person-card small { color: var(--spot-muted); }
 .spot-hero::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(11,17,25,.55), rgba(11,17,25,.72)); }
 [data-bs-theme="light"] .spot-hero::after { background: linear-gradient(90deg, rgba(255,255,255,.48), rgba(255,255,255,.82)); }
 .hero-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; filter: blur(6px); transform: scale(1.04); z-index: -2; pointer-events: none; }

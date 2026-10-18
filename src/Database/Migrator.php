@@ -92,12 +92,15 @@ final class Migrator
         $loginAttemptsStatement->execute();
         $auditLogsStatement = $this->pdo->prepare('DELETE FROM admin_audit_logs WHERE created_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ' . $days . ' DAY)');
         $auditLogsStatement->execute();
+        $metadataStatement = $this->pdo->prepare('DELETE FROM tvdb_cache WHERE expires_at < UTC_TIMESTAMP()');
+        $metadataStatement->execute();
 
         return [
             'post_comments_deleted' => $commentsStatement->rowCount(),
             'retrieval_runs_deleted' => $runsStatement->rowCount(),
             'login_attempts_deleted' => $loginAttemptsStatement->rowCount(),
             'audit_logs_deleted' => $auditLogsStatement->rowCount(),
+            'tvdb_cache_deleted' => $metadataStatement->rowCount(),
         ];
     }
 
@@ -370,6 +373,28 @@ final class Migrator
                     UNIQUE KEY idx_sab_token (scope, token),
                     INDEX idx_sab_history (scope, id),
                     FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE,
+                    FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+            ],
+            '20261018_0013_tvdb' => [
+                'CREATE TABLE IF NOT EXISTS tvdb_settings (
+                    id TINYINT PRIMARY KEY, enabled BOOLEAN NOT NULL DEFAULT 0,
+                    api_key VARCHAR(255) NOT NULL, pin VARCHAR(255) NOT NULL,
+                    language VARCHAR(3) NOT NULL, token TEXT NULL, token_until DATETIME NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS tvdb_preferences (
+                    username VARCHAR(191) PRIMARY KEY, enabled BOOLEAN NOT NULL DEFAULT 0,
+                    FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS tvdb_cache (
+                    cache_key CHAR(64) CHARACTER SET ascii PRIMARY KEY,
+                    data_json MEDIUMTEXT NOT NULL, expires_at DATETIME NOT NULL,
+                    INDEX idx_tvdb_expiry (expires_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS tvdb_matches (
+                    spot_id CHAR(64) CHARACTER SET ascii PRIMARY KEY,
+                    input_hash CHAR(64) CHARACTER SET ascii NOT NULL,
+                    choice_json TEXT NULL, result_json MEDIUMTEXT NULL, expires_at DATETIME NULL,
                     FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             ],

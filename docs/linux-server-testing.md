@@ -8,6 +8,47 @@ cp .env.example .env
 # vul daarna .env met jouw basis app + DB gegevens
 ```
 
+## TheTVDB metadata, posters en fanart
+Pauzeer webverkeer en retrieve-jobs en maak eerst een beveiligde databasebackup volgens de bestaande backup-procedure hieronder. Bestaande `.env` en lokale serverwijzigingen niet overschrijven. Voer in de bestaande deploymap uit:
+
+```bash
+cd <pad-naar-project>
+umask 022
+git status --short
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+composer check-platform-reqs
+php bin/console db migrate
+php bin/console db status
+php bin/console db health
+php tests/run.php
+curl -fsS https://nnspotty.hopseflop.nl/health
+curl -fsS -D - https://nnspotty.hopseflop.nl/assets/metadata.js -o /dev/null
+curl -fsS -D - https://nnspotty.hopseflop.nl/assets/spotty.css -o /dev/null
+```
+
+Migratie `20261018_0013_tvdb` moet toegepast zijn. Beide assets moeten HTTP 200 en het juiste JavaScript/CSS-contenttype geven. Geen nieuwe retrieval, nieuwe API-key voor Newznab of versie-/codenaamwijziging nodig. Herstart webverkeer/retrieval na de migratie en herlaad met Ctrl+F5.
+
+### Instellen met je eigen TVDB-key
+1. Open als admin `/admin#metadata`: het nieuwe onderdeel **TVDB metadata** (zeven beheeronderdelen in totaal). Kies globale toegang, voer je **API V4-key** en alleen indien nodig je abonnee-PIN in; selecteer Nederlands (met Engelse fallback) of Engels. Sla op, controleer dat geheimvelden leeg blijven en klik **Opgeslagen TVDB-toegang testen**. Deel key/PIN niet in chat, screenshots of shellcommando's.
+2. Controleer het licentie-/abonnementstype op [TheTVDB](https://thetvdb.com/api-information). Een ongeschikte key of ontbrekende vereiste PIN moet zichtbare foutfeedback geven, geen gesimuleerde succesvolle verbinding. De PHP-server moet met geldige CA's HTTPS naar `api4.thetvdb.com` kunnen gebruiken; TLS-verificatie blijft aan.
+3. Open als dezelfde admin `/preferences#metadata` en schakel persoonlijke toestemming in. Herhaal met een gewone testgebruiker. Beide schakelaars staan initieel uit. De voorkeur vermeldt het delen van de titel en het rechtstreeks laden van TVDB-afbeeldingen.
+4. Bescherm database/backups: key, PIN en bearer token zijn herstelbaar opgeslagen, niet gehasht. Lege velden bewaren de key/PIN; PIN verwijderen is expliciet. Controleer in browser-HTML, JSON en audit dat geen key/PIN/token wordt teruggestuurd.
+
+### Werkelijke functionele acceptatie
+1. Open een volledige filmdetail met een duidelijke titel en jaar. Eerst verschijnt de oorspronkelijke spot, daarna asynchroon de juiste TVDB-titel, synopsis, poster, echte fanart zonder blur en beschikbare genres/datum/speelduur. Controleer de attributielink en of de afbeelding werkelijk bij deze film hoort; alleen een geslaagde toegangstest is onvoldoende.
+2. Open een serie met `SxxEyy`, controleer **serie, seizoen en aflevering** tegen TheTVDB, inclusief afleveringtitel, synopsis en widescreen still. Een seizoens-/multiafleveringpakket mag niet als een losse aflevering verschijnen. Een niet-beschikbare aflevering toont eerlijk alleen de serie. Dagelijkse/absolute codes zijn nog niet ondersteund.
+3. Open als admin **TVDB-match kiezen / wijzigen**, zoek een bekende titel, kies en sla op; controleer de gedeelde correctie als gewone gebruiker. Test automatisch herstellen en **Geen metadata voor deze spot**. Onvindbare handmatige afleveringen mogen een geldige bestaande keuze niet overschrijven. Gewone gebruikers zien deze correctieacties niet en mogen ze ook niet via POST uitvoeren.
+4. Controleer cast/crew, studio/netwerk, originele releasetitel/omschrijving/technische informatie en reacties. Test de coverlightbox en bestaande NZB-/SABnzbd-acties na asynchroon laden. Ratings, reviews, playback en klikbare cast-/bedrijfsfilters zijn geen onderdeel van deze stap; populariteit is geen beoordeling.
+5. Heropen dezelfde spot en een andere release van dezelfde titel: databasecache moet herhaalde providerrequests beperken. Entiteiten/matches zeven dagen, zoeken/negatieve matches een dag, fouten vijf minuten. **Metadata opnieuw controleren** negeert deze TTL niet. Er is een centrale limiet van 90 uitgaande requests/minuut, geen onbegrensde achtergrondbackfill.
+6. Test een onduidelijke/gelijknamige titel: geen gegokte metadata. Test met tijdelijk ongeldige TVDB-toegang: expliciete fout, oorspronkelijke spot bruikbaar, geen retrylus. Na key/PIN/taalwijziging worden matchstatussen opnieuw controleerbaar; reeds gecachte providerrecords behouden hun eigen TTL.
+7. Schakel metadata persoonlijk uit: nieuwe details/requests mogen geen TVDB-data laden. Globaal uit blokkeert ook eerder toegestane admins/gebruikers, maar bewaart hun voorkeur. Test een verborgen spot/erotica: geen metadata-toegang. Schakel postafbeeldingen uit: ook TVDB-posters/fanart/castfoto's verdwijnen, tekst en oorspronkelijke spot blijven beschikbaar.
+8. Overzicht/preview en gewone retrieval mogen geen TVDB-requests starten. Test volledige film- en afleveringsdetails op 320/390/768/1440px in donker/licht, zonder horizontale pagina-overflow of overlappende acties.
+
+Lokale automatische regressies gebruiken synthetische TVDB-antwoorden en een echte aparte MariaDB; browsercontroles gebruiken voorgevulde cache en onderschepte testafbeeldingen, geen echte providerkey. Productieacceptatie hierboven blijft nodig voor jouw key/licentie, echte titels, artworkbeschikbaarheid en providerlimieten. Integratietests alleen met de afzonderlijke testdatabasecredentials volgens de bestaande sectie hieronder uitvoeren.
+
+`php bin/console db cleanup --days=90` ruimt naast de bestaande onderhoudsdata ook verlopen TVDB-providercache op (`tvdb_cache=` in de output). Dit commando verwijdert eveneens oude lokale reacties/runs/audit/loginpogingen; voer het alleen uit als die reguliere onderhoudsactie gewenst is. Het verwijdert geen geldige providerrecords of opgeslagen handmatige keuzes.
+
 ## Huisstijl en lokale afbeeldingen
 Deze update vereist geen migratie of retrieval. Voer vanuit de bestaande deploymap uit:
 

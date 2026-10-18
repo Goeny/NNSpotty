@@ -5,6 +5,9 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Added
+- TheTVDB API V4-verrijking op volledige filmdetails en serie-/afleveringdetails, met centrale admin-key/optionele PIN, persoonlijke default-off toestemming, taal met Engelse fallback en asynchrone veilige weergave zonder wijziging van oorspronkelijke spotdata.
+- Conservatieve unieke titel-/jaarmatching, exacte officiële afleveringskoppeling en admin-only gedeelde zoek-/keuze-/reset-/blokkeeracties. Plex-geinspireerde hero met echte fanart/poster of afleveringstill, synopsis, genres, speelduur, cast/crew en studio/netwerk; bestaande reacties/NZB/SABnzbd/lightbox blijven werken.
+- Migratie `20261018_0013_tvdb`: instellingen/token, username-voorkeuren, provider- en matchcache in MySQL/MariaDB. Begrensde HTTPS-client met tokenhergebruik/401-vernieuwing, timeouts, vaste hosts, requestbudget, locks, expliciete fouten en verlopen-cachecleanup. Geen ratings afgeleid van populariteit en nog geen klikbare castfilters of Newznab-ID-zoeken.
 - Enkele klik op overzichtsregel opent de preview, dubbelklik opent de volledige spot; compacte hero-acties rechtsboven. Ontbrekende/onbereikbare covers tonen alleen de placeholder, ook als blurred hero-achtergrond, zonder waarschuwingsoverlay.
 - Eigen NNSpotty-huisstijl: lokale favicon/touch-icon op alle pagina's, headericoon, logo op start/login en coverplaceholder in overzicht/preview/detail, ook met expliciete feedback bij laadfouten. Originele beelden en presentatie bewaard onder docs/branding, kleinere webversies onder public/assets/images.
 - SABnzbd-forwarding met centrale adminverbinding en persoonlijke verbindingen, globale categorietoewijzing per spottype, volledige-key-invoer zonder terugtonen, verbindingstest en echte multipart NZB-upload vanuit detail/preview.

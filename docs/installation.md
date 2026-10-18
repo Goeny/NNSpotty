@@ -52,9 +52,18 @@
 - Admin bevat **Op te halen inhoud**: Usenet-reacties indexeren, reacties tonen/lokaal plaatsen, afbeeldingen ophalen/tonen. Standaard staat alles aan. Retentie en de artikellimiet blijven onder Usenet instellingen.
 - Reacties indexeren uit slaat de groep/cursor over; tonen uit verbergt ook al opgeslagen reacties. Herinschakelen verwijdert of reset geen data; gebruik zo nodig `retrieve --days=30` voor beschikbare historie.
 - Afbeeldingen uit voorkomt requests voor thumbnails, covers en hero, en blokkeert de image-route ook voor cachehits. Afbeeldingen worden nooit tijdens de gewone retrieve massaal gedownload.
-- Herlaad de assets `/assets/spotty.css`, `/assets/spots.js`, `/assets/presentation.js`, `/assets/downloader.js` zonder oude cache. De cover in preview/detail opent een lightbox met toetsenbordbediening en foutfeedback.
+- Herlaad de assets `/assets/spotty.css`, `/assets/spots.js`, `/assets/presentation.js`, `/assets/downloader.js` en `/assets/metadata.js` zonder oude cache. De cover in preview/detail opent een lightbox met toetsenbordbediening en foutfeedback.
 - SABnzbd vereist PHP-extensie `curl` en migratie `20261018_0012_sabnzbd`. Configureer als admin de centrale verbinding en categorietoewijzing onder `/admin#downloads`; gebruikers stellen een eigen publieke host in onder `/preferences#downloads`. Alleen admins mogen interne hosts gebruiken en de centrale wachtrij zien. Zie [SABnzbd serverchecks](./linux-server-testing.md#sabnzbd-categorietoewijzing-en-downloadpaneel).
 - Spotnet-omschrijvingen met `[br]` en gangbare bracketopmaak worden direct juist weergegeven. Een nieuwe retrieve of datamigratie is hiervoor niet nodig.
+
+## TheTVDB installeren of inschakelen
+- Maak een beveiligde databasebackup, pauzeer webverkeer/retrieval en voer `php bin/console db migrate` uit. Migratie `20261018_0013_tvdb` voegt vier metadata-tabellen toe zonder spots of cursors te wijzigen. Geen nieuwe retrieval nodig.
+- Controleer PHP-extensie `curl`, werkende TLS/CA-validatie en uitgaand HTTPS naar `api4.thetvdb.com`. De browser moet afbeeldingen van `artworks.thetvdb.com`/TheTVDB kunnen laden. Redirects en onveilige TLS worden niet toegestaan.
+- Admin `/admin#metadata`: centrale API V4-key, optionele abonnee-PIN, Nederlands-met-Engelse-fallback of Engels, globale schakelaar en test van opgeslagen toegang. Controleer je TVDB-licentie; keys zijn niet automatisch voor elk gebruik toegestaan. Lege key/PIN behouden eerdere waarden; PIN verwijderen heeft een aparte keuze.
+- Iedere gebruiker, ook de admin, kiest vervolgens zelf onder `/preferences#metadata` voor metadata. Beide schakelaars staan initieel uit; globaal uit blokkeert iedereen zonder persoonlijke keuzes te wissen.
+- Serveer `/assets/metadata.js` als JavaScript en herlaad met Ctrl+F5. Volledige details verrijken op aanvraag; overzicht/preview/retrieval blijven provideronafhankelijk. Originele informatie en foutmeldingen blijven beschikbaar.
+- Afbeeldingsbeleid geldt ook voor TVDB-posters, fanart en cast. Bescherm de database en backups: key, PIN en bearer token moeten voor uitgaande authenticatie herstelbaar blijven. Ze staan niet in de HTML, auditdetails of `.env`.
+- Zie de [TVDB-gebruikersuitleg](../README.md#thetvdb-films-series-en-afleveringen) en [Linux-productieacceptatie](./linux-server-testing.md#thetvdb-metadata-posters-en-fanart).
 
 ## Upgrade vanaf de generieke headerindex
 - Voer `php bin/console db migrate` uit en controleer de Spotnet-groepen in admin.

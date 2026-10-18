@@ -155,6 +155,7 @@ try {
     $pdo->exec("DELETE FROM spotnet_spots WHERE message_id = 'Spot-one@example.invalid'");
     $pdo->exec("DELETE FROM spotnet_comments WHERE message_id = 'Comment@example.invalid'");
     $pdo->exec('DELETE FROM spotnet_images');
+    require __DIR__ . '/tvdb-integration.php';
     require __DIR__ . '/http.php';
     $adult = SpotnetParser::spot('adult@example.invalid', Fixtures::headers('adult@example.invalid',
         str_replace('<Sub>1a01</Sub>', '<Sub>1a09</Sub><Sub>1d23</Sub>', Fixtures::xml('Afgeschermde testspot'))));

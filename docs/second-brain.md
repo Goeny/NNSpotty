@@ -6,7 +6,7 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
 - **Datum:** 2026-10-18
 - **Versie:** 0.0.1
 - **Codenaam:** Delta Integrale
-- **Fase:** Spotnet/Newznab met SABnzbd-forwarding, persoonlijke koppelingen en live downloadpaneel
+- **Fase:** Spotnet/Newznab, SABnzbd en optionele TheTVDB-verrijking met gedeeld matchbeheer
 
 ## Context
 - Spotweb is verouderd en lastig onderhoudbaar door gegroeide complexiteit en gemengde oude/nieuwe codepatronen.
@@ -198,27 +198,40 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
     Gebruiker kiest enkele klik voor de bestaande slide-in-preview en dubbelklik op de hele overzichtsregel voor directe navigatie naar de volledige spot. Gedelegeerde events gelden ook voor bijgeladen rijen; tweede klik start geen tweede previewrequest, dubbelklik annuleert de lopende preview. Titellink/toetsenbord en modifierklikken blijven behouden. Reactie-, NZB- en SABnzbd-acties gebruiken compacte Bootstrap-knoppen in een rechts uitgelijnde, afbrekende actierij bovenin de hero, in preview en detail, zonder titeloverlap. Placeholder is voldoende visuele feedback: de oude coverwaarschuwing is verwijderd. Ook de hero-achtergrond gebruikt de placeholder als er geen cover is of deze niet laadt. De instelling afbeeldingen uit blijft alles blokkeren; lightbox/NZB/downloaderfouten behouden hun eigen foutmeldingen.
     Browseronderzoek liet zien dat direct inschuiven de tweede klik kan onderscheppen. De muisklik wacht daarom 500ms voor het openen; toetsenbordactivatie reageert direct. Validatie: 668 unitcontroles geslaagd en gewijzigde PHP-bestanden gelint; browser bevestigt enkele klik, dubbelklik op titel en overige cellen (ook met 350ms klikinterval), Enter/Escape en lazy-loaded rijen. Preview en detail getest op 320/768/1440px, donker/licht, ontbrekende/falende/uitgeschakelde afbeelding: geen horizontale pagina-/paneeloverflow, compacte acties rechtsboven zonder overlap en loaded blurred placeholderachtergrond waar toegestaan.
 
+59. **TheTVDB als eerste externe metadataprovider**
+    Gebruiker kiest expliciet een centrale API-key in admin, persoonlijke opt-in/out voor iedereen en conservatieve automatische matching met handmatige correcties uitsluitend door admins. Beide schakelaars zijn standaard uit; een globale blokkade geldt ook voor admins. API V4-key, optionele abonnee-PIN en taal (Nederlands met Engelse fallback of Engels) blijven centraal. Secrets/token moeten voor authenticatie herstelbaar zijn en worden nooit teruggetoond of in auditdetails opgenomen. De eigen TVDB-key/licentie moet op productie worden geaccepteerd; er is geen echte key in de ontwikkeltests gebruikt.
+
+60. **On-demand verrijking zonder brondata te vervangen**
+    Alleen volledige filmdetails en serie-/afleveringdetails starten een asynchrone CSRF-beveiligde POST met effectieve toestemming; overzicht, preview en retrieval starten geen TVDB-fetch. Originele titel, omschrijving, technische metadata, reacties en NZB/SAB/lightbox blijven bruikbaar. Unieke exact genormaliseerde titel/alias/vertaling, plus filmjaar, voorkomt gegokte remakes; exacte afleveringen gebruiken official ordering met ID/seizoen/nummervalidatie. Pakketten blijven series. Bij onduidelijkheid of fouten blijft de oorspronkelijke spot. Admin kan zoeken/kiezen/herstellen/blokkeren; wijzigingen gelden gedeeld. Een onvindbare handmatige aflevering wijzigt geen geldige eerdere keuze.
+
+61. **Databasecache en begrensde providerkoppeling**
+    Migratie 0013 voegt TVDB-settings/token, username-voorkeuren, providercache en match-/keuzecache toe. Entiteiten/matches zeven dagen, zoeken/negatieve matches een dag, foutstatus vijf minuten; opnieuw controleren respecteert TTL. Benamede locks en hercontrole na lock voorkomen dubbel werk. Centraal 90 uitgaande requests/minuut, uitsluitend vaste HTTPS-API/endpointallowlist, TLS-validatie, geen redirects/proxy, 3s connect/8s request/22s totaal, maximaal 4MiB response. Token maximaal 25 dagen hergebruiken en eenmaal vernieuwen bij 401. `db cleanup` verwijdert verlopen providercache. Geen metadata als runtimebestanden; artwork zelf laadt rechtstreeks van toegestane TVDB-hosts met no-referrer en valt onder de globale afbeeldingenschakelaar.
+
+62. **Plex-geinspireerde inhoud, geen fictieve Plex-functies**
+    Hero met echte fanart zonder blur, poster of widescreen afleveringstill, synopsis, datum/speelduur/genres, cast/crew en studio/netwerk. TVDB-teksten zijn UTF-8-veilig begrensd en geescapet; oorspronkelijke Spotnet-opmaak blijft apart. Attributie verwijst naar het juiste record. Geen playback, reviews of verzonnen ratings: `score` is populariteit. Persoon-/bedrijfs-/externe IDs worden bewaard voor later klikbaar ontdekken; Newznab IMDb/TVDB-ID-zoeken is nog niet toegevoegd. Versie blijft 0.0.1 Delta Integrale.
+    Validatie: 1037 controles geslaagd met PHP 8.4 en echte MariaDB 11.4, inclusief metadata-matching, caches, tokenopslag, exact 90/91-requestbudget, verlopen-cachecleanup, UTF-8-lengtegrens, locks, toestemmingen, HTTP-CSRF/adminrechten, hidden-spotbeleid en bestaande regressies. Browser verifieert automatisch laden, zoeken/kiezen/blokkeren/reset, gedeelde keuzes zonder admincontrols voor gewone gebruikers, persoonlijke opt-out/in, intrekken van globale toegang tijdens een geopende detailpagina, expliciete 502-foutfallback, lege geheimvelden, zeven adminonderdelen, lightbox en bestaand SAB-paneel. Film en aflevering op 320/390/768/1440px in beide thema's zonder pagina-overflow. Lokale testafbeeldingen vervangen provider-artwork; echte TVDB-login/titels/posters moeten met de eigen key op productie worden gecontroleerd.
+
 ## Open vragen (voor volgende stap)
 - Welk framework past het best bij verdere uitbreiding? De huidige basis gebruikt PHP 8.2+ en PDO/MySQL/MariaDB.
-- Welke metadata-provider krijgt prioriteit: IMDB, TVDB of beide vanaf start?
 - Welke metadata-provider biedt de beste betrouwbare TVDB/IMDb-ID-koppeling voor Newznab-vervolgfunctionaliteit?
 - Welke moderatieregels gelden bij conflicten tussen whitelist en blacklist, na verificatie van de spotteridentiteit?
 - Hoe versnellen we grote historische scans zonder de volledigheid van datumfilters te verliezen?
 
 ## Volgende stappen
-1. Newznab-MVP op productie testen met Prowlarr, Sonarr en de eigen Usenet-provider: titel-/categoriezoektocht en echte NZB-download.
-2. SABnzbd op productie accepteren met echte categorienamen, persoonlijke publieke host en centrale interne host; daarna eventueel NZBGet en afgeronde downloadstatussen toevoegen.
-3. Retentiebeheer uitbreiden met duidelijke begin-/einddatums en kalenderbediening, zonder onvolledige datumscans.
-4. Kernmodules verdiepen:
+1. TheTVDB op productie accepteren met eigen key/PIN/licentie en echte films/afleveringen; daarna klikbaar ontdekken op cast/crew/studio/netwerk en koppeling met Newznab-ID-zoeken uitwerken.
+2. Newznab-MVP op productie testen met Prowlarr, Sonarr en de eigen Usenet-provider: titel-/categoriezoektocht en echte NZB-download.
+3. SABnzbd op productie accepteren met echte categorienamen, persoonlijke publieke host en centrale interne host; daarna eventueel NZBGet en afgeronde downloadstatussen toevoegen.
+4. Retentiebeheer uitbreiden met duidelijke begin-/einddatums en kalenderbediening, zonder onvolledige datumscans.
+5. Kernmodules verdiepen:
    - usenet/indexing
    - nzb-forwarding
    - metadata-integratie
    - theming
    - newznab API
-5. Handtekeningverificatie, geverifieerde spotteridentiteiten en moderatie in de retrieval-laag toevoegen.
-6. Geteste compatibiliteit voor afwijkende legacy-XML uitwerken.
-7. Grote backfills en commentretrieval optimaliseren; scheduling en jobs toevoegen.
-8. Installatieflow verder uitwerken (wizard + validaties).
+6. Handtekeningverificatie, geverifieerde spotteridentiteiten en moderatie in de retrieval-laag toevoegen.
+7. Geteste compatibiliteit voor afwijkende legacy-XML uitwerken.
+8. Grote backfills en commentretrieval optimaliseren; scheduling en jobs toevoegen.
+9. Installatieflow verder uitwerken (wizard + validaties).
 
 ## Updateprotocol
 Werk deze second brain bij bij:

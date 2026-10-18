@@ -168,7 +168,8 @@ $router->get('/admin', static function (Request $request) use ($state, $auth, $c
         globalColumns: $state->globalSpotColumns(),
         spotContent: $state->spotContentSettings(),
         apiEnabled: $state->apiEnabled(),
-        sabSettings: \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('central'), $csrf->field(), true, true)
+        sabSettings: \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('central'), $csrf->field(), true, true),
+        metadataSettings: \NnSpotty\Metadata\View::settings(new \NnSpotty\Metadata\Repository($pdo), $csrf->field())
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
@@ -422,7 +423,8 @@ $router->get('/preferences', static function (Request $request) use ($state, $au
         apiEnabled: $state->apiEnabled(),
         hasApiKey: (new \NnSpotty\Newznab\ApiKeys($pdo))->exists($username),
         newApiKey: is_array($newKey) && $newKey['username'] === $username ? $newKey['key'] : null,
-        sabSettings: \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('user:' . $username), $csrf->field(), false, $currentUser['is_admin'])
+        sabSettings: \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('user:' . $username), $csrf->field(), false, $currentUser['is_admin']),
+        metadataSettings: \NnSpotty\Metadata\View::settings(new \NnSpotty\Metadata\Repository($pdo), $csrf->field(), $username)
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store', 'Referrer-Policy' => 'no-referrer']);
@@ -436,6 +438,11 @@ $sabHandler = static function (Request $request) use ($pdo, $state, $auth, $csrf
 };
 $router->get('/downloader', $sabHandler);
 $router->post('/downloader', $sabHandler);
+$router->post('/metadata', static function (Request $request) use ($pdo, $state, $auth, $csrf): Response {
+    $user = $auth->user();
+    session_write_close();
+    return (new \NnSpotty\Metadata\Controller($pdo, $state))->handle($request, $user, $csrf);
+});
 
 $router->post('/admin/newznab', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
     if (!$auth->isAdmin()) {
@@ -558,7 +565,7 @@ $router->get('/spots/preview', static function (Request $request) use ($auth, $s
         : Response::privateJson(['html' => SpotDetailPageRenderer::summary($spot, true, $content['images_enabled'], $content['show_comments'])]);
 });
 
-$router->get('/spots/view', static function (Request $request) use ($auth, $csrf, $spots, $state): Response {
+$router->get('/spots/view', static function (Request $request) use ($auth, $csrf, $spots, $state, $pdo): Response {
     if (!$auth->isAuthenticated()) {
         return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
     }
@@ -591,7 +598,9 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
         showErotica: $state->canViewErotica($currentUser['username']),
         showComments: $content['show_comments'],
         imagesEnabled: $content['images_enabled'],
-        retrieveComments: $content['retrieve_comments']
+        retrieveComments: $content['retrieve_comments'],
+        metadataControls: (new \NnSpotty\Metadata\Repository($pdo))->allowed($currentUser['username'])
+            ? \NnSpotty\Metadata\View::controls($spot, $currentUser['is_admin'], $csrf->field()) : ''
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);

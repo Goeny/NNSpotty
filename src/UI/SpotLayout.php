@@ -45,6 +45,7 @@ final class SpotLayout
   <link href="/assets/spotty.css" rel="stylesheet">
   <script src="/assets/presentation.js" defer></script>
   <script src="/assets/downloader.js" defer></script>
+  <script src="/assets/metadata.js" defer></script>
   {$scripts}
 </head>
 <body class="spotty">

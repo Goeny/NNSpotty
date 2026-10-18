@@ -412,6 +412,7 @@ try {
 
     require __DIR__ . '/newznab-unit.php';
     require __DIR__ . '/sab-unit.php';
+    require __DIR__ . '/tvdb-unit.php';
     if (in_array('--integration', $argv, true)) {
         require __DIR__ . '/integration.php';
     }

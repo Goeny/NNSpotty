@@ -111,6 +111,25 @@ Voor een upload schrijft de repository een poging met unieke `(scope, bevestigin
 
 Adminsecties gebruiken gewone fragmentlinks met een JavaScript-verrijking die slechts de geselecteerde sectie toont. Zonder JavaScript blijven de formulieren zichtbaar; bestaande `#columns` en `#spot-content` worden naar Inhoud en weergave geleid.
 
+## TheTVDB metadata
+De module `Metadata` scheidt V4-transport (`Client`/`Gateway`), opslag (`Repository`), releaseherkenning (`Release`), matching/normalisatie (`Service`), HTTP-beleid (`Controller`) en veilige presentatie (`View`). Gebaseerd op de [officiele V4-specificatie](https://thetvdb.github.io/v4-api/) en [API-/licentie-informatie](https://thetvdb.com/api-information), niet op Spotweb/legacy-metadata-code.
+
+Migratie `20261018_0013_tvdb`:
+- `tvdb_settings`: centrale enable/key/PIN/taal en bearer token met vervaldatum. Blanco geheimvelden behouden bestaande waarden; geheimen worden nooit teruggerenderd.
+- `tvdb_preferences`: default-off toestemming per username; foreign key ruimt op bij userverwijdering.
+- `tvdb_cache`: SHA256-sleutels, provider-JSON en vervaldatum, tevens installatiebreed aanvraagbudget. `db cleanup` verwijdert verlopen rijen onafhankelijk van `--days`.
+- `tvdb_matches`: een gedeelde match per spot, inputhash, eventuele adminkeuze/blokkering, resultaat en vervaldatum; foreign key ruimt op bij spotverwijdering.
+
+Alleen de volledige detailpagina voegt bij effectieve globale EN persoonlijke toestemming controls en een asynchrone `POST /metadata` toe. De sessielock wordt voor uitgaand werk vrijgegeven. Elke actie vereist login/CSRF; centrale instellingen/toegangstest/zoeken/keuze/reset/blokkering zijn admin-only. Een gebruiker wijzigt uitsluitend eigen toestemming. De normale spotzichtbaarheid geldt ook hier; effectieve toestemming wordt voor resultaatweergave opnieuw gecontroleerd. Audit bevat actie/actor/spot, geen credentials. JSON-antwoorden zijn `private, no-store`.
+
+Releaseherkenning verwerkt gangbare jaartallen, SxxEyy, NxYY, seizoenen en meervoudige afleveringen. Alleen Films/Series, geen erotica. Automatische koppeling vereist unieke exact genormaliseerde titel/alias/vertaling, plus bij films een exact jaar. Geen fuzzy beste-hit-fallback. Seriejaar onderscheidt remakes. Exacte afleveringen gebruiken TVDB-official ordering en verifieren serie-ID, seizoen en aflevering ook op het extended record. Een ontbrekende automatische aflevering toont expliciet alleen de serie; een onvindbare handmatige aflevering wordt voor opslaan geweigerd. Pakketten blijven op serieniveau. De inputhash bevat titel/categorie/subcategorieen/taal; gewijzigde broninput invalideert oude keuzes, taalwijziging behoudt de handmatige identiteit.
+
+Resultaten en providerentiteiten blijven zeven dagen geldig, zoekresultaten/negatieve matches een dag, lookupfouten vijf minuten. De controleknop respecteert TTL. Benamede MySQL-locks voorkomen dubbele lookups, providerrequests en logins; na verkrijging wordt de cache opnieuw gelezen. Lockdrukte is expliciet, geen verborgen retrylus. Alle webworkers delen een budget van 90 uitgaande requests per minuut. Credentials/taal wijzigen invalideert matchfreshness; instellingen opslaan invalideert token. Providerrecords blijven hun eigen TTL houden.
+
+De client heeft een vast HTTPS-origin, endpointallowlist, TLS-validatie, geen redirects/proxy, drie seconden connectietimeout, maximaal acht seconden per request en 22 seconden totaalbudget, vier MiB responsegrens. Login gebruikt key en optioneel PIN, verdere calls alleen bearer; token wordt 25 dagen hergebruikt en een 401 leidt maximaal eenmaal tot vernieuwing. Providerbody/geheimen worden niet als foutmelding doorgestuurd. Lookupfouten worden gelogd en expliciet getoond met de oorspronkelijke spot.
+
+TVDB-teksten worden als tekst geescapet, niet als HTML uitgevoerd, en UTF-8-veilig begrensd. Alleen HTTPS-afbeeldingen van toegestane TVDB-hosts gaan naar de browser, met no-referrer; geen serverfetch van provider-artwork. De globale afbeeldingenschakelaar onderdrukt ook poster/fanart/still/cast. Hero en cast worden afzonderlijk opgebouwd; de oorspronkelijke release, omschrijving, technische gegevens, reacties en bestaande acties blijven behouden. Attributie verwijst naar het juiste TVDB-record. `score` is geen beoordeling en wordt niet als rating weergegeven. Genormaliseerde persoon-/bedrijf-/externe IDs zijn bewaard, maar klikbare ontdekfilters en Newznab-ID-search blijven vervolgwerk.
+
 ## Web en beveiligingsgrenzen
 - `/spots`: individuele spots, stapelbare type-/subcategoriefilters, titelzoekfunctie, keyset-batches, optionele thumbnails en een initieel gesloten preview.
 - `/spots/view?key=...`: afbeelding, metadata, omschrijving, reacties en een CSRF-beveiligd formulier voor lokale reacties.
@@ -135,5 +154,5 @@ Deze bronnen dienen als protocolreferentie. NNSpotty heeft een eigen parser, ser
 ## Volgende uitbreidingen
 - Handtekeningverificatie en toepassen van moderatie op geverifieerde identiteiten.
 - Verdere Spotnet-tagcompatibiliteit en expliciete compatibiliteit voor afwijkende legacy-XML.
-- NZBGet-forwarding, afgeronde SABnzbd-historie, externe metadata en Newznab-ID-zoekfunctionaliteit.
+- NZBGet-forwarding, afgeronde SABnzbd-historie, klikbare cast-/bedrijfsfilters en Newznab-ID-zoekfunctionaliteit.
 - Indexing-jobs, scheduling en performance-optimalisatie van grote backfills.

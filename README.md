@@ -11,7 +11,7 @@ De focus ligt op:
 ## Huidige status
 - **Versie:** 0.0.1
 - **Codenaam:** Delta Integrale
-- **Fase:** Spotnet-retrieval, Newznab-MVP en SABnzbd-forwarding met live wachtrij (nog geen complete Spotweb-vervanger)
+- **Fase:** Spotnet, Newznab, SABnzbd en optionele TheTVDB-verrijking (nog geen complete Spotweb-vervanger)
 
 ## Documentatie
 - [Projectrichtlijnen](./docs/project-guidelines.md)
@@ -84,6 +84,20 @@ Een enkele klik op een overzichtsregel opent de slide-in-preview; dubbelklikken 
 - Onder **Op te halen inhoud** kan de admin Usenet-reacties indexeren, reacties weergeven/lokaal plaatsen en afbeeldingen ophalen/tonen afzonderlijk instellen. Alles staat standaard aan, zodat bestaande werking behouden blijft. Uitgeschakelde reactiegroepen worden niet benaderd en hun cursor blijft staan; bestaande inhoud wordt niet verwijderd.
 - Reacties weergeven kan aanblijven terwijl ophalen uit staat: de detailpagina toont dan eerder opgeslagen/lokale reacties met uitleg. Afbeeldingen worden alleen op aanvraag geladen en gecachet; uit blokkeert ook gecachte afbeeldingen en verwijdert alle afbeeldingsverwijzingen uit overzicht/preview/detail. Retentie en de incrementele artikellimiet blijven onder Usenet instellingen.
 
+## TheTVDB: films, series en afleveringen
+1. Draai `php bin/console db migrate` voor migratie `20261018_0013_tvdb` en herlaad de nieuwe `/assets/metadata.js` en stylesheet zonder oude browsercache.
+2. Open als admin `/admin#metadata`. Sla je **TheTVDB API V4-key**, eventueel vereiste abonnee-PIN en taal op, schakel toegang in en test de opgeslagen toegang. Nederlands gebruikt Engels als fallback. Controleer of je TVDB-licentie deze installatie toestaat; deel keys niet in chat, logs of screenshots.
+3. Schakel onder `/preferences#metadata` **TVDB-metadata voor mij ophalen en tonen** in. Ook admins doen dit zelf. Globaal en persoonlijk staan standaard uit; persoonlijke toestemming omzeilt geen globale blokkade.
+4. Open de **volledige detailpagina** van een film of serie. Metadata wordt asynchroon geladen: de oorspronkelijke spot blijft direct bruikbaar. Overzicht, preview en retrieval doen geen TVDB-opvragingen.
+
+De Plex-geinspireerde hero toont beschikbare poster, echte fanart zonder blur, synopsis, releasedatum, speelduur en genres. Een herkende losse aflevering krijgt het juiste seizoen/nummer, afleveringtitel, synopsis en still; pakketten blijven op serieniveau. Beschikbare cast/crew, studio en netwerk verschijnen eronder. Originele releasetitel, omschrijving, technische informatie, reacties en NZB/SABnzbd-acties blijven behouden; de lightbox werkt ook op TVDB-beelden.
+
+Automatisch koppelen vereist een unieke exact genormaliseerde titel/alias; films vereisen ook hetzelfde jaar. Remakes en twijfelgevallen krijgen geen gok. Alleen admins kunnen via **TVDB-match kiezen / wijzigen** zoeken, een gedeelde film/serie/aflevering kiezen, automatisch matchen herstellen of metadata voor de spot blokkeren. Niet elke releasenaam is automatisch herkenbaar; dagelijkse/absolute afleveringscodes worden niet herkend.
+
+Databasecache: metadata/providerrecords zeven dagen, zoekresultaten en ontbrekende/ambigue matches een dag, fouten vijf minuten. **Metadata opnieuw controleren** respecteert deze termijnen, geen geforceerde cachebypass. Een installatiebreed budget begrenst uitgaande aanvragen tot 90/minuut; fouten blijven zichtbaar met de oorspronkelijke spot als fallback. `db cleanup` verwijdert verlopen providercache. Afbeeldingen uitgeschakeld blokkeert ook TVDB-fanart/posters/castfoto's. Met toestemming wordt de titel met TVDB gedeeld; de browser laadt afbeeldingen rechtstreeks van toegestane TVDB-hosts. Keys, PIN en token staan herstelbaar in de database, nooit in HTML of auditdetails; bescherm backups.
+
+Cast-/bedrijfs- en externe IDs worden voorbereid voor latere ontdekfuncties; **klikbare cast/netwerkfilters en Newznab IMDb/TVDB-ID-zoeken zijn nog niet toegevoegd**. Er worden geen Plex-playbackknoppen, reviews of fictieve beoordelingen getoond; TVDB-populariteit is geen rating. Zie [productieacceptatie](./docs/linux-server-testing.md#thetvdb-metadata-posters-en-fanart) voor controles met je eigen key.
+
 ## Newznab en NZB downloaden
 1. Draai `php bin/console db migrate`. Migratie `20261018_0011_newznab_nzb` voegt cache, categorie-index en persoonlijke API-keys toe en classificeert bestaande spots zonder opnieuw ophalen.
 2. Stel `APP_URL=https://nnspotty.hopseflop.nl` in: een publieke HTTP(S)-origin, zonder subpad, query of fragment. Gebruik in productie HTTPS.
@@ -127,7 +141,7 @@ Oude headerdata en synthetische releases blijven bewaard, maar worden niet meer 
 - Erotica staat standaard globaal **uit**. De admin kan dit toestaan onder **Inhoud en zichtbaarheid**. Daarna kan iedere gebruiker onder **Voorkeuren** zelf opt-innen; standaard blijft erotica verborgen. Globaal uit blokkeert ook admins, zelfs met een opgeslagen persoonlijke opt-in.
 - Deze controle geldt voor lijsten, aantallen, facetten, zoeken, previews, directe detail-/afbeeldingslinks en reacties. Indexing en opgeslagen inhoud worden niet verwijderd. Herkenning gebruikt Spotnet-codes, inclusief oudere adult-genres; dit is geen inhoudsanalyse of vervanging voor moderatie.
 - Voer bij deze upgrade `php bin/console db migrate` uit terwijl retrieval en webverkeer zijn gepauzeerd. De bestaande spots worden automatisch in batches opnieuw ingedeeld op basis van hun opgeslagen subcategoriecodes; opnieuw ophalen is niet nodig. Bij een onderbroken backfill kan hetzelfde commando opnieuw worden uitgevoerd.
-- De screenshots vormen de basis voor een responsive sidebar, compacte spotlijst met covers, geselecteerde preview en detailhero. `default` en `plex-dark` gebruiken de donkere layout; `plex-light` geeft een lichte variant. Niet-geimplementeerde ratings, downloadknoppen en verificatiestatussen worden niet nagebootst.
+- De screenshots vormen de basis voor een responsive sidebar, compacte spotlijst met covers, geselecteerde preview en detailhero. `default` en `plex-dark` gebruiken de donkere layout; `plex-light` geeft een lichte variant. Niet-geimplementeerde ratings, playback en verificatiestatussen worden niet nagebootst.
 - De rechter preview is aanvankelijk gesloten. Klik op een spotregel (of activeer de titellink met het toetsenbord): het paneel schuift rechts in. Sluiten of Escape schuift het weer uit en geeft de focus terug aan de spot. Het paneel scrollt zelfstandig, ook op mobiel; header en zoeken blijven vast.
 - Resultaten laden automatisch bij wanneer je de onderkant nadert, zonder paginanummers. De knop **Meer resultaten laden** blijft beschikbaar, ook om een mislukte aanvraag opnieuw te proberen. **Resultaten per laadbatch** in voorkeuren bepaalt de batchgrootte (10-200). Zonder JavaScript openen titels de volledige spot en is er een vervolglink.
 - Subcategorieen zijn stapelbare **EN-filters**, ook binnen dezelfde dimensie: een spot moet alle geselecteerde codes bevatten. Nogmaals klikken verwijdert die filter; actieve chips zijn afzonderlijk verwijderbaar. Zoektekst en filters blijven behouden bij bijladen; wisselen van hoofdcategorie begint met een lege subcategoriekeuze.
@@ -142,5 +156,5 @@ Oude headerdata en synthetische releases blijven bewaard, maar worden niet meer 
 ## Tests en beperkingen
 - `composer test` of `php tests/run.php`: protocol- en renderercontroles zonder database of echte Usenet-provider.
 - Voor integratietests met een aparte MariaDB-testserver: zie [Linux server testen](./docs/linux-server-testing.md).
-- Nog niet aanwezig: spotterhandtekeningverificatie, volledige ondersteuning voor alle exotische Spotnet-tags, NZBGet-forwarding, synchronisatie van afgeronde SABnzbd-jobs en externe metadata/ID-zoekintegratie. Praktijkacceptatie met jouw SABnzbd/Prowlarr/Sonarr en provider blijft nodig. Geimporteerde inhoud blijft onbevestigd; omschrijvingen en Usenet-reacties gebruiken een strikte opmaak-allowlist.
+- Nog niet aanwezig: spotterhandtekeningverificatie, volledige ondersteuning voor alle exotische Spotnet-tags, NZBGet-forwarding, synchronisatie van afgeronde SABnzbd-jobs, klikbare cast-/bedrijfsfilters en Newznab-ID-zoeken. Praktijkacceptatie met jouw TVDB-key, SABnzbd/Prowlarr/Sonarr en provider blijft nodig. Geimporteerde inhoud blijft onbevestigd; omschrijvingen en Usenet-reacties gebruiken een strikte opmaak-allowlist.
 - Een succesvolle lokale fixturetest bewijst protocolverwerking, niet beschikbaarheid van groepen of artikelen bij jouw Usenet-provider.
