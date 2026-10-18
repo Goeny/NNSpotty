@@ -117,6 +117,27 @@ Controleer met twee accounts:
 
 De integratiesuite hierboven test daarnaast de volledige globale/persoonlijke zichtbaarheidsmatrix via echte HTTP-routes, gebruikersisolatie, CSRF, legacy adult-codes, gecachte afbeeldingen en migratie/backfill. Gebruik daarvoor nooit je productiedatabase.
 
+## Header, scrollen, coverframes en veilige HTML-opmaak
+Vanuit de bestaande deploymap op `nnspotty.hopseflop.nl`:
+
+```bash
+git pull --ff-only
+composer install --no-dev --optimize-autoloader
+composer check-platform-reqs
+php -r 'exit(extension_loaded("dom") ? 0 : 1);'
+php tests/run.php
+curl -fsS -D - https://nnspotty.hopseflop.nl/assets/spotty.css -o /dev/null
+```
+
+Deze UI-update heeft geen nieuwe migratie en vereist geen nieuwe retrieval. De PHP-extensie `dom` is nodig; ontbreekt deze, installeer het XML-pakket voor jouw PHP-versie (bijvoorbeeld `sudo apt install php8.4-xml` bij PHP 8.4 op Debian/Ubuntu) en herstart de bijbehorende PHP-FPM-service.
+
+Controleer na herladen zonder oude CSS-cache:
+- Scroll op desktop boven de tabel en daarna boven het rechter detailpaneel. Alleen het aangewezen paneel moet bewegen; de laatste technische details/waarschuwing moeten bereikbaar zijn. Header en zoekfunctie blijven zichtbaar.
+- Klik Beeld/Geluid/Spellen/Applicaties: alleen de bijbehorende volledige subcategorieen staan links. Een lege subcategorie mag nul resultaten geven. Test ook de persoonlijke/globale erotica-blokkade.
+- Open detailpagina's met een grote staande, grote liggende, kleine en ontbrekende cover. Het frame moet gelijk blijven, met proportionele voorgrond en vervaagde vulling/hero-achtergrond. Een mislukte afbeelding moet een waarschuwing tonen.
+- Vergelijk een omschrijving met HTML-alineas, vet/cursief, lijsten en links tussen preview en detail. HTML-tags mogen geen broncode meer zijn. Eventhandlers, scripts, remote CSS en embeds mogen niet werken; bestaande platte tekst en reacties moeten leesbaar blijven.
+- Herhaal de layoutcontrole bij een mobiele viewport en met Plex Light; de volledige preview moet onder de lijst bereikbaar zijn zonder horizontale pagina-overflow.
+
 De testgebruiker moet databases met de naam `nnspotty_test_*` kunnen aanmaken/verwijderen. `proc_open` en lokale loopback-sockets moeten beschikbaar zijn voor de synthetische NNTP- en HTTP-servers. Op Windows is een niet-leeg testdatabasewachtwoord vereist om te voorkomen dat lege environmentvariabelen wegvallen. De tests controleren echte php-nntp commando's, XML, reactiekoppeling, binaire afbeeldingen, databaseopslag, limieten, cursors, transportfouten en de HTTP-routes voor login, browsing, afbeeldingen, admin, preferences en reacties.
 
 ## Web checks via subdomein

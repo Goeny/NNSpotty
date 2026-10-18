@@ -388,7 +388,8 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
         selectedSubcategory: $subcategory,
         search: $search,
         preview: $preview,
-        theme: $preferences['theme']
+        theme: $preferences['theme'],
+        showErotica: $showErotica
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
@@ -422,7 +423,8 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
         statusMessage: $request->query('status'),
         csrfField: $csrf->field(),
         categories: $spots->listCategoriesWithCounts($state->canViewErotica($currentUser['username'])),
-        theme: $state->getPreferences($currentUser['username'])['theme']
+        theme: $state->getPreferences($currentUser['username'])['theme'],
+        showErotica: $state->canViewErotica($currentUser['username'])
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);

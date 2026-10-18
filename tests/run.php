@@ -8,6 +8,9 @@ require __DIR__ . '/Fixtures.php';
 
 use NnSpotty\UI\SpotDetailPageRenderer;
 use NnSpotty\UI\SpotsPageRenderer;
+use NnSpotty\UI\SpotDescription;
+use NnSpotty\UI\SpotLayout;
+use NnSpotty\UI\SpotPresentation;
 use NnSpotty\Usenet\SpotnetOverviewCommand;
 use NnSpotty\Usenet\SpotnetParser;
 use NnSpotty\Usenet\SpotCategories;
@@ -171,6 +174,53 @@ try {
     check(str_contains($light, 'data-bs-theme="light"') && str_contains($light, 'x264') && str_contains($light, 'Volledige spot en reacties'), 'Licht thema, leesbare subcategorie en echte preview');
     check(str_contains($light, 'subcategory=0%3Aa9') && str_contains($light, 'q=film+%26+serie')
         && str_contains($light, 'page=3'), 'Paginering behoudt categorie, facet en zoektekst');
+    preg_match('~<nav class="category-pills"[^>]*>(.*?)</nav>~s', $light, $mainMenu);
+    check(isset($mainMenu[1]) && substr_count($mainMenu[1], '<a ') === 5
+        && str_contains($mainMenu[1], '>Beeld</a>') && str_contains($mainMenu[1], '>Geluid</a>')
+        && !str_contains($mainMenu[1], 'Series') && !str_contains($mainMenu[1], 'x264'), 'Header toont uitsluitend Alle en de vier hoofdcategorieen');
+    check(str_contains($light, 'aria-label="Subcategorieen"') && str_contains($light, '>WEBRip</a>')
+        && str_contains($light, '>Sciencefiction</a>') && str_contains($light, 'aria-current="page"'), 'Sidebar bevat alle subcategorieen, ook zonder spots, en markeert de actieve keuze');
+    check(!str_contains($light, '>Erotica</a>') && !str_contains($light, 'subcategory=0%3Ad75'), 'Verborgen adult-subcategorieen verschijnen niet in de sidebar');
+    $sound = SpotLayout::render('Test', 'tester', false, '', '', selected: 'Geluid');
+    check(str_contains($sound, '>FLAC</a>') && str_contains($sound, '>Lossless</a>')
+        && !str_contains($sound, '>WEBRip</a>'), 'Hoofdcategorie wisselen vervangt de subcategorieen');
+    $adultMenu = SpotLayout::render('Test', 'tester', false, '', '', selected: 'Beeld', showErotica: true);
+    check(str_contains($adultMenu, '>Erotica</a>') && str_contains($adultMenu, 'subcategory=0%3Ad75'), 'Adult-subcategorieen alleen bij effectieve opt-in');
+    check(str_contains($overview, 'class="card spot-list"') && str_contains($overview, 'aria-label="Geselecteerde spot" tabindex="0"'), 'Lijst en preview hebben aparte, toetsenbordbereikbare scrollgebieden');
+    $poster = SpotPresentation::image($spot, false);
+    check(str_contains($poster, 'class="spot-poster mb-0"') && str_contains($poster, 'class="poster-backdrop"')
+        && str_contains($poster, 'class="spot-poster-image"') && str_contains($html, 'class="hero-backdrop"'), 'Vast posterframe en hero gebruiken eigen decoratieve blurred image-laag');
+    $noImage = $spot;
+    $noImage['image_segments'] = [];
+    $noImage['image_url'] = '';
+    check(SpotPresentation::backdrop($noImage, 'hero-backdrop') === '' && str_contains(SpotPresentation::image($noImage, false), 'Geen afbeelding'), 'Zonder cover blijft er een expliciete placeholder zonder kapotte achtergrond');
+    check(SpotDescription::render('Eerste regel' . "\n" . 'Tweede & laatste') === "Eerste regel<br />\nTweede &amp; laatste", 'Platte omschrijving behoudt regels en tekst');
+    check(SpotDescription::render('<p>Een <strong>opgemaakte</strong> tekst.</p><ul><li>Item</li></ul>') === '<p>Een <strong>opgemaakte</strong> tekst.</p><ul><li>Item</li></ul>', 'HTML-alineas, nadruk en lijsten worden als opmaak gerenderd');
+    check(SpotDescription::render('<div style="position:fixed" class="topbar" id="content" onclick="evil()">Veilig <b onmouseover="evil()">vet</b></div>') === '<div>Veilig <b>vet</b></div>', 'Remote attributen, CSS en eventhandlers worden niet overgenomen');
+    foreach ([
+        '<script>alert(1)</script><p>Veilig</p>',
+        '<style>body{display:none}</style><p>Veilig</p>',
+        '<iframe src="https://example.invalid"></iframe><p>Veilig</p>',
+        '<svg><a href="javascript:evil()">verborgen</a></svg><p>Veilig</p>',
+        '<math><mtext>verborgen</mtext></math><p>Veilig</p>',
+        '<form><button>verborgen</button></form><p>Veilig</p>',
+        '<img src="https://example.invalid/tracker" onerror="evil()"><p>Veilig</p>',
+        '<!-- onzichtbaar --><p>Veilig</p>',
+    ] as $unsafeDescription) {
+        check(SpotDescription::render($unsafeDescription) === '<p>Veilig</p>', 'Onveilige of actieve inhoud uit omschrijving verwijderd: ' . substr($unsafeDescription, 0, 30));
+    }
+    foreach (['javascript:alert(1)', 'jav&#x61;script:alert(1)', 'data:text/html,test', '//example.invalid', "https://example.invalid/&#10;test"] as $url) {
+        check(SpotDescription::render('<a href="' . $url . '">Leesbaar</a>') === 'Leesbaar', 'Onveilige omschrijvingslink niet klikbaar: ' . $url);
+    }
+    $safeLink = SpotDescription::render('<a href="https://example.invalid/?a=1&amp;b=2" target="_self" onclick="evil()">Website</a>');
+    check(str_contains($safeLink, 'href="https://example.invalid/?a=1&amp;b=2"') && str_contains($safeLink, 'rel="noopener noreferrer nofollow"')
+        && !str_contains($safeLink, 'onclick'), 'Veilige weblink behoudt query met vaste veilige linkattributen');
+    check(SpotDescription::render('<p>Caf&eacute; &#x1F3AC; &lt;script&gt;</p>') === '<p>Caf' . "\xc3\xa9" . ' ' . "\xf0\x9f\x8e\xac" . ' &lt;script&gt;</p>', 'Unicode en reeds geescapete tags blijven tekst');
+    $formatted = $spot;
+    $formatted['description'] = '<p>Een <b>veilige omschrijving</b>.</p><script>evil()</script>';
+    check(str_contains(SpotDetailPageRenderer::summary($formatted, true), '<p>Een <b>veilige omschrijving</b>.</p>')
+        && str_contains(SpotDetailPageRenderer::summary($formatted, false), '<p>Een <b>veilige omschrijving</b>.</p>')
+        && !str_contains(SpotDetailPageRenderer::summary($formatted, true), 'evil()'), 'Preview en detail gebruiken dezelfde veilige HTML-opmaak');
 
     if (in_array('--integration', $argv, true)) {
         require __DIR__ . '/integration.php';

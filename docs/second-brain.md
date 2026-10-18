@@ -116,6 +116,15 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
 32. **Screenshotgestuurde presentatie zonder fictieve functies**
     Gedeelde donkere sidebar/topbar, compacte lijst, geselecteerde preview en detailhero volgen de aangeleverde screenshots. Lichte themapreferences zijn daadwerkelijk aangesloten. Niet-bestaande downloads, ratings, watchlists en geverifieerde spotters worden niet gefingeerd. Desktop gebruikt meerdere panelen; mobiel stapelt de inhoud zonder horizontale pagina-overflow.
 
+33. **Vaste navigatie en onafhankelijke scrollgebieden**
+    De hoofdgroepen Beeld/Geluid/Spellen/Applicaties staan in de vaste header naast Alle; de zoekfunctie blijft ook vast. De geselecteerde hoofdgroep bepaalt alle subcategorieen links, inclusief lege keuzes maar zonder geblokkeerde adult-codes. Brede schermen geven tabel en preview eigen viewportgebonden scrollgebieden; op smalle schermen staat de volledige preview onder de lijst.
+
+34. **Coverframe en tijdelijke fanart**
+    De detailcover krijgt een vast frame van 230 x 345 CSS-pixels, mobiel 105 x 158. Grote covers schalen proportioneel omlaag; kleine covers krijgen vervaagde vulling in plaats van scherpe vergroting. Een aparte uitgerekte, vervaagde kopie van de hoofdcover vormt de hero-achtergrond totdat echte fanart beschikbaar is.
+
+35. **Veilige HTML-opmaak in omschrijvingen**
+    De melding dat alles als tekst wordt weergegeven vervalt voor omschrijvingen: preview en detail delen nu een ext-dom-renderer met een strikte opmaak-allowlist. Remote scripts, CSS, attributen, embeds en omschrijvingsafbeeldingen worden niet uitgevoerd of geladen. Reacties blijven geescapete tekst; BBCode is nog niet ondersteund.
+
 ## Open vragen (voor volgende stap)
 - Welk framework past het best bij verdere uitbreiding? De huidige basis gebruikt PHP 8.2+ en PDO/MySQL/MariaDB.
 - Welke metadata-provider krijgt prioriteit: IMDB, TVDB of beide vanaf start?

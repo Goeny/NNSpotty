@@ -12,6 +12,10 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 - Regressies voor alle categorielabels, legacy adult-codes, migratie/backfill, gebruikersisolatie en HTTP-zichtbaarheid inclusief gecachte afbeeldingen en beide reactieformulieren.
 
 ### Fixed
+- Header en zoeken blijven vast in beeld; op brede schermen zijn lijst en volledig rechter detailpaneel afzonderlijk scrollbaar, ook met toetsenbordfocus.
+- Alleen hoofdcategorieen staan bovenin; alle bijbehorende subcategorieen verschijnen links, ook zonder resultaten, met behoud van de erotica-instellingen.
+- Detailcovers krijgen een vast, proportioneel geschaald frame met vervaagde vulling voor te kleine of afwijkende beelden. De hero toont een uitgerekte, vervaagde versie van dezelfde hoofdafbeelding.
+- HTML-omschrijvingen worden in preview en detail veilig opgemaakt in plaats van als HTML-brontekst getoond; DOM-gebaseerde allowlist en expliciete ext-dom-platformvereiste toegevoegd. Reacties blijven tekst.
 - Overviews met ontbrekende optionele staartvelden breken de retrieval niet meer af; werkelijk onbruikbare regels worden per regel gemeld met range, positie en veldaantallen.
 - `--days` begint bij de hoogste artikelnummers, zodat recente spots doorgaans eerder zichtbaar worden, zonder oudere ranges ongecontroleerd over te slaan.
 - Verbose batchlogging toont het UTC-datumbereik en afzonderlijke aantallen voor oude, bestaande, niet-Spotnet, ongeldige, verdwenen en opgeslagen berichten.

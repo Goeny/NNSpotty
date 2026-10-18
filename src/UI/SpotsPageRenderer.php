@@ -27,33 +27,15 @@ final class SpotsPageRenderer
         ?string $selectedSubcategory = null,
         string $search = '',
         ?array $preview = null,
-        string $theme = 'default'
+        string $theme = 'default',
+        bool $showErotica = false
     ): string {
         $query = array_filter(['category' => $selectedCategory, 'subcategory' => $selectedSubcategory, 'q' => $search], static fn ($value): bool => $value !== null && $value !== '');
         $link = static fn (array $changes): string => h('/spots?' . http_build_query(array_merge($query, $changes)));
         $heading = h($selectedCategory ?? 'Alle spots');
-        $pills = '<a class="' . ($selectedCategory === null ? 'active' : '') . '" href="/spots">Alle</a>';
-        foreach ($categories as $entry) {
-            $pills .= '<a class="' . ($selectedCategory === $entry['category'] ? 'active' : '') . '" href="'
-                . h('/spots?' . http_build_query(['category' => $entry['category'], 'q' => $search])) . '">' . h($entry['category']) . '</a>';
-        }
-        $options = '<option value="">Alle subcategorieen</option>';
-        $groups = [];
-        foreach ($facets as $facet) {
-            $code = (string) $facet['code'];
-            $label = SpotCategories::label($code);
-            if ($label === $code) {
-                continue;
-            }
-            $head = (int) $code[0];
-            $group = SpotCategories::HEADS[$head] . ' / ' . (SpotCategories::dimensions($head)[$code[2]] ?? 'Overig');
-            $selected = $code === $selectedSubcategory ? ' selected' : '';
-            $groups[$group][] = '<option value="' . h($code) . '"' . $selected . '>' . h($label) . ' (' . (int) $facet['total'] . ')</option>';
-        }
-        foreach ($groups as $group => $items) {
-            $options .= '<optgroup label="' . h($group) . '">' . implode('', $items) . '</optgroup>';
-        }
         $categoryInput = $selectedCategory !== null ? '<input type="hidden" name="category" value="' . h($selectedCategory) . '">' : '';
+        $subcategoryInput = $selectedSubcategory !== null ? '<input type="hidden" name="subcategory" value="' . h($selectedSubcategory) . '">' : '';
+        $activeFilter = $selectedSubcategory !== null ? '<span class="small text-body-secondary">Filter: ' . h(SpotCategories::label($selectedSubcategory)) . '</span>' : '';
         $safeSearch = h($search);
         $rows = '';
         foreach ($spots as $spot) {
@@ -85,18 +67,17 @@ final class SpotsPageRenderer
 <div class="page-heading">
   <div><h1 class="h2 mb-1">{$heading}</h1><span class="text-body-secondary">{$totalItems} individuele spots</span></div>
 </div>
-<nav class="category-pills" aria-label="Spotcategorieen">{$pills}</nav>
 <form class="filter-bar" method="get" action="/spots">
   {$categoryInput}
-  <label for="subcategory" class="visually-hidden">Subcategorie</label>
-  <select id="subcategory" name="subcategory" class="form-select form-select-sm">{$options}</select>
+  {$subcategoryInput}
+  {$activeFilter}
   <label for="filter-search" class="visually-hidden">Zoek in titels</label>
   <input id="filter-search" class="form-control form-control-sm" name="q" value="{$safeSearch}" type="search" maxlength="200" placeholder="Zoek in titels">
   <button class="btn btn-primary btn-sm" type="submit">Filteren</button>
   <a class="btn btn-outline-secondary btn-sm" href="/spots">Wis filters</a>
 </form>
 <div class="browse-grid">
-  <section class="card" aria-label="Spotlijst">
+  <section class="card spot-list" aria-label="Spotlijst">
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0 spot-table">
         <thead><tr><th><span class="visually-hidden">Cover</span></th><th>Titel</th><th>Formaat</th><th>Genre</th><th>Spotter</th><th>Geplaatst (UTC)</th><th>Grootte</th><th></th></tr></thead>
@@ -111,9 +92,10 @@ final class SpotsPageRenderer
       </nav>
     </div>
   </section>
-  <aside class="preview" id="preview" aria-label="Geselecteerde spot">{$previewHtml}</aside>
+  <aside class="preview" id="preview" aria-label="Geselecteerde spot" tabindex="0">{$previewHtml}</aside>
 </div>
 HTML;
-        return SpotLayout::render('Spots', $username, $isAdmin, $csrfField, $content, $categories, $selectedCategory, $theme);
+        return SpotLayout::render('Spots', $username, $isAdmin, $csrfField, $content, $categories, $selectedCategory, $theme,
+            $facets, $selectedSubcategory, $search, $showErotica, browse: true);
     }
 }

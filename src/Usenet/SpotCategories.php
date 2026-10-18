@@ -119,6 +119,16 @@ final class SpotCategories
         return $filter;
     }
 
+    public static function headForCategory(?string $category): ?int
+    {
+        foreach (self::HEADS as $head => $label) {
+            if ($label === $category || in_array($category, self::definitions()[$head]['z'] ?? [], true)) {
+                return $head;
+            }
+        }
+        return null;
+    }
+
     /** @param array<string, mixed> $spot
      *  @return array<string, list<string>>
      */

@@ -38,6 +38,15 @@ De globale boolean staat in `app_settings` onder `admin.content_settings`; de pe
 
 Overzicht, detail, admin en voorkeuren gebruiken `SpotLayout`; `SpotDetailPageRenderer::summary` wordt gedeeld met het previewpaneel. De locale stylesheet ondersteunt donker/licht en mobiele layouts. De root-Apache rewrite publiceert dezelfde assets als een `public/` documentroot.
 
+### Navigatie, scrollgebieden en presentatie
+De vaste header bevat Alle plus uitsluitend de vier protocol-hoofdcategorieen en de zoekfunctie. De linker sidebar toont na selectie alle dimensies en subcategorieen van die hoofdgroep, inclusief lege keuzes; adult-codes zijn alleen beschikbaar bij effectieve opt-in. Bestaande links naar afgeleide typen blijven werken en activeren de juiste hoofdgroep. Subcategorielinks behouden de zoektekst en starten weer op de eerste pagina.
+
+Op schermen vanaf 1200 CSS-pixels krijgt het overzicht een viewportgebonden flex/grid-shell met drie onafhankelijke scrollgebieden: linker sidebar, tabel en rechter preview. De preview is met het toetsenbord focusbaar. Smalle schermen stapelen de preview onder de lijst en gebruiken een scrollbare inhoud of gewone pagina, zonder een te hoog sticky element buiten bereik te plaatsen. De header blijft in alle varianten vast.
+
+`SpotPresentation` deelt dezelfde bron tussen cover, vervaagde poster-vulling en hero-achtergrond. Het detailframe is 230 x 345 CSS-pixels op desktop, 105 x 158 op mobiel; previewframes zijn 110 x 165. De voorgrond behoudt verhouding en vergroot kleine beelden niet; de decoratieve laag vult de resterende ruimte. De hero-achtergrond wordt afzonderlijk uitgerekt en vervaagd, met een thema-afhankelijke contrastoverlay. Zonder afbeelding blijft een vaste placeholder; laadfouten tonen expliciete feedback.
+
+`SpotDescription` gebruikt ext-dom om onbetrouwbare HTML te parsen en bouwt uitsluitend toegestane opmaaktags opnieuw op. Alle remote attributen verdwijnen, behalve gevalideerde HTTP(S)-links met vaste veilige linkattributen. Actieve subtrees, stylesheets, embeds en remote afbeeldingen in omschrijvingen worden niet gerenderd. Tekst wordt opnieuw geescapet; gewone regeleinden blijven behouden. Preview en detail delen exact deze renderer, reacties blijven tekst. Dit is geen algemene HTML-/BBCode-browser.
+
 ## Retrievalsemantiek
 - `--since-last`: vanaf de laatst voltooide batch, met de ingestelde artikellimiet per groep. Bij de eerste run begint dit bij het oudste beschikbare artikel. Cursors worden pas na een succesvolle batch opgeslagen.
 - `--days=N`: vanaf de hoogste artikelnummers terug scannen en alleen inhoud binnen het tijdvenster ophalen. Dit levert doorgaans eerder zichtbare recente spots op. Een artikelnummer is geen betrouwbare datum: alle ranges blijven gescand worden, ook na oude of lege batches. De artikellimiet mag geen recente spots verbergen. De incrementele cursor wordt pas na een volledig geslaagde groepsscan naar het groepseinde verplaatst; een afgebroken omgekeerde scan mag oudere ongelezen ranges niet overslaan.
@@ -51,7 +60,7 @@ Overzicht, detail, admin en voorkeuren gebruiken `SpotLayout`; `SpotDetailPageRe
 - `/spots/view?key=...`: afbeelding, metadata, omschrijving, reacties en een CSRF-beveiligd formulier voor lokale reacties.
 - `/spots/image?key=...`: alleen voor ingelogde gebruikers met zichtbaarheidstoegang; rasterafbeeldingen met `nosniff` en databasecache. Lijst, detail en afbeeldingen gebruiken `private, no-store`, zodat ingetrokken zichtbaarheid niet via een normale browsercache wordt omzeild.
 - Usenet XML wordt zonder DTD/entiteiten verwerkt. Segment-IDs worden gevalideerd voor NNTP-gebruik.
-- Omschrijvingen/reacties worden als tekst geescapet, niet als onbetrouwbare HTML uitgevoerd.
+- Omschrijvingen worden via een DOM-gebaseerde opmaak-allowlist opgebouwd; reacties worden als tekst geescapet. Onbetrouwbare HTML of attributen worden nooit rechtstreeks uitgevoerd.
 - Spotterhandtekeningen worden nog niet geverifieerd. De UI vermeldt daarom expliciet dat identiteit/inhoud onbevestigd is. Dit is geen complete Spotweb trust-/moderatie-implementatie.
 - Oudere externe afbeelding-URLs worden door de browser geladen en kunnen ontbreken; de server gebruikt ze niet als fetch-URL.
 

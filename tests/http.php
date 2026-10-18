@@ -89,6 +89,21 @@ try {
     check($loginResult['status'] === 302, 'Sessie-login via echte HTTP-route');
     $list = httpFixture($httpPort, '/spots', $cookie);
     check($list['status'] === 200 && substr_count($list['body'], '>Details</a>') === 3, 'HTTP-overzicht bevat de drie individuele spots');
+    $headList = httpFixture($httpPort, '/spots?category=Beeld', $cookie);
+    check($headList['status'] === 200 && str_contains($headList['body'], '>WEBRip</a>')
+        && str_contains($headList['body'], '>Sciencefiction</a>') && !str_contains($headList['body'], '>Erotica</a>'), 'Hoofdcategorie toont volledige sidebar zonder verborgen erotica');
+    $soundList = httpFixture($httpPort, '/spots?category=Geluid', $cookie);
+    check($soundList['status'] === 200 && str_contains($soundList['body'], '>FLAC</a>')
+        && !str_contains($soundList['body'], '>WEBRip</a>'), 'Hoofdcategorielink wisselt de bijbehorende sidebar via echte HTTP-route');
+    $oldDescription = $spots->getSpot($spotId)['description'];
+    $descriptionUpdate = $pdo->prepare('UPDATE spotnet_spots SET description = :description WHERE id = :id');
+    $descriptionUpdate->execute(['description' => '<p>Route <strong>opmaak</strong></p><script>unsafeFixture()</script>', 'id' => $spotId]);
+    $formattedPreview = httpFixture($httpPort, '/spots?category=Beeld&spot=' . $spotId, $cookie);
+    $formattedDetail = httpFixture($httpPort, '/spots/view?key=' . $spotId, $cookie);
+    check(str_contains($formattedPreview['body'], '<p>Route <strong>opmaak</strong></p>')
+        && str_contains($formattedDetail['body'], '<p>Route <strong>opmaak</strong></p>')
+        && !str_contains($formattedPreview['body'], 'unsafeFixture') && !str_contains($formattedDetail['body'], 'unsafeFixture'), 'Preview en detail renderen dezelfde opgeschoonde HTML via echte HTTP-routes');
+    $descriptionUpdate->execute(['description' => $oldDescription, 'id' => $spotId]);
     $stylesheet = httpFixture($httpPort, '/assets/spotty.css', $cookie);
     check($stylesheet['status'] === 200 && str_contains($stylesheet['body'], '.browse-grid')
         && count(array_filter($stylesheet['headers'], static fn (string $header): bool => stripos($header, 'Content-Type: text/css') === 0)) === 1, 'Lokale stylesheet wordt met CSS MIME-type geserveerd');
