@@ -107,6 +107,15 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
 29. **Afronden omvat committen en pushen**
     Zodra taakgerelateerde aanpassingen gereed en gevalideerd zijn, worden ze zonder apart verzoek gecommit en naar de huidige Git-branch gepusht. Ongerelateerde wijzigingen en secrets blijven buiten de commit; force-push is niet toegestaan en fouten worden expliciet gemeld.
 
+30. **Volledige Spotnet-taxonomie zonder legacy engine**
+    De vier hoofdgroepen krijgen alle protocol-dimensies, leesbare labels en afgeleide inhoudstypen. Bestaande ruwe codes blijven behouden. SQL-facetten en classificatie worden bij nieuwe spots atomair bijgewerkt; bestaande spots worden automatisch in batches gemigreerd, zonder hernieuwde retrieval. Een aparte backfillmigratie maakt hervatten na een onderbreking mogelijk.
+
+31. **Globale blokkade plus persoonlijke opt-in voor erotica**
+    Door de gebruiker gekozen: globaal uit blokkeert iedereen, ook admins; globaal aan geeft individuele keuze, standaard verborgen. Beide defaults zijn uit. Dezelfde controle geldt voor lijsten, aantallen, zoeken/facetten, preview, detail, gecachte afbeeldingen en beide reactieroutes. Opgeslagen inhoud en persoonlijke opt-in blijven bij een globale blokkade behouden. Classificatie is gebaseerd op metadata, inclusief legacy adult-genres, niet op inhoudsanalyse.
+
+32. **Screenshotgestuurde presentatie zonder fictieve functies**
+    Gedeelde donkere sidebar/topbar, compacte lijst, geselecteerde preview en detailhero volgen de aangeleverde screenshots. Lichte themapreferences zijn daadwerkelijk aangesloten. Niet-bestaande downloads, ratings, watchlists en geverifieerde spotters worden niet gefingeerd. Desktop gebruikt meerdere panelen; mobiel stapelt de inhoud zonder horizontale pagina-overflow.
+
 ## Open vragen (voor volgende stap)
 - Welk framework past het best bij verdere uitbreiding? De huidige basis gebruikt PHP 8.2+ en PDO/MySQL/MariaDB.
 - Welke metadata-provider krijgt prioriteit: IMDB, TVDB of beide vanaf start?

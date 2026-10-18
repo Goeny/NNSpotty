@@ -4,6 +4,13 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
+### Added
+- Volledige Spotnet-categoriedimensies met leesbare labels, typegroepering, subcategoriefilters en titelzoekfunctie; compatibiliteit met oudere type-, genre- en boektaalcodes.
+- Globale admininstelling voor erotica en persoonlijke opt-in op username. Standaard uit; een globale blokkade geldt ook voor admins en voor details, afbeeldingen, filters, aantallen en reacties.
+- Migraties voor categoriefacetten, classificatie en persoonlijke zichtbaarheid; hervatbare, automatische herindeling van bestaande spots zonder nieuwe retrieval.
+- Donkere responsive sidebar, compacte overzichtstabel met geselecteerde preview en detailhero op basis van de screenshots; werkende lichte themavariant.
+- Regressies voor alle categorielabels, legacy adult-codes, migratie/backfill, gebruikersisolatie en HTTP-zichtbaarheid inclusief gecachte afbeeldingen en beide reactieformulieren.
+
 ### Fixed
 - Overviews met ontbrekende optionele staartvelden breken de retrieval niet meer af; werkelijk onbruikbare regels worden per regel gemeld met range, positie en veldaantallen.
 - `--days` begint bij de hoogste artikelnummers, zodat recente spots doorgaans eerder zichtbaar worden, zonder oudere ranges ongecontroleerd over te slaan.

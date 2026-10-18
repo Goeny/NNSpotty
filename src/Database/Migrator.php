@@ -26,6 +26,9 @@ final class Migrator
                 foreach ($sqlStatements as $sql) {
                     $this->pdo->exec($sql);
                 }
+                if ($name === '20261018_0008_category_backfill') {
+                    (new \NnSpotty\Usenet\SpotRepository($this->pdo))->rebuildCategories();
+                }
                 $insert = $this->pdo->prepare('INSERT INTO migrations (name, executed_at) VALUES (:name, UTC_TIMESTAMP())');
                 $insert->execute(['name' => $name]);
             } catch (\Throwable $throwable) {
@@ -285,6 +288,20 @@ final class Migrator
                  WHERE `key` = \'admin.usenet_settings\' AND JSON_VALID(`value`)
                    AND JSON_UNQUOTE(JSON_EXTRACT(`value`, \'$.explicit_groups\')) = \'spots:free.pt,comments:free.ptd\'',
             ],
+            '20261018_0007_categories_visibility' => [
+                'ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS show_erotica TINYINT(1) NOT NULL DEFAULT 0',
+                'ALTER TABLE spotnet_spots ADD COLUMN IF NOT EXISTS browse_type VARCHAR(32) NOT NULL DEFAULT \'Overig\'',
+                'ALTER TABLE spotnet_spots ADD COLUMN IF NOT EXISTS is_erotica TINYINT(1) NOT NULL DEFAULT 1',
+                'ALTER TABLE spotnet_spots ADD INDEX IF NOT EXISTS idx_spotnet_visibility (is_erotica, browse_type, posted_at)',
+                'CREATE TABLE IF NOT EXISTS spotnet_spot_categories (
+                    spot_id CHAR(64) CHARACTER SET ascii NOT NULL,
+                    code VARCHAR(16) CHARACTER SET ascii NOT NULL,
+                    PRIMARY KEY (spot_id, code),
+                    INDEX idx_spotnet_category_code (code, spot_id),
+                    FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+            ],
+            '20261018_0008_category_backfill' => [],
         ];
     }
 }

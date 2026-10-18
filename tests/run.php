@@ -10,6 +10,7 @@ use NnSpotty\UI\SpotDetailPageRenderer;
 use NnSpotty\UI\SpotsPageRenderer;
 use NnSpotty\Usenet\SpotnetOverviewCommand;
 use NnSpotty\Usenet\SpotnetParser;
+use NnSpotty\Usenet\SpotCategories;
 use Rvdv\Nntp\Response\MultiLineResponse;
 use Rvdv\Nntp\Response\Response;
 
@@ -129,6 +130,33 @@ try {
         Response::createFromString("224 Overview follows\r\n"), ["812\tTitel\tPoster\tBroken: " . gmdate('r') . "\tMessage-ID: <id@example.invalid>"]
     ));
     check(str_contains($badFull[0]['_overview_error'], 'Ongeldig volledig overview-veld date'), 'Foutief gelabeld verplicht overview-veld wordt gemeld');
+    $classified = SpotCategories::classify('Beeld', ['1A009', '1d000', '1z01', '1a9']);
+    check($classified === ['type' => 'Series', 'adult' => false, 'codes' => ['a9', 'd0', 'z1']], 'Categoriecodes genormaliseerd zonder dubbele of verkeerde 1-based omzetting');
+    foreach ([0 => 'Films', 1 => 'Series', 2 => 'Boeken', 3 => 'Erotica', 4 => 'Afbeeldingen'] as $code => $type) {
+        check(SpotCategories::classify('Beeld', ['1z0' . $code])['type'] === $type, 'Beeld type ' . $type);
+    }
+    foreach ([0 => 'Muziek', 1 => 'Livesets', 2 => 'Podcasts', 3 => 'Luisterboeken'] as $code => $type) {
+        $classified = SpotCategories::classify('Geluid', ['2z0' . $code]);
+        check($classified['type'] === $type && !$classified['adult'], 'Geluid type ' . $type . ' is geen erotica');
+    }
+    foreach (array_merge(range(23, 26), range(72, 89)) as $code) {
+        $classified = SpotCategories::classify('Beeld', ['1d' . $code, '1z00']);
+        check($classified['adult'] && $classified['type'] === 'Erotica', 'Adult genre d' . $code . ' overrulet een onjuist expliciet filmtype');
+    }
+    check(SpotCategories::classify('Beeld', ['1a05', '1c02']) === ['type' => 'Boeken', 'adult' => false, 'codes' => ['a5', 'c11', 'z2']], 'Legacy boeken en Nederlandse boektaal');
+    check(SpotCategories::classify('Beeld', ['1b04'])['type'] === 'Series'
+        && SpotCategories::classify('Beeld', ['1a12'])['type'] === 'Afbeeldingen', 'Legacy series en afbeeldingen zonder typecode');
+    check(SpotCategories::classify('Spellen', ['3c23'])['adult'] === false
+        && SpotCategories::classify('Applicaties', ['4b23'])['adult'] === false, 'Eroticacodes zijn hoofdgroepgebonden');
+    check(SpotCategories::classify('Beeld', ['1a999', '1d000000023', '1a99999999999999999999'])['codes'] === ['a999', 'd75', 'z3'],
+        'Onbekende codes blijven leesbaar, padding blijft geldig en numerieke overflow vervuilt de index niet');
+    foreach (SpotCategories::definitions() as $head => $dimensions) {
+        foreach ($dimensions as $dimension => $values) {
+            foreach ($values as $number => $label) {
+                check(SpotCategories::label($head . ':' . $dimension . $number) === $label, 'Label ' . $head . ':' . $dimension . $number);
+            }
+        }
+    }
     $spot['title'] = '<script>titel</script>';
     $comment['body'] = '<img src=x onerror=alert(1)>';
     $comment['source'] = 'Usenet';
@@ -137,6 +165,12 @@ try {
     check(str_contains($html, 'Omschrijving') && str_contains($html, 'Reacties (1)') && !str_contains($html, 'Onderdelen (headers)'), 'Spotdetail toont inhoud en reacties, geen headerdelen');
     $overview = SpotsPageRenderer::render('tester', false, [], [$spot, $other], null, 1, 1, 2, '');
     check(substr_count($overview, '>Details</a>') === 2 && !str_contains($overview, 'Onderdelen'), 'Overzicht behoudt individuele spots');
+    check(str_contains($overview, 'data-bs-theme="dark"') && str_contains($overview, 'class="sidebar"')
+        && str_contains($overview, 'class="browse-grid"'), 'Donker overzicht met sidebar en detailpaneel');
+    $light = SpotsPageRenderer::render('tester', false, [], [$spot], 'Films', 2, 3, 25, '', [['code' => '0:a9', 'total' => 1]], '0:a9', 'film & serie', $spot, 'plex-light');
+    check(str_contains($light, 'data-bs-theme="light"') && str_contains($light, 'x264') && str_contains($light, 'Volledige spot en reacties'), 'Licht thema, leesbare subcategorie en echte preview');
+    check(str_contains($light, 'subcategory=0%3Aa9') && str_contains($light, 'q=film+%26+serie')
+        && str_contains($light, 'page=3'), 'Paginering behoudt categorie, facet en zoektekst');
 
     if (in_array('--integration', $argv, true)) {
         require __DIR__ . '/integration.php';

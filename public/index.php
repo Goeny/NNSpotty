@@ -144,14 +144,40 @@ $router->get('/admin', static function (Request $request) use ($state, $auth, $c
     $html = AdminPageRenderer::render(
         settings: $state->getUsenetSettings(),
         spotterLists: $state->getSpotterLists(),
-        comments: $state->getComments(),
+        comments: $state->getComments($state->canViewErotica($currentUser['username'])),
         auditLogs: $auditLogs->recent(50),
         statusMessage: $request->query('status'),
         currentUsername: $currentUser['username'],
-        csrfField: $csrf->field()
+        csrfField: $csrf->field(),
+        allowErotica: $state->eroticaAllowed(),
+        theme: $state->getPreferences($currentUser['username'])['theme']
     );
 
     return Response::html($html);
+});
+
+$router->post('/admin/content', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
+    if (!$auth->isAdmin()) {
+        return new Response(403, 'Admin login vereist.');
+    }
+    if (!$csrf->verify($request->input('_csrf'))) {
+        return Response::redirect('/admin?status=' . rawurlencode('Ongeldige CSRF token.'));
+    }
+    $value = $request->input('allow_erotica');
+    if ($value !== null && $value !== '1') {
+        return Response::redirect('/admin?status=' . rawurlencode('Ongeldige zichtbaarheidsinstelling.'));
+    }
+    $allowed = $value === '1';
+    $state->setEroticaAllowed($allowed);
+    $auditLogs->log(
+        actorUsername: $auth->user()['username'],
+        action: 'admin.content.updated',
+        targetType: 'settings',
+        targetId: 'content',
+        details: ['allow_erotica' => $allowed],
+        ipAddress: $request->clientIp()
+    );
+    return Response::redirect('/admin?status=' . rawurlencode('Zichtbaarheid opgeslagen.'));
 });
 
 $router->post('/admin/settings', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
@@ -254,7 +280,7 @@ $router->post('/admin/spotters', static function (Request $request) use ($state,
     return Response::redirect('/admin?status=' . rawurlencode('Spotter toegevoegd aan ' . $listType . '.'));
 });
 
-$router->post('/admin/comments', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
+$router->post('/admin/comments', static function (Request $request) use ($state, $auth, $csrf, $auditLogs, $spots): Response {
     if (!$auth->isAuthenticated()) {
         return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
     }
@@ -268,6 +294,9 @@ $router->post('/admin/comments', static function (Request $request) use ($state,
         return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
     }
     $comment = trim((string) ($request->input('comment') ?? ''));
+    if ($spots->getSpot($postId, $state->canViewErotica($currentUser['username'])) === null) {
+        return Response::notFound();
+    }
 
     if ($postId === '' || $comment === '') {
         return Response::redirect('/admin?status=' . rawurlencode('Comment kon niet worden opgeslagen: onvolledige invoer.'));
@@ -304,7 +333,8 @@ $router->get('/preferences', static function (Request $request) use ($state, $au
         preferences: $state->getPreferences($username),
         statusMessage: $request->query('status'),
         isAdmin: $currentUser['is_admin'],
-        csrfField: $csrf->field()
+        csrfField: $csrf->field(),
+        allowErotica: $state->eroticaAllowed()
     );
 
     return Response::html($html);
@@ -325,28 +355,46 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
     $pageRaw = (string) ($request->query('page') ?? '1');
     $page = preg_match('/^\d+$/', $pageRaw) === 1 ? max(1, (int) $pageRaw) : 1;
     $preferences = $state->getPreferences($currentUser['username']);
+    $showErotica = $state->canViewErotica($currentUser['username']);
+    $subcategory = trim((string) ($request->query('subcategory') ?? ''));
+    if ($subcategory !== '' && !preg_match('/^[0-3]:[abcdz]\d{1,3}$/D', $subcategory)) {
+        return new Response(400, 'Ongeldige subcategorie.');
+    }
+    $subcategory = $subcategory !== '' ? $subcategory : null;
+    $search = trim((string) ($request->query('q') ?? ''));
+    if (strlen($search) > 200 || preg_match('//u', $search) !== 1) {
+        return new Response(400, 'Zoektekst moet geldige tekst van maximaal 200 bytes zijn.');
+    }
     $perPage = max(10, min(200, (int) $preferences['items_per_page']));
-    $totalItems = $spots->countSpots($selectedCategory);
+    $totalItems = $spots->countSpots($selectedCategory, $showErotica, $subcategory, $search);
     $totalPages = max(1, (int) ceil($totalItems / $perPage));
     $page = min($page, $totalPages);
     $offset = ($page - 1) * $perPage;
+    $listedSpots = $spots->listSpots($selectedCategory, $perPage, $offset, $showErotica, $subcategory, $search);
+    $previewId = (string) ($request->query('spot') ?? ($listedSpots[0]['id'] ?? ''));
+    $preview = in_array($previewId, array_column($listedSpots, 'id'), true) ? $spots->getSpot($previewId, $showErotica) : null;
 
     $html = SpotsPageRenderer::render(
         username: $currentUser['username'],
         isAdmin: $auth->isAdmin(),
-        categories: $spots->listCategoriesWithCounts(),
-        spots: $spots->listSpots($selectedCategory, $perPage, $offset),
+        categories: $spots->listCategoriesWithCounts($showErotica),
+        spots: $listedSpots,
         selectedCategory: $selectedCategory,
         currentPage: $page,
         totalPages: $totalPages,
         totalItems: $totalItems,
-        csrfField: $csrf->field()
+        csrfField: $csrf->field(),
+        facets: $spots->facets($selectedCategory, $showErotica, $search),
+        selectedSubcategory: $subcategory,
+        search: $search,
+        preview: $preview,
+        theme: $preferences['theme']
     );
 
-    return Response::html($html);
+    return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
 });
 
-$router->get('/spots/view', static function (Request $request) use ($auth, $csrf, $spots): Response {
+$router->get('/spots/view', static function (Request $request) use ($auth, $csrf, $spots, $state): Response {
     if (!$auth->isAuthenticated()) {
         return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
     }
@@ -361,9 +409,9 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
         return Response::redirect('/spots');
     }
 
-    $spot = $spots->getSpot($spotId);
+    $spot = $spots->getSpot($spotId, $state->canViewErotica($currentUser['username']));
     if ($spot === null) {
-        return Response::redirect('/spots');
+        return Response::notFound();
     }
 
     $html = SpotDetailPageRenderer::render(
@@ -372,10 +420,12 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
         spot: $spot,
         comments: $spots->comments($spotId),
         statusMessage: $request->query('status'),
-        csrfField: $csrf->field()
+        csrfField: $csrf->field(),
+        categories: $spots->listCategoriesWithCounts($state->canViewErotica($currentUser['username'])),
+        theme: $state->getPreferences($currentUser['username'])['theme']
     );
 
-    return Response::html($html);
+    return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
 });
 
 $router->get('/spots/image', static function (Request $request) use ($auth, $spots, $state): Response {
@@ -383,7 +433,7 @@ $router->get('/spots/image', static function (Request $request) use ($auth, $spo
         return new Response(401, 'Login vereist.', ['Content-Type' => 'text/plain; charset=utf-8']);
     }
     $id = (string) ($request->query('key') ?? '');
-    $spot = $spots->getSpot($id);
+    $spot = $spots->getSpot($id, $state->canViewErotica($auth->user()['username']));
     if ($spot === null || $spot['image_segments'] === []) {
         return Response::notFound();
     }
@@ -392,7 +442,7 @@ $router->get('/spots/image', static function (Request $request) use ($auth, $spo
         return new Response(200, $image['image_data'], [
             'Content-Type' => $image['mime_type'],
             'X-Content-Type-Options' => 'nosniff',
-            'Cache-Control' => 'private, max-age=86400',
+            'Cache-Control' => 'private, no-store',
         ]);
     } catch (Throwable $exception) {
         error_log('Spot image ' . $id . ': ' . $exception->getMessage());
@@ -405,7 +455,7 @@ $router->post('/spots/comment', static function (Request $request) use ($auth, $
         return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
     }
     $id = (string) ($request->input('spot_id') ?? '');
-    if ($spots->getSpot($id) === null) {
+    if ($spots->getSpot($id, $state->canViewErotica($auth->user()['username'])) === null) {
         return Response::notFound();
     }
     $location = '/spots/view?key=' . rawurlencode($id);
@@ -440,6 +490,13 @@ $router->post('/preferences', static function (Request $request) use ($state, $a
     $username = $currentUser['username'];
     $theme = trim((string) ($request->input('theme') ?? 'default'));
     $itemsPerPage = (int) ($request->input('items_per_page') ?? '0');
+    $eroticaInput = $request->input('show_erotica');
+    if ($eroticaInput !== null && $eroticaInput !== '1') {
+        return Response::redirect('/preferences?status=' . rawurlencode('Ongeldige zichtbaarheidsinstelling.'));
+    }
+    $showErotica = $state->eroticaAllowed()
+        ? $eroticaInput === '1'
+        : $state->getPreferences($username)['show_erotica'];
 
     if (!in_array($theme, ['default', 'plex-dark', 'plex-light'], true) || $itemsPerPage < 10 || $itemsPerPage > 200) {
         return Response::redirect('/preferences?status=' . rawurlencode('Ongeldige preference invoer.'));
@@ -448,6 +505,7 @@ $router->post('/preferences', static function (Request $request) use ($state, $a
     $state->savePreferences($username, [
         'theme' => $theme,
         'items_per_page' => $itemsPerPage,
+        'show_erotica' => $showErotica,
     ]);
     $auditLogs->log(
         actorUsername: $username,
@@ -457,6 +515,7 @@ $router->post('/preferences', static function (Request $request) use ($state, $a
         details: [
             'theme' => $theme,
             'items_per_page' => $itemsPerPage,
+            'show_erotica' => $showErotica,
         ],
         ipAddress: $request->clientIp()
     );

@@ -13,14 +13,25 @@ final class SpotPresentation
             ? '/spots/image?key=' . rawurlencode($spot['id'])
             : $spot['image_url'];
         if ($source === '') {
-            return '<div class="bg-secondary-subtle rounded p-3 text-center text-body-secondary">Geen afbeelding</div>';
+            return '<div class="cover-placeholder' . ($thumbnail ? ' small' : '') . '">Geen afbeelding</div>';
         }
-        $style = $thumbnail ? 'width:64px;height:90px;object-fit:contain' : 'max-height:550px;object-fit:contain';
-        return '<figure class="mb-0"><img class="img-fluid rounded" style="' . $style . '" src="' . h($source)
+        $class = $thumbnail ? 'spot-thumbnail' : 'img-fluid rounded';
+        return '<figure class="mb-0"><img class="' . $class . '" src="' . h($source)
             . '" alt="Afbeelding bij ' . h($spot['title']) . '" loading="lazy" referrerpolicy="no-referrer"'
             . ' onerror="this.hidden=true;this.nextElementSibling.hidden=false">'
-            . '<p class="alert alert-warning small" role="status" hidden>Afbeelding niet beschikbaar.</p>'
-            . ($thumbnail ? '' : '<figcaption class="small text-body-secondary">Afbeeldingen zijn afhankelijk van beschikbaarheid bij de Usenet-provider of externe bron. Bij een laadfout: controleer de serverlog.</figcaption>')
+            . '<p class="alert alert-warning small" role="status" hidden>Afbeelding niet beschikbaar. Controleer de serverlog.</p>'
             . '</figure>';
+    }
+
+    public static function size(int $bytes): string
+    {
+        $value = (float) $bytes;
+        $units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+        $unit = 0;
+        while ($value >= 1024 && $unit < count($units) - 1) {
+            $value /= 1024;
+            $unit++;
+        }
+        return number_format($value, $unit === 0 ? 0 : 2, ',', '.') . ' ' . $units[$unit];
     }
 }

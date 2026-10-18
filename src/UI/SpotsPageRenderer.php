@@ -4,20 +4,14 @@ declare(strict_types=1);
 
 namespace NnSpotty\UI;
 
+use NnSpotty\Usenet\SpotCategories;
+
 final class SpotsPageRenderer
 {
-    /**
-     * @param array<int, array{category: string, total: int}> $categories
-     * @param array<int, array{
-     *   id: string,
-     *   title: string,
-     *   category: string,
-     *   poster: string,
-     *   size: int,
-     *   posted_at: string,
-     *   image_url: string,
-     *   image_segments: list<string>
-     * }> $spots
+    /** @param list<array<string, mixed>> $categories
+     *  @param list<array<string, mixed>> $spots
+     *  @param list<array<string, mixed>> $facets
+     *  @param array<string, mixed>|null $preview
      */
     public static function render(
         string $username,
@@ -28,183 +22,98 @@ final class SpotsPageRenderer
         int $currentPage,
         int $totalPages,
         int $totalItems,
-        string $csrfField
+        string $csrfField,
+        array $facets = [],
+        ?string $selectedSubcategory = null,
+        string $search = '',
+        ?array $preview = null,
+        string $theme = 'default'
     ): string {
-        $safeUsername = h($username);
-        $categoryPills = self::renderCategoryPills($categories, $selectedCategory);
-        $tableRows = self::renderSpotRows($spots);
-        $pagination = self::renderPagination($selectedCategory, $currentPage, $totalPages);
-        $adminLink = $isAdmin ? '<a class="btn btn-outline-primary btn-sm" href="/admin">Admin</a>' : '';
-        $activeCategory = $selectedCategory !== null ? h($selectedCategory) : 'alle categorieën';
-
-        return <<<HTML
-<!doctype html>
-<html lang="nl">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Spots - NNSpotty</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-body-tertiary">
-  <main class="container-fluid py-4 px-3 px-lg-4">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-      <div>
-        <h1 class="h3 mb-1">Spots overzicht</h1>
-        <p class="text-body-secondary mb-0">Ingelogd als {$safeUsername} · Filter: {$activeCategory} · Spots: {$totalItems}</p>
-      </div>
-      <div class="d-flex gap-2">
-        <a class="btn btn-outline-secondary btn-sm" href="/">Home</a>
-        <a class="btn btn-outline-secondary btn-sm" href="/preferences">Preferences</a>
-        {$adminLink}
-        <form method="post" action="/logout" class="d-inline">
-          {$csrfField}
-          <button class="btn btn-outline-danger btn-sm" type="submit">Logout</button>
-        </form>
-      </div>
-    </div>
-
-    <div class="card mb-3">
-      <div class="card-body">
-        <h2 class="h6">Categorieën</h2>
-        <div class="d-flex flex-wrap gap-2">
-          {$categoryPills}
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header fw-semibold">Individuele Spotnet-spots</div>
-      <div class="table-responsive">
-        <table class="table table-striped table-hover mb-0 align-middle">
-          <thead>
-            <tr>
-              <th>Afbeelding</th>
-              <th>Datum</th>
-              <th>Categorie</th>
-              <th>Titel</th>
-              <th>Spotter</th>
-              <th>Size</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {$tableRows}
-          </tbody>
-        </table>
-      </div>
-      <div class="card-footer">{$pagination}</div>
-    </div>
-  </main>
-</body>
-</html>
-HTML;
-    }
-
-    /**
-     * @param array<int, array{category: string, total: int}> $categories
-     */
-    private static function renderCategoryPills(array $categories, ?string $selectedCategory): string
-    {
-        $allActive = $selectedCategory === null ? 'btn-primary' : 'btn-outline-primary';
-        $items = ['<a class="btn ' . $allActive . ' btn-sm" href="/spots">Alles</a>'];
-
+        $query = array_filter(['category' => $selectedCategory, 'subcategory' => $selectedSubcategory, 'q' => $search], static fn ($value): bool => $value !== null && $value !== '');
+        $link = static fn (array $changes): string => h('/spots?' . http_build_query(array_merge($query, $changes)));
+        $heading = h($selectedCategory ?? 'Alle spots');
+        $pills = '<a class="' . ($selectedCategory === null ? 'active' : '') . '" href="/spots">Alle</a>';
         foreach ($categories as $entry) {
-            $category = $entry['category'];
-            $total = $entry['total'];
-            $active = $selectedCategory === $category ? 'btn-primary' : 'btn-outline-primary';
-            $items[] = '<a class="btn ' . $active . ' btn-sm" href="/spots?category=' . rawurlencode($category) . '">' . h($category) . ' <span class="badge text-bg-light ms-1">' . (int) $total . '</span></a>';
+            $pills .= '<a class="' . ($selectedCategory === $entry['category'] ? 'active' : '') . '" href="'
+                . h('/spots?' . http_build_query(['category' => $entry['category'], 'q' => $search])) . '">' . h($entry['category']) . '</a>';
         }
-
-        return implode('', $items);
-    }
-
-    /**
-     * @param array<int, array{
-     *   id: string,
-     *   title: string,
-     *   category: string,
-     *   poster: string,
-     *   size: int,
-     *   posted_at: string,
-     *   image_url: string,
-     *   image_segments: list<string>
-     * }> $spots
-     */
-    private static function renderSpotRows(array $spots): string
-    {
-        if ($spots === []) {
-            return '<tr><td colspan="7" class="text-body-secondary">Nog geen Spotnet-spots gevonden. Controleer spots:free.pt in admin en voer retrieve --days=30 uit.</td></tr>';
+        $options = '<option value="">Alle subcategorieen</option>';
+        $groups = [];
+        foreach ($facets as $facet) {
+            $code = (string) $facet['code'];
+            $label = SpotCategories::label($code);
+            if ($label === $code) {
+                continue;
+            }
+            $head = (int) $code[0];
+            $group = SpotCategories::HEADS[$head] . ' / ' . (SpotCategories::dimensions($head)[$code[2]] ?? 'Overig');
+            $selected = $code === $selectedSubcategory ? ' selected' : '';
+            $groups[$group][] = '<option value="' . h($code) . '"' . $selected . '>' . h($label) . ' (' . (int) $facet['total'] . ')</option>';
         }
-
-        $rows = [];
+        foreach ($groups as $group => $items) {
+            $options .= '<optgroup label="' . h($group) . '">' . implode('', $items) . '</optgroup>';
+        }
+        $categoryInput = $selectedCategory !== null ? '<input type="hidden" name="category" value="' . h($selectedCategory) . '">' : '';
+        $safeSearch = h($search);
+        $rows = '';
         foreach ($spots as $spot) {
-            $date = h($spot['posted_at']);
-            $category = h($spot['category']);
-            $title = h($spot['title']);
-            $poster = h($spot['poster']);
-            $size = self::formatBytes((int) $spot['size']);
-            $detailsLink = '/spots/view?key=' . rawurlencode($spot['id']);
-            $rows[] = '<tr>'
-                . '<td>' . SpotPresentation::image($spot, true) . '</td>'
-                . '<td class="text-nowrap">' . $date . '</td>'
-                . '<td><span class="badge text-bg-secondary">' . $category . '</span></td>'
-                . '<td><a href="' . $detailsLink . '">' . $title . '</a></td>'
-                . '<td>' . $poster . '</td>'
-                . '<td class="text-nowrap">' . $size . '</td>'
-                . '<td class="text-nowrap"><a class="btn btn-sm btn-outline-primary" href="' . $detailsLink . '">Details</a></td>'
-                . '</tr>';
+            $details = SpotCategories::describe($spot);
+            $format = implode(', ', $details['Formaat'] ?? $details['Platform'] ?? []);
+            $genre = implode(', ', $details['Genre'] ?? $details['Soort applicatie'] ?? []);
+            $subtitle = implode(' · ', array_filter([$spot['browse_type'] ?? $spot['category'], implode(', ', $details['Bron'] ?? [])]));
+            $selected = ($preview['id'] ?? '') === $spot['id'] ? ' class="selected"' : '';
+            $previewLink = $link(['page' => $currentPage, 'spot' => $spot['id']]) . '#preview';
+            $rows .= '<tr' . $selected . '><td class="cover-cell">' . SpotPresentation::image($spot, true) . '</td>'
+                . '<td><a class="spot-title" href="' . $previewLink . '">' . h($spot['title']) . '</a><div class="spot-subtitle">' . h($subtitle) . '</div></td>'
+                . '<td>' . ($format !== '' ? '<span class="format-badge">' . h($format) . '</span>' : '&mdash;') . '</td>'
+                . '<td>' . h($genre) . '</td><td>' . h($spot['poster']) . '</td>'
+                . '<td class="text-nowrap">' . h(substr($spot['posted_at'], 0, 16)) . '</td>'
+                . '<td class="text-nowrap">' . SpotPresentation::size((int) $spot['size']) . '</td>'
+                . '<td><a class="btn btn-sm btn-outline-primary" href="/spots/view?key=' . rawurlencode($spot['id']) . '">Details</a></td></tr>';
         }
-
-        return implode('', $rows);
-    }
-
-    private static function renderPagination(?string $selectedCategory, int $currentPage, int $totalPages): string
-    {
-        if ($totalPages <= 1) {
-            return '1 pagina';
+        if ($rows === '') {
+            $rows = '<tr><td colspan="8" class="p-4 text-body-secondary">Geen zichtbare spots voor deze filters. Wis je filters of controleer de indexing via het beheerpanel.</td></tr>';
         }
-
-        $previousPage = max(1, $currentPage - 1);
-        $nextPage = min($totalPages, $currentPage + 1);
+        $previous = $link(['page' => max(1, $currentPage - 1)]);
+        $next = $link(['page' => min($totalPages, $currentPage + 1)]);
         $previousDisabled = $currentPage <= 1 ? ' disabled' : '';
         $nextDisabled = $currentPage >= $totalPages ? ' disabled' : '';
-
-        $buildLink = static function (int $page) use ($selectedCategory): string {
-            $query = 'page=' . $page;
-            if ($selectedCategory !== null) {
-                $query .= '&category=' . rawurlencode($selectedCategory);
-            }
-
-            return '/spots?' . $query;
-        };
-
-        $previousLink = $buildLink($previousPage);
-        $nextLink = $buildLink($nextPage);
-
-        return '<div class="d-flex justify-content-between align-items-center">'
-            . '<span>Pagina ' . $currentPage . ' van ' . $totalPages . '</span>'
-            . '<div class="btn-group">'
-            . '<a class="btn btn-outline-secondary btn-sm' . $previousDisabled . '" href="' . $previousLink . '">Vorige</a>'
-            . '<a class="btn btn-outline-secondary btn-sm' . $nextDisabled . '" href="' . $nextLink . '">Volgende</a>'
-            . '</div>'
-            . '</div>';
-    }
-
-    private static function formatBytes(int $bytes): string
-    {
-        if ($bytes <= 0) {
-            return '-';
-        }
-
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $value = (float) $bytes;
-        $unitIndex = 0;
-        while ($value >= 1024 && $unitIndex < count($units) - 1) {
-            $value /= 1024;
-            $unitIndex++;
-        }
-
-        return number_format($value, $unitIndex === 0 ? 0 : 2, '.', '') . ' ' . $units[$unitIndex];
+        $previewHtml = $preview !== null
+            ? SpotDetailPageRenderer::summary($preview, true)
+            : '<div class="card card-body text-body-secondary">Selecteer een spot om de omschrijving en details te bekijken.</div>';
+        $content = <<<HTML
+<div class="page-heading">
+  <div><h1 class="h2 mb-1">{$heading}</h1><span class="text-body-secondary">{$totalItems} individuele spots</span></div>
+</div>
+<nav class="category-pills" aria-label="Spotcategorieen">{$pills}</nav>
+<form class="filter-bar" method="get" action="/spots">
+  {$categoryInput}
+  <label for="subcategory" class="visually-hidden">Subcategorie</label>
+  <select id="subcategory" name="subcategory" class="form-select form-select-sm">{$options}</select>
+  <label for="filter-search" class="visually-hidden">Zoek in titels</label>
+  <input id="filter-search" class="form-control form-control-sm" name="q" value="{$safeSearch}" type="search" maxlength="200" placeholder="Zoek in titels">
+  <button class="btn btn-primary btn-sm" type="submit">Filteren</button>
+  <a class="btn btn-outline-secondary btn-sm" href="/spots">Wis filters</a>
+</form>
+<div class="browse-grid">
+  <section class="card" aria-label="Spotlijst">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 spot-table">
+        <thead><tr><th><span class="visually-hidden">Cover</span></th><th>Titel</th><th>Formaat</th><th>Genre</th><th>Spotter</th><th>Geplaatst (UTC)</th><th>Grootte</th><th></th></tr></thead>
+        <tbody>{$rows}</tbody>
+      </table>
+    </div>
+    <div class="card-footer d-flex justify-content-between align-items-center gap-2">
+      <span>Pagina {$currentPage} van {$totalPages}</span>
+      <nav class="btn-group" aria-label="Paginering">
+        <a class="btn btn-outline-secondary btn-sm{$previousDisabled}" href="{$previous}">Vorige</a>
+        <a class="btn btn-outline-secondary btn-sm{$nextDisabled}" href="{$next}">Volgende</a>
+      </nav>
+    </div>
+  </section>
+  <aside class="preview" id="preview" aria-label="Geselecteerde spot">{$previewHtml}</aside>
+</div>
+HTML;
+        return SpotLayout::render('Spots', $username, $isAdmin, $csrfField, $content, $categories, $selectedCategory, $theme);
     }
 }

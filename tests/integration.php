@@ -8,6 +8,7 @@ use NnSpotty\Usenet\RetrieveService;
 use NnSpotty\Usenet\SpotImageService;
 use NnSpotty\Usenet\SpotRepository;
 use NnSpotty\Usenet\SpotnetParser;
+use NnSpotty\Usenet\SpotCategories;
 
 $dsn = getenv('NNSPOTTY_TEST_DSN');
 if ($dsn === false || !str_starts_with($dsn, 'mysql:')) {
@@ -108,6 +109,48 @@ try {
     $pdo->exec("DELETE FROM spotnet_comments WHERE message_id = 'Comment@example.invalid'");
     $pdo->exec('DELETE FROM spotnet_images');
     require __DIR__ . '/http.php';
+    $adult = SpotnetParser::spot('adult@example.invalid', Fixtures::headers('adult@example.invalid',
+        str_replace('<Sub>1a01</Sub>', '<Sub>1a09</Sub><Sub>1d23</Sub>', Fixtures::xml('Afgeschermde testspot'))));
+    $spots->saveSpot($adult, 'free.pt');
+    $state->addComment($adult['id'], 'local-user', 'Afgeschermde reactie');
+    $pdo->exec("UPDATE spotnet_spots SET browse_type = 'Overig', is_erotica = 1");
+    $pdo->exec('DELETE FROM spotnet_spot_categories');
+    $pdo->exec("DELETE FROM migrations WHERE name = '20261018_0008_category_backfill'");
+    $migrator->migrate();
+    check($spots->getSpot($adult['id'], false) === null && $spots->countSpots(null, false) === 3, 'Migratie classificeert bestaande spots en schermt legacy erotica af zonder hernieuwde retrieval');
+    check($spots->getSpot($adult['id'], true)['browse_type'] === 'Erotica', 'Bestaande legacy erotica krijgt het juiste type');
+    check(count($spots->listCategoriesWithCounts(false)) === 1 && count($spots->listCategoriesWithCounts(true)) === 2, 'Categorieaantallen passen zichtbaarheid toe');
+    check($spots->countSpots(null, false, '0:a9') === 0
+        && $spots->countSpots(null, true, '0:a9') === 1
+        && $spots->countSpots('Erotica', false) === 0, 'Facet en categoriefilter kunnen erotica niet ontsluiten');
+    check($spots->countSpots(null, true, null, 'Afgeschermde') === 1
+        && $spots->countSpots(null, false, null, 'Afgeschermde') === 0
+        && $spots->countSpots(null, true, null, '%') === 0, 'Zoeken respecteert zichtbaarheid en behandelt wildcards letterlijk');
+    check(count($spots->facets('Erotica', false)) === 0, 'Geen verborgen facetten of aantallen');
+    check(!in_array($adult['id'], array_column($state->getComments(false), 'post_id'), true), 'Admin commentoverzicht lekt geen afgeschermde reacties');
+    $firstCodes = $pdo->query('SELECT spot_id, code FROM spotnet_spot_categories ORDER BY spot_id, code')->fetchAll();
+    check($spots->rebuildCategories() === 4
+        && $firstCodes === $pdo->query('SELECT spot_id, code FROM spotnet_spot_categories ORDER BY spot_id, code')->fetchAll(), 'Categoriebackfill is volledig en idempotent');
+    $duplicate = $adult;
+    $duplicate['subcategories'] = ['1z00'];
+    $spots->saveSpot($duplicate, 'free.pt');
+    check($spots->getSpot($adult['id'], false) === null, 'Duplicaat kan classificatie niet los van oorspronkelijke XML veranderen');
+    $pdo->prepare('DELETE FROM spotnet_spots WHERE id = ?')->execute([$adult['id']]);
+    for ($n = 0; $n < 251; $n++) {
+        $batchSpot = $adult;
+        $batchSpot['message_id'] = 'batch-' . $n . '@example.invalid';
+        $batchSpot['id'] = hash('sha256', $batchSpot['message_id']);
+        $batchSpot['subcategories'] = $n % 2 === 0 ? ['1d23'] : ['1z01'];
+        $spots->saveSpot($batchSpot, 'free.pt');
+    }
+    $pdo->exec("UPDATE spotnet_spots SET browse_type = 'Overig', is_erotica = 1");
+    $pdo->exec('DELETE FROM spotnet_spot_categories');
+    $pdo->exec("DELETE FROM migrations WHERE name = '20261018_0008_category_backfill'");
+    $migrator->migrate();
+    check($spots->countSpots(null, true) === 254 && $spots->countSpots('Erotica', true) === 126
+        && $spots->countSpots('Series', false) === 125 && $spots->countSpots(null, false) === 128,
+        'Backfill verwerkt meer dan 250 rijen volledig, inclusief zichtbaarheidsgrens over batches');
+    $pdo->exec("DELETE FROM spotnet_spots WHERE message_id LIKE 'batch-%@example.invalid'");
     $settings['explicit_groups'] = 'spots:free.pt,comments:free.ptd';
     $state->saveUsenetSettings($settings);
     $pdo->exec("DELETE FROM migrations WHERE name = '20261018_0006_spotnet'");

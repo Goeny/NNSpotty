@@ -52,6 +52,12 @@
 - Alle runtime data wordt opgeslagen in MySQL/MariaDB tabellen.
 - Zorg dat ingestelde DB user rechten heeft op create/read/update/delete.
 
+## Upgrade categorieen en zichtbaarheid
+- Pauzeer webverkeer en retrieve-jobs, maak een databasebackup en voer `php bin/console db migrate` uit.
+- Migraties 0007/0008 voegen classificatie en facetten toe en delen alle bestaande spots opnieuw in; opnieuw ophalen is niet nodig. Bij een onderbroken backfill kan `db migrate` worden herhaald.
+- Erotica blijft standaard verborgen. Zet dit indien gewenst globaal aan in admin; daarna moet iedere gebruiker zelf opt-innen onder voorkeuren.
+- Controleer `/assets/spotty.css`: deze moet met `Content-Type: text/css` worden geserveerd. Bij Apache met projectroot als documentroot is de aangepaste root `.htaccess` nodig; met `public/` als documentroot wordt het bestand direct geserveerd.
+
 ## Consolecommando's
 - `php bin/console db status`
 - `php bin/console db health`

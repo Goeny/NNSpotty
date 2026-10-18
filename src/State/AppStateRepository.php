@@ -64,11 +64,11 @@ final class AppStateRepository
     }
 
     /**
-     * @return array{theme: string, items_per_page: int}
+     * @return array{theme: string, items_per_page: int, show_erotica: bool}
      */
     public function getPreferences(string $username): array
     {
-        $statement = $this->pdo->prepare('SELECT theme, items_per_page FROM user_preferences WHERE username = :username LIMIT 1');
+        $statement = $this->pdo->prepare('SELECT theme, items_per_page, show_erotica FROM user_preferences WHERE username = :username LIMIT 1');
         $statement->execute(['username' => $username]);
         $prefs = $statement->fetch();
         if (!is_array($prefs)) {
@@ -78,27 +78,45 @@ final class AppStateRepository
         return [
             'theme' => (string) ($prefs['theme'] ?? 'default'),
             'items_per_page' => (int) ($prefs['items_per_page'] ?? 50),
+            'show_erotica' => (bool) ($prefs['show_erotica'] ?? false),
         ];
     }
 
     /**
-     * @param array{theme: string, items_per_page: int} $preferences
+     * @param array{theme: string, items_per_page: int, show_erotica?: bool} $preferences
      */
     public function savePreferences(string $username, array $preferences): void
     {
         $statement = $this->pdo->prepare(
-            'INSERT INTO user_preferences (username, theme, items_per_page, updated_at)
-             VALUES (:username, :theme, :items_per_page, UTC_TIMESTAMP())
+            'INSERT INTO user_preferences (username, theme, items_per_page, show_erotica, updated_at)
+             VALUES (:username, :theme, :items_per_page, :show_erotica, UTC_TIMESTAMP())
              ON DUPLICATE KEY UPDATE
                 theme = VALUES(theme),
                 items_per_page = VALUES(items_per_page),
+                show_erotica = VALUES(show_erotica),
                 updated_at = UTC_TIMESTAMP()'
         );
         $statement->execute([
             'username' => $username,
             'theme' => $preferences['theme'],
             'items_per_page' => $preferences['items_per_page'],
+            'show_erotica' => (int) ($preferences['show_erotica'] ?? false),
         ]);
+    }
+
+    public function eroticaAllowed(): bool
+    {
+        return ($this->decodeSetting('admin.content_settings')['allow_erotica'] ?? false) === true;
+    }
+
+    public function setEroticaAllowed(bool $allowed): void
+    {
+        $this->saveSetting('admin.content_settings', ['allow_erotica' => $allowed]);
+    }
+
+    public function canViewErotica(string $username): bool
+    {
+        return $this->eroticaAllowed() && $this->getPreferences($username)['show_erotica'];
     }
 
     /**
@@ -145,12 +163,13 @@ final class AppStateRepository
     /**
      * @return array<int, array{post_id: string, username: string, comment: string, created_at: string}>
      */
-    public function getComments(): array
+    public function getComments(bool $showErotica = true): array
     {
         $statement = $this->pdo->query(
-            'SELECT post_id, username, comment, DATE_FORMAT(created_at, "%Y-%m-%dT%H:%i:%sZ") AS created_at
-             FROM post_comments
-             ORDER BY created_at ASC'
+            'SELECT p.post_id, p.username, p.comment, DATE_FORMAT(p.created_at, "%Y-%m-%dT%H:%i:%sZ") AS created_at
+             FROM post_comments p'
+             . ($showErotica ? '' : ' LEFT JOIN spotnet_spots s ON s.id = p.post_id WHERE s.is_erotica = 0')
+             . ' ORDER BY p.created_at ASC'
         );
         $comments = $statement->fetchAll();
 

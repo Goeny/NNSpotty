@@ -1,5 +1,8 @@
 RewriteEngine On
 
+# Dezelfde publieke assets bij een projectroot of public/ documentroot.
+RewriteRule ^assets/(.+)$ public/assets/$1 [L]
+
 # Laat echte bestaande files/directories door.
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d

@@ -23,7 +23,7 @@ final class AdminPageRenderer
      * @param array<int, array{post_id: string, username: string, comment: string, created_at: string}> $comments
      * @param array<int, array{actor_username: string, action: string, target_type: string, target_id: string, details_json: string, ip_address: string, created_at: string}> $auditLogs
      */
-    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField): string
+    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default'): string
     {
         $retention = (int) $settings['retention'];
         $server = h($settings['server']);
@@ -38,29 +38,21 @@ final class AdminPageRenderer
         $tlsSelected = self::selectedAttr($encryption, 'tls');
         $statusAlert = '';
         if ($statusMessage !== null) {
-            $statusAlert = '<div class="alert alert-success" role="alert">' . h($statusMessage) . '</div>';
+            $statusAlert = '<div class="alert alert-info" role="alert">' . h($statusMessage) . '</div>';
         }
         $safeCurrentUsername = h($currentUsername);
+        $eroticaChecked = $allowErotica ? 'checked' : '';
 
         $whitelistItems = self::renderSimpleList($spotterLists['whitelist']);
         $blacklistItems = self::renderSimpleList($spotterLists['blacklist']);
         $commentRows = self::renderCommentRows($comments);
         $auditRows = self::renderAuditRows($auditLogs);
 
-        return <<<HTML
-<!doctype html>
-<html lang="nl">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Admin - NNSpotty</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-dark-subtle">
-  <main class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+        $content = <<<HTML
+  <div class="container-fluid">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
       <h1 class="h3 mb-0">Admin Beheerpanel</h1>
-      <div class="d-flex gap-2">
+      <div class="d-flex flex-wrap gap-2">
         <span class="badge text-bg-warning align-self-center">Admin: {$safeCurrentUsername}</span>
         <a class="btn btn-outline-secondary btn-sm" href="/">Terug naar home</a>
         <form method="post" action="/logout" class="d-inline">
@@ -70,6 +62,18 @@ final class AdminPageRenderer
       </div>
     </div>
     {$statusAlert}
+    <section class="card mb-4">
+      <div class="card-header fw-semibold">Inhoud en zichtbaarheid</div>
+      <form method="post" action="/admin/content" class="card-body">
+        {$csrfField}
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" role="switch" id="allow_erotica" name="allow_erotica" value="1" {$eroticaChecked}>
+          <label class="form-check-label" for="allow_erotica">Erotica globaal toestaan</label>
+        </div>
+        <p class="text-body-secondary small">Uit: verborgen voor iedereen, ook admins. Aan: gebruikers kunnen erotica zelf aanzetten in hun voorkeuren; standaard blijft dit verborgen. Indexeren blijft ongewijzigd.</p>
+        <button class="btn btn-primary" type="submit">Zichtbaarheid opslaan</button>
+      </form>
+    </section>
     <div class="row g-4">
       <div class="col-12 col-lg-6">
         <div class="card">
@@ -221,10 +225,9 @@ final class AdminPageRenderer
         </div>
       </div>
     </div>
-  </main>
-</body>
-</html>
+  </div>
 HTML;
+        return SpotLayout::render('Beheerpanel', $currentUsername, true, $csrfField, $content, theme: $theme);
     }
 
     /**

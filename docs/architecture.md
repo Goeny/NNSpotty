@@ -21,12 +21,22 @@ De huidige pipeline:
 - `spotnet_spots`: een rij per message-ID, met volledige XML en uitgelezen metadata.
 - `spotnet_comments`: geimporteerde reacties, gekoppeld aan de hash van de originele spot message-ID.
 - `spotnet_images`: afbeeldingcache als database-BLOB.
+- `spotnet_spot_categories`: genormaliseerde categoriecodes met hoofdgroep (`0:a9`), geindexeerd voor SQL-filters.
 - `post_comments`: lokale reacties; op de spotdetailpagina samen met Usenet-reacties getoond, met bronvermelding.
 - `retrieval_cursors`: aparte `spotnet:<rol>:<groep>` posities, gescheiden van oude generieke cursors.
 - `retrieval_runs`: operationele status en expliciete foutmelding bij mislukte runs.
 - Historische `usenet_posts` en `spot_releases` blijven behouden, maar worden niet meer gebruikt voor retrieval of browsing.
 
 Migratie `20261018_0006_spotnet` voegt de nieuwe tabellen toe en corrigeert uitsluitend de oude exacte standaardinstelling `spots:free.pt,comments:free.ptd`.
+
+### Categorisatie en inhoudsbeleid
+`SpotCategories` beschrijft de vier Spotnet-hoofdgroepen en dimensies a/b/c/d/z. Codes met hoofdgroepprefix, hoofdletters en nul-padding worden genormaliseerd zonder de numerieke subcategorie te verschuiven. Typecodes onderscheiden films, series, boeken, erotica, afbeeldingen en de muziektypen. Oudere spots zonder type krijgen een type uit formaat/bron/genre; oude adult-genres en boektaalcodes worden gemapt. Adult-genres overrulen een onjuiste expliciete niet-adult typecode.
+
+Bij nieuwe spots worden `browse_type`, `is_erotica` en facetcodes atomair opgeslagen. Duplicaten veranderen de bestaande metadata/classificatie niet. Migratie `20261018_0007_categories_visibility` voegt schema en persoonlijke opt-in toe; `20261018_0008_category_backfill` classificeert bestaande JSON-subcategorieen in transactiebatches van 250 spots. Deze tweede stap kan veilig opnieuw worden uitgevoerd na een onderbreking. Nog niet geclassificeerde rijen zijn standaard afgeschermd. Pauzeer retrieval en webverkeer tijdens de upgrade.
+
+De globale boolean staat in `app_settings` onder `admin.content_settings`; de persoonlijke boolean staat in `user_preferences.show_erotica`. Beide zijn standaard false. `AppStateRepository::canViewErotica` vereist beide, ook voor admins. HTTP-routes geven dit beleid expliciet aan de repository door, zowel voor zichtbare data als alle tellingen. Directe toegang tot een verborgen spot geeft 404. Ook het admin-commentoverzicht en het oude admin-reactieformulier respecteren dit beleid. Bij globale blokkade blijft een bestaande persoonlijke opt-in bewaard, maar inactief.
+
+Overzicht, detail, admin en voorkeuren gebruiken `SpotLayout`; `SpotDetailPageRenderer::summary` wordt gedeeld met het previewpaneel. De locale stylesheet ondersteunt donker/licht en mobiele layouts. De root-Apache rewrite publiceert dezelfde assets als een `public/` documentroot.
 
 ## Retrievalsemantiek
 - `--since-last`: vanaf de laatst voltooide batch, met de ingestelde artikellimiet per groep. Bij de eerste run begint dit bij het oudste beschikbare artikel. Cursors worden pas na een succesvolle batch opgeslagen.
@@ -37,9 +47,9 @@ Migratie `20261018_0006_spotnet` voegt de nieuwe tabellen toe en corrigeert uits
 - Verbose batchoutput toont het geldige UTC-datumbereik en afzonderlijke aantallen te oud, bestaand, geen spot, ongeldig, verdwenen en opgeslagen. Het totale aantal opgeslagen berichten blijft zichtbaar. Een corrupt optioneel volledig veld geeft een waarschuwing, geen afwijzing van verder bruikbare spotmetadata.
 
 ## Web en beveiligingsgrenzen
-- `/spots`: individuele spots, categorieen, paginering en thumbnails.
+- `/spots`: individuele spots, type-/subcategoriefilters, titelzoekfunctie, paginering, thumbnails en geselecteerde preview.
 - `/spots/view?key=...`: afbeelding, metadata, omschrijving, reacties en een CSRF-beveiligd formulier voor lokale reacties.
-- `/spots/image?key=...`: alleen voor ingelogde gebruikers; rasterafbeeldingen met `nosniff`, private browsercache en databasecache.
+- `/spots/image?key=...`: alleen voor ingelogde gebruikers met zichtbaarheidstoegang; rasterafbeeldingen met `nosniff` en databasecache. Lijst, detail en afbeeldingen gebruiken `private, no-store`, zodat ingetrokken zichtbaarheid niet via een normale browsercache wordt omzeild.
 - Usenet XML wordt zonder DTD/entiteiten verwerkt. Segment-IDs worden gevalideerd voor NNTP-gebruik.
 - Omschrijvingen/reacties worden als tekst geescapet, niet als onbetrouwbare HTML uitgevoerd.
 - Spotterhandtekeningen worden nog niet geverifieerd. De UI vermeldt daarom expliciet dat identiteit/inhoud onbevestigd is. Dit is geen complete Spotweb trust-/moderatie-implementatie.
@@ -52,6 +62,7 @@ Onderzocht op 2026-10-18 in [spotweb/spotweb](https://github.com/spotweb/spotweb
 - [Spot XML-structuur](https://github.com/spotweb/spotweb/blob/b669d9386da691849ece3cbc7293c8f057bf7b7b/lib/services/Format/Services_Format_Parsing.php).
 - [Binaire escaping](https://github.com/spotweb/spotweb/blob/b669d9386da691849ece3cbc7293c8f057bf7b7b/lib/services/Format/Services_Format_Util.php).
 - [Reactiekoppeling](https://github.com/spotweb/spotweb/blob/b669d9386da691849ece3cbc7293c8f057bf7b7b/lib/services/Retriever/Services_Retriever_Comments.php).
+- [Spotnet-categoriecodes en legacy type-afleiding](https://github.com/spotweb/spotweb/blob/b669d9386da691849ece3cbc7293c8f057bf7b7b/lib/SpotCategories.php). De categorie-indeling dient als protocolreferentie; labels en classificatie zijn zelfstandig geimplementeerd, zonder de legacy categorie-engine over te nemen.
 
 Deze bronnen dienen als protocolreferentie. NNSpotty heeft een eigen parser, services, datamodel en synthetische testfixtures.
 

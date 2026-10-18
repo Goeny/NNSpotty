@@ -7,9 +7,9 @@ namespace NnSpotty\UI;
 final class PreferencesPageRenderer
 {
     /**
-     * @param array{theme: string, items_per_page: int} $preferences
+     * @param array{theme: string, items_per_page: int, show_erotica?: bool} $preferences
      */
-    public static function render(string $username, array $preferences, ?string $statusMessage, bool $isAdmin, string $csrfField): string
+    public static function render(string $username, array $preferences, ?string $statusMessage, bool $isAdmin, string $csrfField, bool $allowErotica = false): string
     {
         $safeUsername = h($username);
         $theme = $preferences['theme'];
@@ -19,25 +19,21 @@ final class PreferencesPageRenderer
         $plexLightSelected = self::selectedAttr($theme, 'plex-light');
         $adminLink = self::adminLink($isAdmin);
         $statusAlert = '';
+        $eroticaChecked = ($preferences['show_erotica'] ?? false) ? 'checked' : '';
+        $eroticaDisabled = $allowErotica ? '' : 'disabled';
+        $eroticaNotice = $allowErotica
+            ? 'Alleen zichtbaar voor jouw account wanneer je dit zelf aanzet.'
+            : 'De beheerder heeft erotica globaal uitgeschakeld. Je opgeslagen voorkeur wordt pas actief wanneer de beheerder dit toestaat.';
 
         if ($statusMessage !== null) {
-            $statusAlert = '<div class="alert alert-success" role="alert">' . h($statusMessage) . '</div>';
+            $statusAlert = '<div class="alert alert-info" role="alert">' . h($statusMessage) . '</div>';
         }
 
-        return <<<HTML
-<!doctype html>
-<html lang="nl">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Preferences - NNSpotty</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-body-tertiary">
-  <main class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+        $content = <<<HTML
+  <div class="container-fluid">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
       <h1 class="h3 mb-0">Gebruikersvoorkeuren</h1>
-      <div class="d-flex gap-2">
+      <div class="d-flex flex-wrap gap-2">
         <a class="btn btn-outline-secondary btn-sm" href="/">Terug naar home</a>
         {$adminLink}
         <form method="post" action="/logout" class="d-inline">
@@ -65,14 +61,18 @@ final class PreferencesPageRenderer
             <label class="form-label" for="items_per_page">Items per pagina</label>
             <input class="form-control" id="items_per_page" name="items_per_page" type="number" min="10" max="200" value="{$itemsPerPage}" required>
           </div>
+          <div class="form-check form-switch mt-4">
+            <input class="form-check-input" type="checkbox" role="switch" id="show_erotica" name="show_erotica" value="1" {$eroticaChecked} {$eroticaDisabled}>
+            <label class="form-check-label" for="show_erotica">Erotica weergeven</label>
+          </div>
+          <p class="form-text">{$eroticaNotice}</p>
           <button class="btn btn-primary" type="submit">Preferences opslaan</button>
         </form>
       </div>
     </div>
-  </main>
-</body>
-</html>
+  </div>
 HTML;
+        return SpotLayout::render('Voorkeuren', $username, $isAdmin, $csrfField, $content, theme: $theme);
     }
 
     private static function selectedAttr(string $actual, string $expected): string
