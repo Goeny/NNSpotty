@@ -343,6 +343,36 @@ final class Migrator
                     FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             ],
+            '20261018_0012_sabnzbd' => [
+                'CREATE TABLE IF NOT EXISTS sabnzbd_connections (
+                    scope VARCHAR(200) PRIMARY KEY,
+                    username VARCHAR(191) NULL UNIQUE,
+                    url VARCHAR(1000) NOT NULL,
+                    api_key VARCHAR(128) NOT NULL,
+                    enabled BOOLEAN NOT NULL DEFAULT 0,
+                    FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS sabnzbd_category_mapping (
+                    type VARCHAR(50) PRIMARY KEY,
+                    category VARCHAR(100) NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS sabnzbd_downloads (
+                    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    scope VARCHAR(200) NOT NULL,
+                    username VARCHAR(191) NOT NULL,
+                    spot_id CHAR(64) CHARACTER SET ascii NOT NULL,
+                    title TEXT NOT NULL,
+                    category VARCHAR(100) NOT NULL,
+                    token CHAR(32) CHARACTER SET ascii NOT NULL,
+                    status VARCHAR(20) NOT NULL,
+                    nzo_id VARCHAR(200) NULL,
+                    created_at DATETIME NOT NULL,
+                    UNIQUE KEY idx_sab_token (scope, token),
+                    INDEX idx_sab_history (scope, id),
+                    FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE,
+                    FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+            ],
         ];
     }
 }

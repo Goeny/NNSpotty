@@ -3,7 +3,7 @@
 ## Vereisten
 - PHP 8.2 of hoger
 - Composer 2.x
-- MySQL/MariaDB en PHP-extensies `pdo_mysql`, `SimpleXML`, `dom`, `iconv`, `zlib`
+- MySQL/MariaDB en PHP-extensies `pdo_mysql`, `SimpleXML`, `dom`, `iconv`, `zlib`, `curl`
 
 ## Stappen
 1. Installeer dependencies:
@@ -52,7 +52,8 @@
 - Admin bevat **Op te halen inhoud**: Usenet-reacties indexeren, reacties tonen/lokaal plaatsen, afbeeldingen ophalen/tonen. Standaard staat alles aan. Retentie en de artikellimiet blijven onder Usenet instellingen.
 - Reacties indexeren uit slaat de groep/cursor over; tonen uit verbergt ook al opgeslagen reacties. Herinschakelen verwijdert of reset geen data; gebruik zo nodig `retrieve --days=30` voor beschikbare historie.
 - Afbeeldingen uit voorkomt requests voor thumbnails, covers en hero, en blokkeert de image-route ook voor cachehits. Afbeeldingen worden nooit tijdens de gewone retrieve massaal gedownload.
-- Herlaad de assets `/assets/spotty.css`, `/assets/spots.js`, `/assets/presentation.js` zonder oude cache. De cover in preview/detail opent een lightbox met toetsenbordbediening en foutfeedback.
+- Herlaad de assets `/assets/spotty.css`, `/assets/spots.js`, `/assets/presentation.js`, `/assets/downloader.js` zonder oude cache. De cover in preview/detail opent een lightbox met toetsenbordbediening en foutfeedback.
+- SABnzbd vereist PHP-extensie `curl` en migratie `20261018_0012_sabnzbd`. Configureer als admin de centrale verbinding en categorietoewijzing onder `/admin#downloads`; gebruikers stellen een eigen publieke host in onder `/preferences#downloads`. Alleen admins mogen interne hosts gebruiken en de centrale wachtrij zien. Zie [SABnzbd serverchecks](./linux-server-testing.md#sabnzbd-categorietoewijzing-en-downloadpaneel).
 - Spotnet-omschrijvingen met `[br]` en gangbare bracketopmaak worden direct juist weergegeven. Een nieuwe retrieve of datamigratie is hiervoor niet nodig.
 
 ## Upgrade vanaf de generieke headerindex

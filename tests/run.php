@@ -330,7 +330,7 @@ try {
         ['poster' => 'Lokale lezer', 'source' => 'NNSpotty', 'posted_at' => '2026-10-18 11:00:00', 'body' => '[b]Letterlijk[/b] [img=respect]'],
     ];
     $emoticonPage = SpotDetailPageRenderer::render('tester', false, $spot, $emoticonComments, '');
-    check(substr_count($emoticonPage, 'role="img" aria-label=') === 3
+    check(preg_match_all('/<span class="spot-emoticon(?: |")/', $emoticonPage) === 3
         && str_contains($emoticonPage, '[b]Letterlijk[/b]'), 'Detail rendert moderne emoticons in zowel lokale als Usenet-reacties');
     $emoticonDescription = $spot;
     $emoticonDescription['description'] = '[img=buigen][img=respect]';
@@ -362,6 +362,7 @@ try {
         && str_contains($html, '/assets/presentation.js'), 'Cover heeft toegankelijke vergrotingslink en gedeeld lightboxvenster; thumbnails blijven lijstacties');
 
     require __DIR__ . '/newznab-unit.php';
+    require __DIR__ . '/sab-unit.php';
     if (in_array('--integration', $argv, true)) {
         require __DIR__ . '/integration.php';
     }

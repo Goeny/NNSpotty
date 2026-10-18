@@ -152,7 +152,7 @@ try {
     check(str_contains($commentDetail['body'], '<strong>Usenet-opmaak</strong><br>Een nieuwe regel')
         && str_contains($commentDetail['body'], '[b]Lokale tekst[/b]&lt;script&gt;localUnsafe()&lt;/script&gt;')
         && !str_contains($commentDetail['body'], '<script>localUnsafe'), 'Usenet-reacties krijgen veilige Spotnet-opmaak; lokale reacties blijven geescapete tekst');
-    check(substr_count($commentDetail['body'], 'role="img" aria-label=') === 3
+    check(preg_match_all('/<span class="spot-emoticon(?: |")/', $commentDetail['body']) === 3
         && str_contains($commentDetail['body'], \NnSpotty\UI\SpotEmoticons::render('[img=buigen]'))
         && substr_count($commentDetail['body'], \NnSpotty\UI\SpotEmoticons::render('[img=respekt]')) === 2,
         'Echte detailroute vertaalt oude emoticoncodes in lokale en Usenet-reacties zonder GIF-verzoeken');
@@ -371,6 +371,7 @@ try {
     $pdo->prepare('DELETE FROM spotnet_spots WHERE id = ?')->execute([$adult['id']]);
     $state->setEroticaAllowed(false);
     require __DIR__ . '/newznab-http.php';
+    require __DIR__ . '/sab-http.php';
 } catch (Throwable $exception) {
     rewind($httpLog);
     fwrite(STDERR, stream_get_contents($httpLog));

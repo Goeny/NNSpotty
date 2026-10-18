@@ -9,7 +9,7 @@ final class PreferencesPageRenderer
     /**
      * @param array{theme: string, items_per_page: int, show_erotica?: bool} $preferences
      */
-    public static function render(string $username, array $preferences, ?string $statusMessage, bool $isAdmin, string $csrfField, bool $allowErotica = false, array $globalColumns = [], array $personalColumns = [], bool $apiEnabled = false, bool $hasApiKey = false, ?string $newApiKey = null): string
+    public static function render(string $username, array $preferences, ?string $statusMessage, bool $isAdmin, string $csrfField, bool $allowErotica = false, array $globalColumns = [], array $personalColumns = [], bool $apiEnabled = false, bool $hasApiKey = false, ?string $newApiKey = null, string $sabSettings = ''): string
     {
         $safeUsername = h($username);
         $columnForm = SpotColumns::form($globalColumns !== [] ? $globalColumns : SpotColumns::defaults(), $personalColumns, $csrfField);
@@ -71,6 +71,7 @@ final class PreferencesPageRenderer
       </div>
     </div>
     {$statusAlert}
+    {$sabSettings}
     {$apiKey}
     <div class="card">
       <div class="card-header fw-semibold">Preferences voor username: {$safeUsername}</div>

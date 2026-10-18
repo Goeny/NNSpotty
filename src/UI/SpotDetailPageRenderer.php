@@ -90,6 +90,7 @@ HTML;
             : ($showComments ? '<a class="btn btn-warning" href="#comments">Bekijk reacties</a>' : '');
         if ($spot['nzb_segments'] !== []) {
             $action .= ' <a class="btn btn-primary" href="/spots/nzb?key=' . rawurlencode($spot['id']) . '">NZB downloaden</a>';
+            $action .= ' <button class="btn btn-warning" type="button" data-sab-send="' . h($spot['id']) . '">Naar SABnzbd</button>';
         }
         $hero = '<section class="spot-hero">' . SpotPresentation::backdrop($spot, 'hero-backdrop', $imagesEnabled)
             . '<div class="hero-poster">' . $image . '</div><div class="hero-copy"><p class="text-body-secondary mb-2">'
@@ -110,7 +111,7 @@ HTML;
             $technical .= '<dt>Gepost met</dt><dd>' . h($spot['newsreader']) . '</dd>';
         }
         $nzb = count($spot['nzb_segments']) > 0
-            ? count($spot['nzb_segments']) . ' NZB-segment(en). Download beschikbaar; directe downloaderkoppeling volgt later.'
+            ? count($spot['nzb_segments']) . ' NZB-segment(en). Download of stuur naar je ingestelde SABnzbd-koppeling.'
             : 'Geen NZB-verwijzing aanwezig.';
         $technical .= '<dt>Message-ID</dt><dd>' . h($spot['message_id']) . '</dd><dt>NZB</dt><dd>' . $nzb . '</dd>';
         $technical = '<section class="card mb-3"><div class="card-header">Technische details</div><div class="card-body"><dl class="technical">' . $technical . '</dl></div></section>';

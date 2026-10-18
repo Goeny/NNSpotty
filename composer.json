@@ -6,6 +6,7 @@
   "license": "MIT",
   "require": {
     "php": "^8.2",
+    "ext-curl": "*",
     "ext-dom": "*",
     "ext-iconv": "*",
     "ext-pdo_mysql": "*",

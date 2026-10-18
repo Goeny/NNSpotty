@@ -6,7 +6,7 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
 - **Datum:** 2026-10-18
 - **Versie:** 0.0.1
 - **Codenaam:** Delta Integrale
-- **Fase:** Spotnet-index, spotdetailweergave en Newznab/NZB-download-MVP
+- **Fase:** Spotnet/Newznab met SABnzbd-forwarding, persoonlijke koppelingen en live downloadpaneel
 
 ## Context
 - Spotweb is verouderd en lastig onderhoudbaar door gegroeide complexiteit en gemengde oude/nieuwe codepatronen.
@@ -177,6 +177,19 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
     Migratie 0011 voegt NZB-cache, standaardcategorie-index en keytabel toe en backfillt bestaande spots in batches. Refresh wist gewijzigde NZB-bronnen; normale duplicaten blijven intact. Synthetische NNTP-, echte MariaDB- en HTTP-regressies valideren het protocol en de grenzen, niet de externe productieprovider of Sonarr-releaseherkenning. Praktijkacceptatie moet caps, zoeken en een werkelijke download vanuit Prowlarr omvatten; alleen de verbindingstest is onvoldoende. Versie blijft 0.0.1 Delta Integrale.
     Validatie: 806 controles geslaagd met PHP 8.4 en MariaDB 11.4; alle 46 PHP-bestanden gelint. Browsercontrole van adminschakelaar, eenmalige sleutelweergave, vernieuwen/intrekken, veilige annuleerfocus, Escape/focusherstel en donkere/lichte layouts op 320/390/1440 pixels. Native bevestigingen sluiten expliciet bij Escape en passen binnen het viewport; geen browserpopups.
 
+53. **Centrale SABnzbd alleen admins; persoonlijke verbinding per gebruiker**
+    Gebruiker verduidelijkt expliciet dat iedere gebruiker zijn eigen verbinding mag instellen en eigen externe wachtrij mag inzien. Gewone gebruikers mogen uitsluitend publieke hosts benaderen; lokaal betekent ook LAN/private/link-local/gereserveerde IPv4/IPv6. Centrale en interne verbindingen blijven voor admins. Scopes komen uit de sessie, nooit uit een aangeleverde username. Huidige rol en alle DNS-adressen worden bij iedere uitgaande aanvraag beoordeeld en het gecontroleerde adres wordt in cURL vastgepind; geen redirects/proxyfallback/TLS-uitzondering. Persoonlijke hosts worden niet aan andere gebruikers getoond.
+
+54. **Admin beheert centrale categorietoewijzing per spottype**
+    Films, Series, Boeken, Erotica, Afbeeldingen, Muziek, Livesets, Podcasts, Luisterboeken, Spellen, Applicaties en Overig krijgen een exacte SABnzbd-categorienaam. Dit geldt ook voor persoonlijke verbindingen; namen moeten op de doelhost bestaan. Leeg betekent Default. Geen stille fallback bij ontbrekende categorie. Vooraf bevestigen toont de effectieve keuze; een host/key/categorie-revisie voorkomt verouderde bevestigingen. Volledige SAB-key is nodig voor queue/get_cats; geen beperkte NZB-key. Keys zijn herstelbaar in de database voor uitgaande authenticatie, worden niet teruggerenderd/geauditeerd; backups blijven geheim.
+
+55. **Inhoud uploaden, geen NZB-URL; onzekerheid expliciet bewaren**
+    SABnzbd gebruikt dezelfde gevalideerde `SpotNzbService` als browser/Newznab. Multipart `addfile` POST bevat NZB-bytes, releasenaam en categorie. Uniek scope/bevestigingstoken voorkomt herhaalde upload. Databasepogingen onderscheiden gestart, geaccepteerd, geweigerd en onbekend. Externe acceptatie en DB-commit kunnen niet atomair: na timeout/crash eerst SAB controleren, niet automatisch opnieuw versturen. Geaccepteerd is niet voltooid. Lokale verzendhistorie volgt spotzichtbaarheid en blijft zonder actieve verbinding opvraagbaar. Geen completed-history-sync, NZBGet of queue-mutaties in deze scope.
+
+56. **Beheeronderdelen en eigen modern downloadpaneel**
+    Admin is verdeeld in Usenet, Inhoud en weergave, Newznab, SABnzbd, Moderatie en reacties, Auditlog met deelbare fragmentlinks en zonder-JavaScript-fallback. De headerknop Downloads en de spotknop Naar SABnzbd gebruiken een native modaal slide-in/out-paneel: echte wachtrij/voortgang/snelheid, SVG-grafiek van de laatste vijf minuten tijdens de panelsessie, lokale verzendhistorie en bevestiging. Polling elke vijf seconden uitsluitend open/zichtbaar, geen automatische retries na fouten. Queuepagina's zijn 30 items; historie laatste 30. Andere SAB-velden zoals wachtwoorden/paden worden niet doorgestuurd. Externe jobnamen blijven tekst. De volledige eigen externe wachtrij kan inhoud van buiten NNSpotty bevatten en is niet betrouwbaar op erotica te classificeren.
+    Nieuwe platformvereiste ext-curl; migratie 0012 voegt verbindingen/mapping/historie toe. Versie blijft 0.0.1 Delta Integrale. Validatie: 928 controles geslaagd met PHP 8.4 en echte MariaDB 11.4, alle PHP-syntaxchecks en Composer-platformvereisten akkoord. Synthetische SAB-server verifieert daadwerkelijke multipart-NZB-inhoud/categorie en acceptatie/weigering/onzekere uitkomst. Browser: upload/historie, veilige jobtekst, zes beheeronderdelen, donker/licht, 320/390/768/1440px zonder horizontale overflow, Escape/focusherstel en gewone gebruiker zonder centrale toegang met expliciete interne-hostweigering. Praktijkacceptatie met de echte externe SAB-host blijft nodig.
+
 ## Open vragen (voor volgende stap)
 - Welk framework past het best bij verdere uitbreiding? De huidige basis gebruikt PHP 8.2+ en PDO/MySQL/MariaDB.
 - Welke metadata-provider krijgt prioriteit: IMDB, TVDB of beide vanaf start?
@@ -186,7 +199,7 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
 
 ## Volgende stappen
 1. Newznab-MVP op productie testen met Prowlarr, Sonarr en de eigen Usenet-provider: titel-/categoriezoektocht en echte NZB-download.
-2. SABnzbd/NZBGet-keuze en instellingen via admin, directe forwarding en persistente downloadhistorie toevoegen.
+2. SABnzbd op productie accepteren met echte categorienamen, persoonlijke publieke host en centrale interne host; daarna eventueel NZBGet en afgeronde downloadstatussen toevoegen.
 3. Retentiebeheer uitbreiden met duidelijke begin-/einddatums en kalenderbediening, zonder onvolledige datumscans.
 4. Kernmodules verdiepen:
    - usenet/indexing

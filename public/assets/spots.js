@@ -88,7 +88,7 @@
     });
     close.addEventListener('click', closePreview);
     document.addEventListener('keydown', event => {
-        if (document.getElementById('image-lightbox')?.open) return;
+        if (document.querySelector('dialog[open]')) return;
         if (event.key === 'Escape' && drawer.classList.contains('is-open')) closePreview();
     });
 

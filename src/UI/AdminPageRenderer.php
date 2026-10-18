@@ -23,7 +23,7 @@ final class AdminPageRenderer
      * @param array<int, array{post_id: string, username: string, comment: string, created_at: string}> $comments
      * @param array<int, array{actor_username: string, action: string, target_type: string, target_id: string, details_json: string, ip_address: string, created_at: string}> $auditLogs
      */
-    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = [], array $spotContent = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true], bool $apiEnabled = false): string
+    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = [], array $spotContent = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true], bool $apiEnabled = false, string $sabSettings = ''): string
     {
         $retention = (int) $settings['retention'];
         $server = h($settings['server']);
@@ -89,6 +89,16 @@ HTML;
       </div>
     </div>
     {$statusAlert}
+    <nav class="nav nav-pills gap-2 admin-navigation" aria-label="Beheeronderdelen" data-admin-navigation>
+      <a class="nav-link" href="#usenet">Usenet</a>
+      <a class="nav-link" href="#appearance">Inhoud en weergave</a>
+      <a class="nav-link" href="#newznab">Newznab</a>
+      <a class="nav-link" href="#downloads">SABnzbd</a>
+      <a class="nav-link" href="#moderation">Moderatie en reacties</a>
+      <a class="nav-link" href="#audit">Auditlog</a>
+    </nav>
+    <div data-admin-panel="downloads">{$sabSettings}</div>
+    <div data-admin-panel="newznab">
     <section class="card my-4" id="newznab">
       <div class="card-header">Newznab API</div>
       <form method="post" action="/admin/newznab" class="card-body">
@@ -101,6 +111,8 @@ HTML;
         <button class="btn btn-primary" type="submit">API-instelling opslaan</button>
       </form>
     </section>
+    </div>
+    <div data-admin-panel="appearance" id="appearance">
     {$columnForm}
     <section class="card my-4" id="spot-content">
       <div class="card-header fw-semibold">Op te halen inhoud</div>
@@ -108,7 +120,7 @@ HTML;
         {$csrfField}
         {$contentOptions}
         <p class="form-text">Spots en hun omschrijving blijven de basis. Reacties indexeren uit: geen reactiegroepen ophalen of cursors verplaatsen. Weergave uit: ook bestaande en lokale reacties verborgen. Afbeeldingen worden alleen bij bekijken geladen en in de database gecachet; uit blokkeert ook gecachte afbeeldingen. Opgeslagen inhoud wordt niet verwijderd.</p>
-        <p class="form-text">Retentie en max artikelen per incrementele run staan onder Usenet instellingen. Na opnieuw inschakelen van reacties haalt --since-last de achterstand vanaf de bestaande cursor op; --days of --all kan beschikbare historie aanvullen. Aanvullende IMDB/TVDB-metadata en NZB-downloads zijn nog niet beschikbaar.</p>
+        <p class="form-text">Retentie en max artikelen per incrementele run staan onder Usenet instellingen. Na opnieuw inschakelen van reacties haalt --since-last de achterstand vanaf de bestaande cursor op; --days of --all kan beschikbare historie aanvullen. Aanvullende IMDB/TVDB-metadata is nog niet beschikbaar.</p>
         <p class="form-text">Reacties bijwerken zonder eerst de spotgroep te scannen: <code>php bin/console retrieve --comments-only --days=7 --verbose</code>. Ook deze datumsessie scant alle beschikbare reactienummers en kan lang duren. Opgeslagen spotmetadata aanvullen: <code>php bin/console retrieve --refresh-spots --days=7 --verbose</code>.</p>
         <button class="btn btn-primary" type="submit">Inhoudsinstellingen opslaan</button>
       </form>
@@ -125,8 +137,9 @@ HTML;
         <button class="btn btn-primary" type="submit">Zichtbaarheid opslaan</button>
       </form>
     </section>
-    <div class="row g-4">
-      <div class="col-12 col-lg-6">
+    </div>
+    <div data-admin-panel="usenet" id="usenet" class="my-4">
+      <div>
         <div class="card">
           <div class="card-header fw-semibold">Usenet instellingen</div>
           <div class="card-body">
@@ -184,7 +197,9 @@ HTML;
         </div>
       </div>
 
-      <div class="col-12 col-lg-6">
+    </div>
+    <div data-admin-panel="moderation" id="moderation" class="my-4">
+      <div>
         <div class="card mb-4">
           <div class="card-header fw-semibold">Spotter whitelist/blacklist</div>
           <div class="card-body">
@@ -224,7 +239,7 @@ HTML;
         </div>
       </div>
     </div>
-    <div class="row mt-4">
+    <div class="row mt-4" data-admin-panel="audit" id="audit">
       <div class="col-12">
         <div class="card">
           <div class="card-header fw-semibold">Admin audit log (laatste wijzigingen)</div>

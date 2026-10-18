@@ -8,6 +8,56 @@ cp .env.example .env
 # vul daarna .env met jouw basis app + DB gegevens
 ```
 
+## SABnzbd, categorietoewijzing en downloadpaneel
+Maak eerst een beveiligde databasebackup volgens de procedure hieronder en pauzeer retrieval en webverkeer tijdens de schema-update. Voer daarna in de bestaande projectmap op `nnspotty.hopseflop.nl` uit:
+
+```bash
+cd <pad-naar-project>
+umask 022
+git status --short
+git pull --ff-only origin main
+php -m | grep -i '^curl$'
+# Alleen wanneer curl ontbreekt, bijvoorbeeld op Debian/Ubuntu:
+# PHP_MINOR="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
+# sudo apt-get install "php${PHP_MINOR}-curl"
+# Herlaad de bijpassende PHP-FPM/Apache-service volgens je serverconfiguratie.
+composer install --no-dev --optimize-autoloader
+composer check-platform-reqs
+php bin/console db migrate
+php bin/console db status
+php bin/console db health
+php tests/run.php
+curl -fsS https://nnspotty.hopseflop.nl/health
+curl -fsS -D - https://nnspotty.hopseflop.nl/assets/downloader.js -o /dev/null
+```
+
+Ga alleen verder wanneer Composer geen ontbrekende extensies meldt. Migratie `20261018_0012_sabnzbd` maakt verbindingen, categorietoewijzingen en verzendhistorie aan. Geen nieuwe retrieval of Newznab-keyrotatie nodig. Herstart webverkeer/retrieval na de migratie en herlaad de browser met Ctrl+F5. Houd `.env` en databasebackups geheim; SABnzbd-keys moeten voor uitgaande authenticatie herstelbaar in de database staan.
+
+### Centrale koppeling en categorieen
+1. Open als admin `/admin#downloads`. Het beheer is nu verdeeld in Usenet, Inhoud en weergave, Newznab, SABnzbd, Moderatie en reacties, Auditlog.
+2. Voer het SABnzbd-**basisadres** in: bijvoorbeeld `http://192.168.1.10:8080` of `https://sab.example.nl/sabnzbd`, zonder `/api`. Interne adressen zijn uitsluitend voor admins toegestaan. Kies bij voorkeur HTTPS; TLS-verificatie staat altijd aan en self-signed certificaten zonder vertrouwde CA werken niet.
+3. Gebruik de **volledige API-key** uit SABnzbd Config > General, niet de beperkte NZB-key. Schakel de verbinding in, sla op en klik **Opgeslagen verbinding testen**. De test toont de beschikbare categorienamen. Een leeg keyveld bewaart de bestaande key, zonder die terug te tonen.
+4. Stel exacte namen per spottype in, bijvoorbeeld Films `movies`, Series `tv`, Muziek `music`, Boeken `books`. Maak deze namen eerst in SABnzbd aan. Leeg betekent Default. Deze mapping geldt ook voor persoonlijke verbindingen; dezelfde namen moeten op die hosts bestaan.
+5. Open een spot met NZB, klik **Naar SABnzbd**, kies **Centrale SABnzbd (admin)** en controleer titel/categorie. Bevestig de upload. Controleer zowel de NNSpotty-verzendhistorie als de werkelijke SABnzbd-wachtrij en uiteindelijke verwerking. Een geslaagde verbindingstest alleen is niet voldoende.
+
+### Persoonlijke koppeling en afscherming
+1. Open als gewone gebruiker `/preferences#downloads` en voer je eigen publiek bereikbare SABnzbd-basisadres/key in. Gebruik HTTPS. Een proxy mag een subpad hebben, maar aanvullende Basic Auth, interactieve logins en redirects zijn niet ondersteund. Bestaande SABnzbd-host-whitelisting/firewall moet NNSpotty toestaan; zet geen SABnzbd-beveiliging globaal uit.
+2. Controleer dat localhost, 127.0.0.1, ::1, 192.168.x.x, 10.x.x.x, private IPv6 en een DNS-hostnaam met interne antwoorden worden geweigerd. De centrale verbinding mag niet als keuze verschijnen en `/downloader?connection=central` moet voor deze gebruiker 403 geven.
+3. Log als tweede gebruiker in: die mag de host/key, wachtrij en lokale historie van de eerste gebruiker niet kunnen opvragen. Een meegegeven `username` of vervalste connectionnaam mag daar geen invloed op hebben. Twee gebruikers die zelf dezelfde SABnzbd-host instellen, zien uiteraard diezelfde externe wachtrij.
+4. Controleer een categorie die op de eigen host niet bestaat: versturen moet expliciet stoppen, zonder fallback of upload. Een tussentijds gewijzigde host/key/mapping vereist opnieuw openen van de bevestiging.
+5. Globaal geblokkeerde erotica mag niet voorbereid of verstuurd kunnen worden, ook niet door admin. De externe wachtrij zelf kan jobs bevatten die buiten NNSpotty zijn gestart; daarop kan NNSpotty geen betrouwbare erotica-filtering toepassen.
+
+### Live paneel, grafiek en foutgevallen
+- **Downloads** in de header opent een slide-in-paneel met je eigen wachtrij; admins kunnen daarnaast expliciet de centrale verbinding kiezen. Test 320px mobiel en breed scherm, beide thema's, onafhankelijk scrollen, toetsenbordfocus en Escape/focusherstel. Escape in het downloadpaneel mag niet tegelijk de spotpreview sluiten.
+- De status/snelheid/voortgang komt van SABnzbd. De grafiek bouwt alleen tijdens deze panelsessie de laatste vijf minuten op. Verversen gebeurt elke vijf seconden, stopt bij gesloten paneel/verborgen tabblad en stopt na fouten totdat je handmatig opnieuw probeert.
+- Controleer een wachtrij met meer dan 30 jobs via Vorige/Volgende. Externe jobnamen moeten als tekst worden getoond, niet als uitvoerbare HTML.
+- Controleer een echte upload: NZB-inhoud gaat via multipart POST met correcte `cat` en `nzbname`, niet via een URL naar NNSpotty. Herhaald indienen van dezelfde bevestiging mag geen tweede upload starten.
+- Bij een expliciete SAB-weigering staat de poging op Geweigerd; bij een onzekere transport/JSON/confirmatiefout op Uitkomst onbekend. Een afgebroken proces kan een onbevestigde Verzending gestart achterlaten. Controleer dan eerst SABnzbd voordat je bewust een nieuwe poging start.
+- **Verzonden** betekent door SAB geaccepteerd, niet voltooid. Lokale historie (laatste 30) blijft zichtbaar wanneer de verbinding uit/onbereikbaar/verwijderd is; voltooide SABnzbd-historie wordt nog niet gesynchroniseerd. Er zijn nog geen pauze-/verwijderknoppen.
+- Bescherm database en backups en gebruik HTTPS voor publieke hosts. SAB API-keys mogen niet in HTML, browser-JSON, auditdetails of URL-queries voorkomen. Verbindfouten mogen geen ruwe SAB-responses met geheimen tonen. Overweeg aanvullend een egress-firewall op de NNSpotty-host.
+
+De geisoleerde integratietests hieronder gebruiken ook een synthetische SABnzbd HTTP-server en controleren echte multipart-bytes, categoriekeuze, scopes, dubbele pogingen, IP-beleid, foutstatussen en historie. Ze bewijzen niet dat jouw externe SABnzbd-configuratie/provider correct bereikbaar is.
+
 ## Newznab en NZB-downloads
 Voer dit vanuit de bestaande deploymap uit; overschrijf `.env` niet. Pauzeer eerst retrieve-cronjobs en webverkeer tijdens de migratie. Maak een databasebackup met de eigen databasegebruiker, bijvoorbeeld:
 
@@ -61,7 +111,7 @@ Verwacht geldige RSS met `newznab:response`, standaardcategorieen, stabiele GUID
 
 **Logging:** standaard Newznab zet keys in querystrings. Pas Apache/Nginx/reverse-proxy-accesslogs en observability aan om querystrings niet te loggen. Een Apache-vhost kan bijvoorbeeld een eigen `LogFormat "%a %t \"%m %U %H\" %>s %b" nnspotty_noquery` gebruiken met `CustomLog ${APACHE_LOG_DIR}/nnspotty-access.log nnspotty_noquery`; gebruik daarin geen `%r`, `%q` of Referer. Verwijder/redigeer ook querystrings in eventuele proxy-/Prowlarr-debuglogs. De applicatie-auditlog bevat alleen acties, geen keys.
 
-De bestaande geisoleerde integratietests omvatten ook de volledige API/NZB-route; zie hieronder. SABnzbd/NZBGet-forwarding en downloadhistorie zijn nog niet toegevoegd.
+De bestaande geisoleerde integratietests omvatten ook de volledige API/NZB-route; zie hieronder. SABnzbd-forwarding en lokale verzendhistorie zijn inmiddels beschikbaar; NZBGet nog niet.
 
 ## Dependencies + database
 ```bash
@@ -290,14 +340,14 @@ Voer vanuit de bestaande deploymap uit:
 set -e
 umask 022
 chmod 755 public public/assets
-chmod 644 public/assets/spotty.css public/assets/spots.js public/assets/presentation.js
+chmod 644 public/assets/spotty.css public/assets/spots.js public/assets/presentation.js public/assets/downloader.js
 
 curl -fsS -D - https://nnspotty.hopseflop.nl/assets/spotty.css -o /dev/null
 curl -fsS -D - https://nnspotty.hopseflop.nl/assets/spots.js -o /dev/null
 curl -fsS -D - https://nnspotty.hopseflop.nl/assets/presentation.js -o /dev/null
 ```
 
-Alle drie moeten HTTP 200 geven, met respectievelijk een CSS- en JavaScript-contenttype. Herlaad daarna de browser met Ctrl+F5. Geeft een verzoek nog 403, controleer dan de Apache-errorlog, parent-directoryrechten en eventuele ACL's met de serverbeheerder; maak niet de hele repository wereldleesbaar/schrijfbaar. Laat `.env` op 600 staan. Gebruik voor volgende Git/Composer-updates `umask 022`; beperk 077 tot het aanmaken van geheime backups in een subshell.
+Alle assets moeten HTTP 200 geven, met respectievelijk een CSS- en JavaScript-contenttype; controleer ook `/assets/downloader.js`. Herlaad daarna de browser met Ctrl+F5. Geeft een verzoek nog 403, controleer dan de Apache-errorlog, parent-directoryrechten en eventuele ACL's met de serverbeheerder; maak niet de hele repository wereldleesbaar/schrijfbaar. Laat `.env` op 600 staan. Gebruik voor volgende Git/Composer-updates `umask 022`; beperk 077 tot het aanmaken van geheime backups in een subshell.
 
 ## Ontbrekende reacties en extra spotdetails (migratie 0010)
 Voer vanuit de bestaande deploymap op `nnspotty.hopseflop.nl` uit. Maak eerst een databasebackup en pauzeer retrieve-jobs en webverkeer tijdens de migratie.

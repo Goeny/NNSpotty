@@ -145,7 +145,7 @@ $router->post('/logout', static function (Request $request) use ($auth, $csrf): 
     return Response::redirect('/login?status=' . rawurlencode('Uitgelogd.'));
 });
 
-$router->get('/admin', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
+$router->get('/admin', static function (Request $request) use ($state, $auth, $csrf, $auditLogs, $pdo): Response {
     if (!$auth->isAdmin()) {
         return Response::redirect('/login?status=' . rawurlencode('Admin login vereist.'));
     }
@@ -167,10 +167,11 @@ $router->get('/admin', static function (Request $request) use ($state, $auth, $c
         theme: $state->getPreferences($currentUser['username'])['theme'],
         globalColumns: $state->globalSpotColumns(),
         spotContent: $state->spotContentSettings(),
-        apiEnabled: $state->apiEnabled()
+        apiEnabled: $state->apiEnabled(),
+        sabSettings: \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('central'), $csrf->field(), true, true)
     );
 
-    return Response::html($html);
+    return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
 });
 
 $router->post('/admin/content', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
@@ -194,7 +195,7 @@ $router->post('/admin/content', static function (Request $request) use ($state, 
         details: ['allow_erotica' => $allowed],
         ipAddress: $request->clientIp()
     );
-    return Response::redirect('/admin?status=' . rawurlencode('Zichtbaarheid opgeslagen.'));
+    return Response::redirect('/admin?status=' . rawurlencode('Zichtbaarheid opgeslagen.') . '#appearance');
 });
 
 $router->post('/admin/columns', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
@@ -353,7 +354,7 @@ $router->post('/admin/spotters', static function (Request $request) use ($state,
         );
     }
 
-    return Response::redirect('/admin?status=' . rawurlencode('Spotter toegevoegd aan ' . $listType . '.'));
+    return Response::redirect('/admin?status=' . rawurlencode('Spotter toegevoegd aan ' . $listType . '.') . '#moderation');
 });
 
 $router->post('/admin/comments', static function (Request $request) use ($state, $auth, $csrf, $auditLogs, $spots): Response {
@@ -393,7 +394,7 @@ $router->post('/admin/comments', static function (Request $request) use ($state,
         ipAddress: $request->clientIp()
     );
 
-    return Response::redirect('/admin?status=' . rawurlencode('Comment opgeslagen.'));
+    return Response::redirect('/admin?status=' . rawurlencode('Comment opgeslagen.') . '#moderation');
 });
 
 $router->get('/preferences', static function (Request $request) use ($state, $auth, $csrf, $pdo): Response {
@@ -420,11 +421,21 @@ $router->get('/preferences', static function (Request $request) use ($state, $au
         personalColumns: $state->personalSpotColumns($username),
         apiEnabled: $state->apiEnabled(),
         hasApiKey: (new \NnSpotty\Newznab\ApiKeys($pdo))->exists($username),
-        newApiKey: is_array($newKey) && $newKey['username'] === $username ? $newKey['key'] : null
+        newApiKey: is_array($newKey) && $newKey['username'] === $username ? $newKey['key'] : null,
+        sabSettings: \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('user:' . $username), $csrf->field(), false, $currentUser['is_admin'])
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store', 'Referrer-Policy' => 'no-referrer']);
 });
+
+$sabHandler = static function (Request $request) use ($pdo, $state, $auth, $csrf): Response {
+    $user = $auth->user();
+    // Release the browser session before provider requests and uploads.
+    session_write_close();
+    return (new \NnSpotty\Downloader\SabController($pdo, $state))->handle($request, $user, $csrf);
+};
+$router->get('/downloader', $sabHandler);
+$router->post('/downloader', $sabHandler);
 
 $router->post('/admin/newznab', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
     if (!$auth->isAdmin()) {

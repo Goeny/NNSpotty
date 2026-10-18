@@ -11,7 +11,7 @@ De focus ligt op:
 ## Huidige status
 - **Versie:** 0.0.1
 - **Codenaam:** Delta Integrale
-- **Fase:** Spotnet-retrieval, individuele spots en Newznab-MVP met NZB-downloads (nog geen complete Spotweb-vervanger)
+- **Fase:** Spotnet-retrieval, Newznab-MVP en SABnzbd-forwarding met live wachtrij (nog geen complete Spotweb-vervanger)
 
 ## Documentatie
 - [Projectrichtlijnen](./docs/project-guidelines.md)
@@ -92,9 +92,22 @@ De API exporteert standaard Newznab-codes: Console 1000, Movies 2000, Audio 3000
 
 Iedere key volgt de globale en persoonlijke erotica-instellingen; publieke caps verbergen XXX. Zoeken/downloaden vereist een key, publieke caps niet. De limiet is 120 aanvragen per minuut per key. API-aanvragen starten geen browsersessie. Feeds bevatten keydragende downloadlinks: houd feeds, browserhistorie en access-/proxy-/clientlogs geheim en laat productie-accesslogs querystrings weg.
 
-De knop **NZB downloaden** in detail en preview werkt ook als Newznab uit staat, met de normale sessie en zichtbaarheidstoegang. De gedeelde downloadservice haalt Spotnet NZB-segmenten op via NNTP, combineert/decodeert/decomprimeert ze, valideert XML en bewaart een databasecache. Gecomprimeerde invoer en uitgepakte XML zijn begrensd tot minder dan 16 MiB. Verlopen of defecte NZBs geven een expliciete fout en worden niet gecachet. Rechtstreeks doorsturen naar SABnzbd/NZBGet en downloadhistorie volgen in een volgende stap.
+De knop **NZB downloaden** in detail en preview werkt ook als Newznab uit staat, met de normale sessie en zichtbaarheidstoegang. De gedeelde downloadservice haalt Spotnet NZB-segmenten op via NNTP, combineert/decodeert/decomprimeert ze, valideert XML en bewaart een databasecache. Gecomprimeerde invoer en uitgepakte XML zijn begrensd tot minder dan 16 MiB. Verlopen of defecte NZBs geven een expliciete fout en worden niet gecachet.
 
 Zie [deployment en acceptatiechecks](./docs/linux-server-testing.md#newznab-en-nzb-downloads) voor concrete servercommando's.
+
+## SABnzbd: versturen en live wachtrij
+- Vereist PHP-extensie **curl**; draai Composer-installatie/platformcontrole en migratie `20261018_0012_sabnzbd`.
+- **Admin > SABnzbd:** configureer de centrale host met volledig basisadres (bijvoorbeeld `http://192.168.1.10:8080` of `https://sab.example.nl/sabnzbd`) en de volledige SABnzbd API-key, niet de beperkte NZB-key. Hostpaden voor een reverse proxy zijn toegestaan; laat `/api` weg. Schakel in, sla op en test de opgeslagen verbinding.
+- **Voorkeuren > Mijn SABnzbd-koppeling:** iedere gebruiker beheert zijn eigen verbinding. Gewone gebruikers mogen alleen publiek routeerbare hosts gebruiken; localhost, private/LAN-, link-local-, gereserveerde en transition-adressen worden geweigerd. Alleen admins mogen interne hosts en de centrale koppeling benaderen. Dit geldt bij opslaan en bij iedere nieuwe aanvraag, dus ook na rolwijziging of gewijzigde DNS.
+- **Categorietoewijzing:** admin beheert exacte SABnzbd-categorienamen voor Films, Series, Boeken, Erotica, Afbeeldingen, Muziek, Livesets, Podcasts, Luisterboeken, Spellen, Applicaties en Overig. Deze mapping geldt ook voor persoonlijke hosts. Leeg gebruikt SABnzbd Default; een niet-lege categorie moet op de doelhost bestaan. Geen stille fallback. De verbindingstest toont beschikbare SABnzbd-categorienamen.
+- **Naar SABnzbd** in detail en preview opent een bevestiging met koppeling, titel en effectieve categorie. NNSpotty uploadt de gevalideerde NZB-inhoud via multipart POST, niet een keydragende Newznab-URL. Een gewijzigde host/key/mapping vereist een nieuwe bevestiging. Hergebruik van dezelfde bevestiging veroorzaakt geen tweede upload.
+- **Downloads** in de header opent een modaal slide-in-paneel met echte wachtrij, voortgang, resterende tijd, snelheid en een SVG-snelheidsgrafiek van de laatste vijf minuten tijdens deze panelsessie. Vernieuwen gebeurt om de vijf seconden zolang paneel en tabblad zichtbaar zijn; bij fouten stopt automatisch verversen totdat je opnieuw probeert. Wachtrijen groter dan 30 items hebben vorige/volgende. Het paneel ondersteunt Escape, focusherstel, donker/licht, mobiel en verminderde beweging.
+- Je ziet de volledige externe wachtrij van uitsluitend je eigen gekozen host, inclusief jobs buiten NNSpotty. Admins kunnen daarnaast de centrale wachtrij kiezen. De zichtbaarheid van externe SABnzbd-jobs volgt niet automatisch NNSpotty-erotica-filters; de eigen lokale spot/verzendhistorie doet dat wel.
+- De database bewaart de laatste verzendpogingen met status **Verzonden**, **Geweigerd**, **Uitkomst onbekend** of nog onbevestigd. Verzonden betekent door SABnzbd geaccepteerd, niet voltooid. De laatste 30 worden getoond; er is nog geen synchronisatie van voltooide SABnzbd-historie of bediening voor pauzeren/verwijderen. Bij een timeout/ongeldige bevestiging nooit blind opnieuw versturen: SABnzbd kan de upload al ontvangen hebben. Lokale historie blijft beschikbaar als de verbinding uit/onbereikbaar is of verwijderd is.
+- Keys staan voor uitgaande authenticatie in de database, maar worden nooit teruggerenderd, naar browser-JSON gestuurd of in applicatie-audits geschreven. Een leeg keyveld behoudt het bestaande geheim; verwijderen wist de verbinding, niet de externe downloads of lokale historie. Bescherm database/backups. Gebruik HTTPS op publieke hosts; HTTP verstuurt de key zonder transportversleuteling. TLS-verificatie blijft aan, redirects en omgevingsproxies uit; DNS-resultaten worden gecontroleerd en per verbinding vastgepind.
+
+Het adminpaneel is verdeeld in **Usenet**, **Inhoud en weergave**, **Newznab**, **SABnzbd**, **Moderatie en reacties** en **Auditlog**. Navigatie is deelbaar via fragmentlinks; zonder JavaScript blijven alle secties zichtbaar. SABnzbd-panelen en directe forwarding vereisen JavaScript. NZBGet is nog een volgende uitbreiding.
 
 ## Upgrade van de headerindex
 1. Voer `php bin/console db migrate` uit.
@@ -124,5 +137,5 @@ Oude headerdata en synthetische releases blijven bewaard, maar worden niet meer 
 ## Tests en beperkingen
 - `composer test` of `php tests/run.php`: protocol- en renderercontroles zonder database of echte Usenet-provider.
 - Voor integratietests met een aparte MariaDB-testserver: zie [Linux server testen](./docs/linux-server-testing.md).
-- Nog niet aanwezig: spotterhandtekeningverificatie, volledige ondersteuning voor alle exotische Spotnet-tags, directe NZB-forwarding/downloadhistorie en externe metadata/ID-zoekintegratie. Newznab en NZB-downloads zijn een MVP; praktijkacceptatie met jouw Prowlarr/Sonarr en provider blijft nodig. Geimporteerde inhoud blijft onbevestigd; omschrijvingen en Usenet-reacties gebruiken een strikte opmaak-allowlist.
+- Nog niet aanwezig: spotterhandtekeningverificatie, volledige ondersteuning voor alle exotische Spotnet-tags, NZBGet-forwarding, synchronisatie van afgeronde SABnzbd-jobs en externe metadata/ID-zoekintegratie. Praktijkacceptatie met jouw SABnzbd/Prowlarr/Sonarr en provider blijft nodig. Geimporteerde inhoud blijft onbevestigd; omschrijvingen en Usenet-reacties gebruiken een strikte opmaak-allowlist.
 - Een succesvolle lokale fixturetest bewijst protocolverwerking, niet beschikbaarheid van groepen of artikelen bij jouw Usenet-provider.

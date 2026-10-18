@@ -5,6 +5,10 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Added
+- SABnzbd-forwarding met centrale adminverbinding en persoonlijke verbindingen, globale categorietoewijzing per spottype, volledige-key-invoer zonder terugtonen, verbindingstest en echte multipart NZB-upload vanuit detail/preview.
+- SABnzbd downloadpaneel met slide-in/out, echte wachtrij/voortgang/snelheid, vijfminutengrafiek, begrensde polling, paginering, foutfeedback en persistente lokale verzendhistorie. Herhaalde bevestigingen uploaden niet opnieuw; onzekerheid na verzending blijft expliciet zichtbaar.
+- Migratie `20261018_0012_sabnzbd` voor verbindingen, categorietoewijzing en historie; PHP-extensie curl als platformvereiste. Persoonlijke publieke hosts voor gewone gebruikers, centrale/interne hosts alleen admins, DNS-validatie/pinning en geen redirects/proxies.
+- Adminonderdelen met fragmentnavigatie: Usenet, Inhoud en weergave, Newznab, SABnzbd, Moderatie en reacties, Auditlog; bestaande formulieren en ankerlinks blijven bruikbaar.
 - Newznab-MVP met publieke caps, persoonlijke gehashte API-keys, standaardcategorieen, XML search/tvsearch/movie/get, categorie-OR, titel/aflevering/jaarfilters, paginering en keygebonden aanvraaglimiet. Default-off adminsysteemschakelaar; eigen keybeheer met CSRF, eenmalige weergave en bevestigingen voor rotatie/intrekken. Geen onterecht geadverteerd IMDb/TVDB-ID-zoeken.
 - Gedeelde NZB-downloadservice voor browser en API: NNTP BODY, multipart Spotnet-unescape/raw-DEFLATE, begrensde veilige NZB-validatie, databasecache en expliciete foutafhandeling. Werkende downloadknop in detail/preview; migratie `20261018_0011_newznab_nzb` backfillt bestaande categorieen en voegt keys/cache toe. NZB-cache vervalt bij expliciet gewijzigde segmentbron.
 - Protocol-/database-/HTTP-regressies voor NZB-transport en cache, categorievertaling, API-feeds, sleutelbeheer, limieten, gebruikersisolatie, zichtbaarheid en migratie/backfill; Prowlarr-configuratie en productieacceptatie gedocumenteerd.
