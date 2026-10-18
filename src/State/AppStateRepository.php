@@ -119,6 +119,73 @@ final class AppStateRepository
         return $this->eroticaAllowed() && $this->getPreferences($username)['show_erotica'];
     }
 
+    /** @return array<int, list<string>> */
+    public function globalSpotColumns(): array
+    {
+        $stored = $this->decodeSetting('admin.spot_columns');
+        $columns = \NnSpotty\UI\SpotColumns::defaults();
+        foreach ($columns as $head => $defaults) {
+            if (isset($stored[$head])) {
+                $columns[$head] = \NnSpotty\UI\SpotColumns::validate($stored[$head]);
+            }
+        }
+        return $columns;
+    }
+
+    /** @param array<int, list<string>> $columns */
+    public function saveGlobalSpotColumns(array $columns): void
+    {
+        $validated = [];
+        foreach (\NnSpotty\Usenet\SpotCategories::HEADS as $head => $label) {
+            $validated[$head] = \NnSpotty\UI\SpotColumns::validate($columns[$head] ?? []);
+        }
+        $this->saveSetting('admin.spot_columns', $validated);
+    }
+
+    /** @return array<int, list<string>> */
+    public function personalSpotColumns(string $username): array
+    {
+        $statement = $this->pdo->prepare('SELECT head_category, columns_json FROM user_spot_columns WHERE username = :username');
+        $statement->execute(['username' => $username]);
+        $columns = [];
+        foreach ($statement->fetchAll() as $row) {
+            $columns[(int) $row['head_category']] = \NnSpotty\UI\SpotColumns::validate(json_decode($row['columns_json'], true, 512, JSON_THROW_ON_ERROR));
+        }
+        return $columns;
+    }
+
+    /** @param array<int, list<string>> $columns */
+    public function savePersonalSpotColumns(string $username, array $columns): void
+    {
+        foreach ($columns as $head => $selection) {
+            if (!array_key_exists($head, \NnSpotty\Usenet\SpotCategories::HEADS)) {
+                throw new \InvalidArgumentException('Ongeldige hoofdcategorie.');
+            }
+            \NnSpotty\UI\SpotColumns::validate($selection);
+        }
+        $this->pdo->beginTransaction();
+        try {
+            $delete = $this->pdo->prepare('DELETE FROM user_spot_columns WHERE username = :username');
+            $delete->execute(['username' => $username]);
+            $insert = $this->pdo->prepare('INSERT INTO user_spot_columns (username, head_category, columns_json) VALUES (:username, :head, :columns)');
+            foreach ($columns as $head => $selection) {
+                $insert->execute(['username' => $username, 'head' => $head, 'columns' => json_encode(\NnSpotty\UI\SpotColumns::validate($selection), JSON_THROW_ON_ERROR)]);
+            }
+            $this->pdo->commit();
+        } catch (\Throwable $exception) {
+            $this->pdo->rollBack();
+            throw $exception;
+        }
+    }
+
+    /** @return list<string> */
+    public function effectiveSpotColumns(string $username, ?string $category): array
+    {
+        $head = \NnSpotty\Usenet\SpotCategories::headForCategory($category);
+        return $head === null ? ['cover', 'title', 'format', 'poster', 'size']
+            : ($this->personalSpotColumns($username)[$head] ?? $this->globalSpotColumns()[$head]);
+    }
+
     /**
      * @return array{whitelist: string[], blacklist: string[]}
      */

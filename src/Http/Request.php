@@ -63,4 +63,23 @@ final class Request
     {
         return $this->clientIp;
     }
+
+    public function queryScalar(string $key): ?string
+    {
+        return $this->scalar($this->query, $key);
+    }
+
+    public function inputScalar(string $key): ?string
+    {
+        return $this->scalar($this->body, $key);
+    }
+
+    /** @param array<string, mixed> $values */
+    private function scalar(array $values, string $key): ?string
+    {
+        if (isset($values[$key]) && !is_string($values[$key])) {
+            throw new \InvalidArgumentException('Ongeldige tekstwaarde voor ' . $key . '.');
+        }
+        return ($values[$key] ?? '') !== '' ? $values[$key] : null;
+    }
 }

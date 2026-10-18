@@ -302,6 +302,15 @@ final class Migrator
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             ],
             '20261018_0008_category_backfill' => [],
+            '20261018_0009_user_spot_columns' => [
+                'CREATE TABLE IF NOT EXISTS user_spot_columns (
+                    username VARCHAR(191) NOT NULL,
+                    head_category TINYINT UNSIGNED NOT NULL,
+                    columns_json JSON NOT NULL,
+                    PRIMARY KEY (username, head_category),
+                    FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+            ],
         ];
     }
 }

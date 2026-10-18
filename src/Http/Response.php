@@ -38,6 +38,16 @@ final class Response
         return self::json(['error' => 'Not Found'], 404);
     }
 
+    /** @param array<string, mixed> $payload */
+    public static function privateJson(array $payload, int $statusCode = 200): self
+    {
+        return new self($statusCode, json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), [
+            'Content-Type' => 'application/json; charset=utf-8',
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
     public function withoutBody(): self
     {
         return new self($this->statusCode, '', $this->headers);

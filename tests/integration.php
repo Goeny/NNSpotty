@@ -150,7 +150,49 @@ try {
     check($spots->countSpots(null, true) === 254 && $spots->countSpots('Erotica', true) === 126
         && $spots->countSpots('Series', false) === 125 && $spots->countSpots(null, false) === 128,
         'Backfill verwerkt meer dan 250 rijen volledig, inclusief zichtbaarheidsgrens over batches');
+    $firstBatch = $spots->batch('Beeld', 10, false, ['0:z1'], 'Afgeschermde');
+    check(count($firstBatch['spots']) === 10 && $firstBatch['next'] !== null, 'Keyset retourneert batchgrootte en vervolgpositie voor gefilterde spots');
+    $expected = array_column($spots->listSpots('Beeld', 500, 0, false, ['0:z1'], 'Afgeschermde'), 'id');
+    $newest = $adult;
+    $newest['message_id'] = 'concurrent-batch@example.invalid';
+    $newest['id'] = hash('sha256', $newest['message_id']);
+    $newest['posted_at'] = '2099-01-01 12:00:00';
+    $newest['subcategories'] = ['1z01'];
+    $spots->saveSpot($newest, 'free.pt');
+    $seen = array_column($firstBatch['spots'], 'id');
+    $next = $firstBatch['next'];
+    do {
+        $batch = $spots->batch('Beeld', 10, false, ['0:z1'], 'Afgeschermde', $next);
+        $seen = array_merge($seen, array_column($batch['spots'], 'id'));
+        $next = $batch['next'];
+    } while ($next !== null);
+    check($seen === $expected && count(array_unique($seen)) === count($seen), 'Keyset slaat bij gelijke datums en gelijktijdige nieuwe indexering geen bestaande spots over en verdubbelt niets');
+    $pdo->prepare('DELETE FROM spotnet_spots WHERE id = ?')->execute([$newest['id']]);
+    rejects(static fn () => $spots->batch(null, 10, false, [], '', 'invalid'), 'Ongeldige keyset wordt expliciet geweigerd');
+    rejects(static fn () => $spots->batch(null, 10, false, [], '', base64_encode('2026-02-31 00:00:00|' . str_repeat('a', 64))), 'Ongeldige keysetdatum wordt geweigerd');
     $pdo->exec("DELETE FROM spotnet_spots WHERE message_id LIKE 'batch-%@example.invalid'");
+    $multi = $adult;
+    $multi['message_id'] = 'multi-facet@example.invalid';
+    $multi['id'] = hash('sha256', $multi['message_id']);
+    $multi['subcategories'] = ['1a09', '1a10', '1d00', '1d01', '1z00'];
+    $spots->saveSpot($multi, 'free.pt');
+    check($spots->countSpots('Beeld', false, ['0:a9', '0:d0', '0:d1']) === 1
+        && $spots->countSpots('Beeld', false, ['0:a9', '0:d0', '0:d1', '0:d2']) === 0, 'Alle subcategorieen worden met EN gecombineerd, ook binnen dezelfde dimensie');
+    check($spots->countSpots('Beeld', false, ['0:a9', '0:a10']) === 1
+        && count($spots->batch('Beeld', 10, false, ['0:a9', '0:a10'], '')['spots']) === 1, 'Ook formaatfilters stapelen met EN in telling en batch');
+    $facets = array_column($spots->facets('Beeld', false, '', ['0:a9', '0:d1']), 'total', 'code');
+    check((int) $facets['0:d0'] === 1 && (int) $facets['0:a10'] === 1, 'Facetaantallen gebruiken alle actieve filters');
+    $pdo->prepare('DELETE FROM spotnet_spots WHERE id = ?')->execute([$multi['id']]);
+    $columnUser = new \NnSpotty\Users\UserRepository($pdo);
+    $columnUser->create('column-fixture', 'fixture-only-delete-test', false);
+    $state->savePersonalSpotColumns('column-fixture', [0 => ['title', 'size'], 3 => ['title', 'poster']]);
+    $reloadedState = new AppStateRepository($pdo);
+    check($reloadedState->personalSpotColumns('column-fixture') === [0 => ['title', 'size'], 3 => ['title', 'poster']]
+        && $reloadedState->effectiveSpotColumns('column-fixture', 'Geluid') === $state->globalSpotColumns()[1], 'Overriden en inheriting categorieen blijven na herladen van de state correct opgeslagen');
+    rejects(static fn () => $state->savePersonalSpotColumns('column-fixture', [0 => ['title'], 4 => ['title']]), 'Ongeldige hoofdgroep wordt voor een persoonlijke wijziging geweigerd');
+    check($state->personalSpotColumns('column-fixture') === [0 => ['title', 'size'], 3 => ['title', 'poster']], 'Ongeldige wijziging wist geen eerdere kolomkeuzes');
+    $columnUser->delete('column-fixture');
+    check($state->personalSpotColumns('column-fixture') === [], 'Userverwijdering ruimt persoonlijke kolomoverrides via foreign key op');
     $settings['explicit_groups'] = 'spots:free.pt,comments:free.ptd';
     $state->saveUsenetSettings($settings);
     $pdo->exec("DELETE FROM migrations WHERE name = '20261018_0006_spotnet'");

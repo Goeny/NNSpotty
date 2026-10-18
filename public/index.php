@@ -20,6 +20,8 @@ use NnSpotty\UI\LoginPageRenderer;
 use NnSpotty\UI\PreferencesPageRenderer;
 use NnSpotty\UI\SpotDetailPageRenderer;
 use NnSpotty\UI\SpotsPageRenderer;
+use NnSpotty\UI\SpotColumns;
+use NnSpotty\Usenet\SpotFilters;
 
 $autoloadPath = __DIR__ . '/../vendor/autoload.php';
 if (!is_file($autoloadPath)) {
@@ -150,7 +152,8 @@ $router->get('/admin', static function (Request $request) use ($state, $auth, $c
         currentUsername: $currentUser['username'],
         csrfField: $csrf->field(),
         allowErotica: $state->eroticaAllowed(),
-        theme: $state->getPreferences($currentUser['username'])['theme']
+        theme: $state->getPreferences($currentUser['username'])['theme'],
+        globalColumns: $state->globalSpotColumns()
     );
 
     return Response::html($html);
@@ -178,6 +181,41 @@ $router->post('/admin/content', static function (Request $request) use ($state, 
         ipAddress: $request->clientIp()
     );
     return Response::redirect('/admin?status=' . rawurlencode('Zichtbaarheid opgeslagen.'));
+});
+
+$router->post('/admin/columns', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
+    if (!$auth->isAdmin()) {
+        return new Response(403, 'Admin login vereist.');
+    }
+    if (!$csrf->verify($request->input('_csrf'))) {
+        return Response::redirect('/admin?status=' . rawurlencode('Ongeldige CSRF token.'));
+    }
+    try {
+        $columns = SpotColumns::fromRequest($request, false);
+        $state->saveGlobalSpotColumns($columns);
+    } catch (InvalidArgumentException $exception) {
+        return Response::redirect('/admin?status=' . rawurlencode($exception->getMessage()) . '#columns');
+    }
+    $auditLogs->log($auth->user()['username'], 'admin.columns.updated', 'settings', 'spot_columns', ['columns' => $columns], $request->clientIp());
+    return Response::redirect('/admin?status=' . rawurlencode('Globale kolommen opgeslagen.') . '#columns');
+});
+
+$router->post('/preferences/columns', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
+    if (!$auth->isAuthenticated()) {
+        return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
+    }
+    if (!$csrf->verify($request->input('_csrf'))) {
+        return Response::redirect('/preferences?status=' . rawurlencode('Ongeldige CSRF token.'));
+    }
+    $username = $auth->user()['username'];
+    try {
+        $columns = SpotColumns::fromRequest($request, true);
+        $state->savePersonalSpotColumns($username, $columns);
+    } catch (InvalidArgumentException $exception) {
+        return Response::redirect('/preferences?status=' . rawurlencode($exception->getMessage()) . '#columns');
+    }
+    $auditLogs->log($username, 'user.columns.updated', 'user', $username, ['columns' => $columns], $request->clientIp());
+    return Response::redirect('/preferences?status=' . rawurlencode('Persoonlijke kolommen opgeslagen.') . '#columns');
 });
 
 $router->post('/admin/settings', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
@@ -334,15 +372,18 @@ $router->get('/preferences', static function (Request $request) use ($state, $au
         statusMessage: $request->query('status'),
         isAdmin: $currentUser['is_admin'],
         csrfField: $csrf->field(),
-        allowErotica: $state->eroticaAllowed()
+        allowErotica: $state->eroticaAllowed(),
+        globalColumns: $state->globalSpotColumns(),
+        personalColumns: $state->personalSpotColumns($username)
     );
 
     return Response::html($html);
 });
 
 $router->get('/spots', static function (Request $request) use ($auth, $csrf, $state, $spots): Response {
+    $isBatch = $request->query('batch') === '1';
     if (!$auth->isAuthenticated()) {
-        return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
+        return $isBatch ? Response::privateJson(['error' => 'Login vereist.'], 401) : Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
     }
 
     $currentUser = $auth->user();
@@ -350,49 +391,63 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
         return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
     }
 
-    $selectedCategoryRaw = trim((string) ($request->query('category') ?? ''));
-    $selectedCategory = $selectedCategoryRaw !== '' ? $selectedCategoryRaw : null;
-    $pageRaw = (string) ($request->query('page') ?? '1');
-    $page = preg_match('/^\d+$/', $pageRaw) === 1 ? max(1, (int) $pageRaw) : 1;
     $preferences = $state->getPreferences($currentUser['username']);
     $showErotica = $state->canViewErotica($currentUser['username']);
-    $subcategory = trim((string) ($request->query('subcategory') ?? ''));
-    if ($subcategory !== '' && !preg_match('/^[0-3]:[abcdz]\d{1,3}$/D', $subcategory)) {
-        return new Response(400, 'Ongeldige subcategorie.');
+    try {
+        $selectedCategory = trim($request->queryScalar('category') ?? '') ?: null;
+        $filters = SpotFilters::parse($request->queryScalar('subcategory'));
+        $search = trim($request->queryScalar('q') ?? '');
+        if (strlen($search) > 200 || preg_match('//u', $search) !== 1) {
+            throw new InvalidArgumentException('Zoektekst moet geldige tekst van maximaal 200 bytes zijn.');
+        }
+        $cursor = $request->queryScalar('cursor');
+        $batch = $spots->batch($selectedCategory, (int) $preferences['items_per_page'], $showErotica, $filters, $search, $cursor);
+    } catch (InvalidArgumentException $exception) {
+        return Response::privateJson(['error' => $exception->getMessage()], 400);
     }
-    $subcategory = $subcategory !== '' ? $subcategory : null;
-    $search = trim((string) ($request->query('q') ?? ''));
-    if (strlen($search) > 200 || preg_match('//u', $search) !== 1) {
-        return new Response(400, 'Zoektekst moet geldige tekst van maximaal 200 bytes zijn.');
+    $columns = $state->effectiveSpotColumns($currentUser['username'], $selectedCategory);
+    if ($isBatch) {
+        return Response::privateJson([
+            'html' => $batch['spots'] === [] ? '' : SpotsPageRenderer::rows($batch['spots'], $columns),
+            'count' => count($batch['spots']),
+            'next' => SpotsPageRenderer::nextUrl(['category' => $selectedCategory, 'subcategory' => implode(',', $filters), 'q' => $search], $batch['next']),
+        ]);
     }
-    $perPage = max(10, min(200, (int) $preferences['items_per_page']));
-    $totalItems = $spots->countSpots($selectedCategory, $showErotica, $subcategory, $search);
-    $totalPages = max(1, (int) ceil($totalItems / $perPage));
-    $page = min($page, $totalPages);
-    $offset = ($page - 1) * $perPage;
-    $listedSpots = $spots->listSpots($selectedCategory, $perPage, $offset, $showErotica, $subcategory, $search);
-    $previewId = (string) ($request->query('spot') ?? ($listedSpots[0]['id'] ?? ''));
-    $preview = in_array($previewId, array_column($listedSpots, 'id'), true) ? $spots->getSpot($previewId, $showErotica) : null;
 
     $html = SpotsPageRenderer::render(
         username: $currentUser['username'],
         isAdmin: $auth->isAdmin(),
-        categories: $spots->listCategoriesWithCounts($showErotica),
-        spots: $listedSpots,
+        spots: $batch['spots'],
         selectedCategory: $selectedCategory,
-        currentPage: $page,
-        totalPages: $totalPages,
-        totalItems: $totalItems,
+        totalItems: $spots->countSpots($selectedCategory, $showErotica, $filters, $search),
         csrfField: $csrf->field(),
-        facets: $spots->facets($selectedCategory, $showErotica, $search),
-        selectedSubcategory: $subcategory,
+        facets: $spots->facets($selectedCategory, $showErotica, $search, $filters),
+        filters: $filters,
         search: $search,
-        preview: $preview,
         theme: $preferences['theme'],
-        showErotica: $showErotica
+        showErotica: $showErotica,
+        columns: $columns,
+        nextCursor: $batch['next']
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
+});
+
+$router->get('/spots/preview', static function (Request $request) use ($auth, $state, $spots): Response {
+    if (!$auth->isAuthenticated()) {
+        return Response::privateJson(['error' => 'Login vereist.'], 401);
+    }
+    try {
+        $id = $request->queryScalar('key') ?? '';
+        if (!preg_match('/^[a-f0-9]{64}$/D', $id)) {
+            throw new InvalidArgumentException('Ongeldige spot.');
+        }
+    } catch (InvalidArgumentException $exception) {
+        return Response::privateJson(['error' => $exception->getMessage()], 400);
+    }
+    $spot = $spots->getSpot($id, $state->canViewErotica($auth->user()['username']));
+    return $spot === null ? Response::privateJson(['error' => 'Spot niet gevonden.'], 404)
+        : Response::privateJson(['html' => SpotDetailPageRenderer::summary($spot, true)]);
 });
 
 $router->get('/spots/view', static function (Request $request) use ($auth, $csrf, $spots, $state): Response {

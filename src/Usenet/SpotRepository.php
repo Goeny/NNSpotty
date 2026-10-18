@@ -73,7 +73,7 @@ final class SpotRepository
             . ($showErotica ? '' : ' WHERE is_erotica = 0') . ' GROUP BY browse_type ORDER BY browse_type')->fetchAll();
     }
 
-    public function countSpots(?string $category, bool $showErotica = true, ?string $subcategory = null, string $search = ''): int
+    public function countSpots(?string $category, bool $showErotica = true, string|array|null $subcategory = null, string $search = ''): int
     {
         [$where, $parameters] = $this->filter($category, $showErotica, $subcategory, $search);
         $statement = $this->pdo->prepare('SELECT COUNT(*) FROM spotnet_spots s' . $where);
@@ -82,9 +82,15 @@ final class SpotRepository
     }
 
     /** @return list<array<string, mixed>> */
-    public function listSpots(?string $category, int $limit, int $offset, bool $showErotica = true, ?string $subcategory = null, string $search = ''): array
+    public function listSpots(?string $category, int $limit, int $offset, bool $showErotica = true, string|array|null $subcategory = null, string $search = '', ?array $after = null): array
     {
         [$where, $parameters] = $this->filter($category, $showErotica, $subcategory, $search);
+        if ($after !== null) {
+            $where .= ($where === '' ? ' WHERE ' : ' AND ') . '(s.posted_at < :before_date OR (s.posted_at = :same_date AND s.id < :before_id))';
+            $parameters['before_date'] = $after['date'];
+            $parameters['same_date'] = $after['date'];
+            $parameters['before_id'] = $after['id'];
+        }
         $statement = $this->pdo->prepare(
             'SELECT s.id, title, category, browse_type, subcategories, poster, size, posted_at, image_url, image_segments
              FROM spotnet_spots s' . $where .
@@ -99,6 +105,36 @@ final class SpotRepository
         return array_map($this->decode(...), $statement->fetchAll());
     }
 
+    /** @param list<string> $filters
+     *  @return array{spots: list<array<string, mixed>>, next: ?string}
+     */
+    public function batch(?string $category, int $limit, bool $showErotica, array $filters, string $search, ?string $cursor = null): array
+    {
+        $after = null;
+        if ($cursor !== null) {
+            $decoded = base64_decode(strtr($cursor, '-_', '+/'), true);
+            if ($decoded === false || !preg_match('/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\|([a-f0-9]{64})$/D', $decoded, $match)) {
+                throw new \InvalidArgumentException('Ongeldige vervolgpositie.');
+            }
+            $date = \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $match[1]);
+            if ($date === false || $date->format('Y-m-d H:i:s') !== $match[1]) {
+                throw new \InvalidArgumentException('Ongeldige datum in vervolgpositie.');
+            }
+            $after = ['date' => $match[1], 'id' => $match[2]];
+        }
+        $limit = max(10, min(200, $limit));
+        $rows = $this->listSpots($category, $limit + 1, 0, $showErotica, $filters, $search, $after);
+        $more = count($rows) > $limit;
+        if ($more) {
+            array_pop($rows);
+        }
+        $last = $rows === [] ? null : $rows[count($rows) - 1];
+        return [
+            'spots' => $rows,
+            'next' => $more && $last !== null ? rtrim(strtr(base64_encode($last['posted_at'] . '|' . $last['id']), '+/', '-_'), '=') : null,
+        ];
+    }
+
     /** @return array<string, mixed>|null */
     public function getSpot(string $id, bool $showErotica = true): ?array
     {
@@ -109,9 +145,9 @@ final class SpotRepository
     }
 
     /** @return list<array<string, mixed>> */
-    public function facets(?string $category, bool $showErotica, string $search = ''): array
+    public function facets(?string $category, bool $showErotica, string $search = '', array $subcategories = []): array
     {
-        [$where, $parameters] = $this->filter($category, $showErotica, null, $search);
+        [$where, $parameters] = $this->filter($category, $showErotica, $subcategories, $search);
         $statement = $this->pdo->prepare('SELECT c.code, COUNT(*) AS total FROM spotnet_spot_categories c
             JOIN spotnet_spots s ON s.id = c.spot_id' . $where . ' GROUP BY c.code ORDER BY c.code');
         $statement->execute($parameters);
@@ -158,7 +194,7 @@ final class SpotRepository
     }
 
     /** @return array{string, array<string, string>} */
-    private function filter(?string $category, bool $showErotica, ?string $subcategory, string $search): array
+    private function filter(?string $category, bool $showErotica, string|array|null $subcategory, string $search): array
     {
         $conditions = [];
         $parameters = [];
@@ -170,9 +206,11 @@ final class SpotRepository
             $parameters['type'] = $category;
             $parameters['head'] = $category;
         }
-        if ($subcategory !== null) {
-            $conditions[] = 'EXISTS (SELECT 1 FROM spotnet_spot_categories f WHERE f.spot_id = s.id AND f.code = :code)';
-            $parameters['code'] = $subcategory;
+        $subcategories = is_array($subcategory) ? $subcategory : SpotFilters::parse($subcategory);
+        foreach ($subcategories as $index => $code) {
+            $key = 'code_' . $index;
+            $conditions[] = 'EXISTS (SELECT 1 FROM spotnet_spot_categories f WHERE f.spot_id = s.id AND f.code = :' . $key . ')';
+            $parameters[$key] = $code;
         }
         if ($search !== '') {
             $conditions[] = 's.title LIKE :search';

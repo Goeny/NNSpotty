@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace NnSpotty\UI;
 
 use NnSpotty\Usenet\SpotCategories;
+use NnSpotty\Usenet\SpotFilters;
 
 final class SpotLayout
 {
     /** @param list<array<string, mixed>> $categories
      *  @param list<array<string, mixed>> $facets
      */
-    public static function render(string $title, string $username, bool $isAdmin, string $csrfField, string $content, array $categories = [], ?string $selected = null, string $theme = 'default', array $facets = [], ?string $selectedSubcategory = null, string $search = '', bool $showErotica = false, bool $browse = false): string
+    public static function render(string $title, string $username, bool $isAdmin, string $csrfField, string $content, array $categories = [], ?string $selected = null, string $theme = 'default', array $facets = [], string|array|null $selectedSubcategory = null, string $search = '', bool $showErotica = false, bool $browse = false): string
     {
         $mode = $theme === 'plex-light' ? 'light' : 'dark';
         $head = SpotCategories::headForCategory($selected);
@@ -20,13 +21,16 @@ final class SpotLayout
             $mainNavigation .= '<a class="' . ($index === $head ? 'active' : '') . '" href="'
                 . h('/spots?' . http_build_query(['category' => $category, 'q' => $search])) . '">' . h($category) . '</a>';
         }
-        $navigation = self::subcategories($head, $facets, $selectedSubcategory, $search, $showErotica);
+        $filters = is_array($selectedSubcategory) ? $selectedSubcategory : SpotFilters::parse($selectedSubcategory);
+        $navigation = self::subcategories($head, $facets, $filters, $search, $showErotica);
         $admin = $isAdmin ? '<a class="side-link" href="/admin">Beheerpanel</a>' : '';
         $safeTitle = h($title);
         $safeUsername = h($username);
         $safeSearch = h($search);
         $categoryInput = $head !== null ? '<input type="hidden" name="category" value="' . h(SpotCategories::HEADS[$head]) . '">' : '';
+        $filterInput = $filters !== [] ? '<input type="hidden" name="subcategory" value="' . h(implode(',', $filters)) . '">' : '';
         $contentClass = $browse ? 'content browse-page' : 'content';
+        $scripts = $browse ? '<script src="/assets/spots.js" defer></script>' : '';
         return <<<HTML
 <!doctype html>
 <html lang="nl" data-bs-theme="{$mode}">
@@ -36,6 +40,7 @@ final class SpotLayout
   <title>{$safeTitle} - NNSpotty</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="/assets/spotty.css" rel="stylesheet">
+  {$scripts}
 </head>
 <body class="spotty">
   <a class="visually-hidden-focusable skip-link" href="#content">Naar inhoud</a>
@@ -47,6 +52,7 @@ final class SpotLayout
     </div>
     <form method="get" action="/spots" role="search" class="global-search">
       {$categoryInput}
+      {$filterInput}
       <label for="global-search" class="visually-hidden">Zoek in spottitels</label>
       <input id="global-search" class="form-control form-control-sm" name="q" value="{$safeSearch}" type="search" maxlength="200" placeholder="Zoek in films, series, muziek, games...">
       <button class="btn btn-primary btn-sm" type="submit">Zoek</button>
@@ -76,7 +82,7 @@ HTML;
     }
 
     /** @param list<array<string, mixed>> $facets */
-    private static function subcategories(?int $head, array $facets, ?string $selected, string $search, bool $showErotica): string
+    private static function subcategories(?int $head, array $facets, array $selected, string $search, bool $showErotica): string
     {
         if ($head === null) {
             return '<p class="nav-caption">Subcategorieen</p><p class="small text-body-secondary px-2">Kies een hoofdcategorie bovenin om alle bijbehorende subcategorieen te bekijken.</p>';
@@ -95,10 +101,10 @@ HTML;
                 if ($adult && !$showErotica) {
                     continue;
                 }
-                $active = $code === $selected ? ' active' : '';
-                $count = isset($counts[$code]) ? '<span class="side-count">' . (int) $counts[$code] . '</span>' : '';
+                $active = in_array($code, $selected, true) ? ' active' : '';
+                $count = '<span class="side-count">' . (int) ($counts[$code] ?? 0) . '</span>';
                 $html .= '<a class="side-link' . $active . '"' . ($active !== '' ? ' aria-current="page"' : '') . ' href="'
-                    . h('/spots?' . http_build_query($base + ['subcategory' => $code])) . '">' . h($label) . $count . '</a>';
+                    . h('/spots?' . http_build_query($base + ['subcategory' => implode(',', SpotFilters::toggle($selected, $code))])) . '">' . h($label) . $count . '</a>';
             }
             $html .= '</details>';
         }

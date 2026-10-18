@@ -117,13 +117,28 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
     Gedeelde donkere sidebar/topbar, compacte lijst, geselecteerde preview en detailhero volgen de aangeleverde screenshots. Lichte themapreferences zijn daadwerkelijk aangesloten. Niet-bestaande downloads, ratings, watchlists en geverifieerde spotters worden niet gefingeerd. Desktop gebruikt meerdere panelen; mobiel stapelt de inhoud zonder horizontale pagina-overflow.
 
 33. **Vaste navigatie en onafhankelijke scrollgebieden**
-    De hoofdgroepen Beeld/Geluid/Spellen/Applicaties staan in de vaste header naast Alle; de zoekfunctie blijft ook vast. De geselecteerde hoofdgroep bepaalt alle subcategorieen links, inclusief lege keuzes maar zonder geblokkeerde adult-codes. Brede schermen geven tabel en preview eigen viewportgebonden scrollgebieden; op smalle schermen staat de volledige preview onder de lijst.
+    De hoofdgroepen Beeld/Geluid/Spellen/Applicaties staan in de vaste header naast Alle; de zoekfunctie blijft ook vast. De geselecteerde hoofdgroep bepaalt alle subcategorieen links, inclusief lege keuzes maar zonder geblokkeerde adult-codes. De aanvankelijk gestapelde mobiele preview is vervangen door het viewportgebonden schuifpaneel in besluit 36.
 
 34. **Coverframe en tijdelijke fanart**
     De detailcover krijgt een vast frame van 230 x 345 CSS-pixels, mobiel 105 x 158. Grote covers schalen proportioneel omlaag; kleine covers krijgen vervaagde vulling in plaats van scherpe vergroting. Een aparte uitgerekte, vervaagde kopie van de hoofdcover vormt de hero-achtergrond totdat echte fanart beschikbaar is.
 
 35. **Veilige HTML-opmaak in omschrijvingen**
     De melding dat alles als tekst wordt weergegeven vervalt voor omschrijvingen: preview en detail delen nu een ext-dom-renderer met een strikte opmaak-allowlist. Remote scripts, CSS, attributen, embeds en omschrijvingsafbeeldingen worden niet uitgevoerd of geladen. Reacties blijven geescapete tekst; BBCode is nog niet ondersteund.
+
+36. **Preview alleen op selectie, als schuifpaneel**
+    Initieel geen geselecteerde spot of geladen detailinhoud. Klik op de regel/toetsenbordactivatie opent rechts een zelfstandig scrollbare overlay met slide-in/slide-out. Sluitknop en Escape annuleren aanvragen en herstellen focus; reduced-motion wordt ondersteund. Auth, erotica-beleid en veilige HTML blijven ook op de asynchrone previewroute gelden.
+
+37. **Oneindige lijst met stabiele keyset**
+    Geen paginanummers meer: nabij het einde wordt de volgende batch geladen op datum plus ID. Dit voorkomt verschoven OFFSET-resultaten bij nieuwe indexering. Een zichtbare laadfout stopt automatisch laden en biedt retry. De bestaande persoonlijke batchgrootte blijft 10-200; zonder JavaScript is er een cursor-vervolglink.
+
+38. **Alle subcategorieen zijn EN-filters**
+    Gebruiker heeft expliciet EN gekozen, ook voor meerdere codes binnen dezelfde dimensie. Herhaald klikken toggelt alleen die code; chips kunnen afzonderlijk worden verwijderd. Zoeken en vervolgbatches bewaren de selectie. Aantallen reflecteren alle actieve filters.
+
+39. **Globale kolomstandaarden met persoonlijke overrides**
+    Gebruiker heeft gekozen voor adminstandaarden per protocol-hoofdgroep, niet voor globale beperkingen. Username-gebonden overrides staan apart in de database; reset verwijdert de override en volgt de actuele globale keuze. Titel blijft verplicht; Alle gebruikt een vaste algemene set. Lange tekst breekt af en mobiel worden regels kaarten, zonder horizontale tabelscroll.
+
+40. **Duidelijkere tijdelijke fanart**
+    Hero-blur verminderd van 24px naar 6px met aangepaste donker/licht-overlay. De cover blijft de tijdelijke uitgerekte achtergrond; echte fanart/metadata is nog niet geintegreerd. Posterframe en eigen vervaagde vulling blijven behouden.
 
 ## Open vragen (voor volgende stap)
 - Welk framework past het best bij verdere uitbreiding? De huidige basis gebruikt PHP 8.2+ en PDO/MySQL/MariaDB.

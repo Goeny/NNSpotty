@@ -23,7 +23,7 @@ final class AdminPageRenderer
      * @param array<int, array{post_id: string, username: string, comment: string, created_at: string}> $comments
      * @param array<int, array{actor_username: string, action: string, target_type: string, target_id: string, details_json: string, ip_address: string, created_at: string}> $auditLogs
      */
-    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default'): string
+    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = []): string
     {
         $retention = (int) $settings['retention'];
         $server = h($settings['server']);
@@ -41,6 +41,7 @@ final class AdminPageRenderer
             $statusAlert = '<div class="alert alert-info" role="alert">' . h($statusMessage) . '</div>';
         }
         $safeCurrentUsername = h($currentUsername);
+        $columnForm = SpotColumns::form($globalColumns !== [] ? $globalColumns : SpotColumns::defaults(), null, $csrfField);
         $eroticaChecked = $allowErotica ? 'checked' : '';
 
         $whitelistItems = self::renderSimpleList($spotterLists['whitelist']);
@@ -62,6 +63,7 @@ final class AdminPageRenderer
       </div>
     </div>
     {$statusAlert}
+    {$columnForm}
     <section class="card mb-4">
       <div class="card-header fw-semibold">Inhoud en zichtbaarheid</div>
       <form method="post" action="/admin/content" class="card-body">

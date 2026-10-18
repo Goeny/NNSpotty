@@ -9,9 +9,10 @@ final class PreferencesPageRenderer
     /**
      * @param array{theme: string, items_per_page: int, show_erotica?: bool} $preferences
      */
-    public static function render(string $username, array $preferences, ?string $statusMessage, bool $isAdmin, string $csrfField, bool $allowErotica = false): string
+    public static function render(string $username, array $preferences, ?string $statusMessage, bool $isAdmin, string $csrfField, bool $allowErotica = false, array $globalColumns = [], array $personalColumns = []): string
     {
         $safeUsername = h($username);
+        $columnForm = SpotColumns::form($globalColumns !== [] ? $globalColumns : SpotColumns::defaults(), $personalColumns, $csrfField);
         $theme = $preferences['theme'];
         $itemsPerPage = $preferences['items_per_page'];
         $defaultSelected = self::selectedAttr($theme, 'default');
@@ -58,7 +59,7 @@ final class PreferencesPageRenderer
             </select>
           </div>
           <div class="mb-3">
-            <label class="form-label" for="items_per_page">Items per pagina</label>
+            <label class="form-label" for="items_per_page">Resultaten per laadbatch</label>
             <input class="form-control" id="items_per_page" name="items_per_page" type="number" min="10" max="200" value="{$itemsPerPage}" required>
           </div>
           <div class="form-check form-switch mt-4">
@@ -69,6 +70,7 @@ final class PreferencesPageRenderer
           <button class="btn btn-primary" type="submit">Preferences opslaan</button>
         </form>
       </div>
+      {$columnForm}
     </div>
   </div>
 HTML;

@@ -5,6 +5,10 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Added
+- Initieel gesloten, asynchroon geladen preview met slide-in/slide-out, sluitknop, Escape en focusherstel; dezelfde veilige omschrijvingsopmaak als de detailpagina.
+- Automatisch bijladen nabij het lijsteinde met stabiele datum/ID-keysets, zichtbare foutmelding en handmatige retry; geen paginanummers.
+- Stapelbare subcategorie-EN-filters, verwijderbare filterchips en facetaantallen op de huidige selectie.
+- Globale kolomstandaarden per hoofdgroep en username-gebonden overrides/reset, met CSRF/audit en migratie `20261018_0009_user_spot_columns`.
 - Volledige Spotnet-categoriedimensies met leesbare labels, typegroepering, subcategoriefilters en titelzoekfunctie; compatibiliteit met oudere type-, genre- en boektaalcodes.
 - Globale admininstelling voor erotica en persoonlijke opt-in op username. Standaard uit; een globale blokkade geldt ook voor admins en voor details, afbeeldingen, filters, aantallen en reacties.
 - Migraties voor categoriefacetten, classificatie en persoonlijke zichtbaarheid; hervatbare, automatische herindeling van bestaande spots zonder nieuwe retrieval.
@@ -12,6 +16,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 - Regressies voor alle categorielabels, legacy adult-codes, migratie/backfill, gebruikersisolatie en HTTP-zichtbaarheid inclusief gecachte afbeeldingen en beide reactieformulieren.
 
 ### Fixed
+- Horizontale tabelscroll vervangen door instelbare kolommen, afbrekende waarden en compacte mobiele regels; hero-achtergrond duidelijker met minder blur.
 - Header en zoeken blijven vast in beeld; op brede schermen zijn lijst en volledig rechter detailpaneel afzonderlijk scrollbaar, ook met toetsenbordfocus.
 - Alleen hoofdcategorieen staan bovenin; alle bijbehorende subcategorieen verschijnen links, ook zonder resultaten, met behoud van de erotica-instellingen.
 - Detailcovers krijgen een vast, proportioneel geschaald frame met vervaagde vulling voor te kleine of afwijkende beelden. De hero toont een uitgerekte, vervaagde versie van dezelfde hoofdafbeelding.

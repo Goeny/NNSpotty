@@ -58,6 +58,13 @@
 - Erotica blijft standaard verborgen. Zet dit indien gewenst globaal aan in admin; daarna moet iedere gebruiker zelf opt-innen onder voorkeuren.
 - Controleer `/assets/spotty.css`: deze moet met `Content-Type: text/css` worden geserveerd. Bij Apache met projectroot als documentroot is de aangepaste root `.htaccess` nodig; met `public/` als documentroot wordt het bestand direct geserveerd.
 
+## Upgrade interactief overzicht en kolominstellingen
+- Voer `composer install --no-dev --optimize-autoloader` en `php bin/console db migrate` uit. Migratie `20261018_0009_user_spot_columns` voegt persoonlijke kolomkeuzes toe, zonder bestaande inhoud te veranderen of nieuwe retrieval.
+- Controleer dat `/assets/spots.js` als JavaScript en `/assets/spotty.css` als CSS worden geserveerd; herlaad zonder oude assetcache.
+- Stel in admin kolomstandaarden per hoofdgroep in. Gebruikers volgen deze tot ze een eigen selectie opslaan. **Globale standaard gebruiken** in voorkeuren verwijdert die override na opslaan.
+- `items_per_page` blijft als bestaande databasevoorkeur behouden, maar betekent nu het aantal resultaten per laadbatch.
+- Zie [Linux server testen](./linux-server-testing.md#interactief-overzicht-filters-en-kolommen) voor deployment, Composer-autoloadconflicten en functionele controles.
+
 ## Consolecommando's
 - `php bin/console db status`
 - `php bin/console db health`

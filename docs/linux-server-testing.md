@@ -112,8 +112,8 @@ Controleer met twee accounts:
 2. Globaal uit: geen erotica voor beide accounts, ook niet voor admin, via zoeken, filters, preview, directe detail-/afbeeldingslinks of beide reactieformulieren. Directe verborgen links geven 404.
 3. Globaal aan, persoonlijke voorkeur uit: nog steeds verborgen. Zet opt-in aan voor account A: alleen A krijgt toegang; account B niet.
 4. Zet globaal uit terwijl A opt-in heeft: toegang wordt direct ingetrokken, ook voor al gecachte afbeeldingen. De opt-in blijft opgeslagen en wordt in voorkeuren als geblokkeerd getoond.
-5. Controleer films/series/boeken/afbeeldingen en muziektypen, plus formaat/platform, bron, taal, bitrate en genre. Filters en titelzoektekst moeten behouden blijven bij paginering; aantallen mogen geen verborgen spots meetellen.
-6. Controleer de sidebar, compacte lijst, geselecteerde preview en detailhero op desktop en mobiel. Mobiel mag alleen de brede tabel intern horizontaal scrollen. Test ook Plex Light en een onbeschikbare afbeelding.
+5. Controleer films/series/boeken/afbeeldingen en muziektypen, plus formaat/platform, bron, taal, bitrate en genre. Filters en titelzoektekst moeten behouden blijven bij bijladen; aantallen mogen geen verborgen spots meetellen.
+6. Controleer de sidebar, compacte lijst, geselecteerde preview en detailhero op desktop en mobiel. De tabel/pagina mag niet horizontaal scrollen. Test ook Plex Light en een onbeschikbare afbeelding.
 
 De integratiesuite hierboven test daarnaast de volledige globale/persoonlijke zichtbaarheidsmatrix via echte HTTP-routes, gebruikersisolatie, CSRF, legacy adult-codes, gecachte afbeeldingen en migratie/backfill. Gebruik daarvoor nooit je productiedatabase.
 
@@ -136,9 +136,41 @@ Controleer na herladen zonder oude CSS-cache:
 - Klik Beeld/Geluid/Spellen/Applicaties: alleen de bijbehorende volledige subcategorieen staan links. Een lege subcategorie mag nul resultaten geven. Test ook de persoonlijke/globale erotica-blokkade.
 - Open detailpagina's met een grote staande, grote liggende, kleine en ontbrekende cover. Het frame moet gelijk blijven, met proportionele voorgrond en vervaagde vulling/hero-achtergrond. Een mislukte afbeelding moet een waarschuwing tonen.
 - Vergelijk een omschrijving met HTML-alineas, vet/cursief, lijsten en links tussen preview en detail. HTML-tags mogen geen broncode meer zijn. Eventhandlers, scripts, remote CSS en embeds mogen niet werken; bestaande platte tekst en reacties moeten leesbaar blijven.
-- Herhaal de layoutcontrole bij een mobiele viewport en met Plex Light; de volledige preview moet onder de lijst bereikbaar zijn zonder horizontale pagina-overflow.
+- Herhaal de layoutcontrole bij een mobiele viewport en met Plex Light; de volledige preview moet in het schuifpaneel bereikbaar zijn zonder horizontale pagina-overflow.
 
 De testgebruiker moet databases met de naam `nnspotty_test_*` kunnen aanmaken/verwijderen. `proc_open` en lokale loopback-sockets moeten beschikbaar zijn voor de synthetische NNTP- en HTTP-servers. Op Windows is een niet-leeg testdatabasewachtwoord vereist om te voorkomen dat lege environmentvariabelen wegvallen. De tests controleren echte php-nntp commando's, XML, reactiekoppeling, binaire afbeeldingen, databaseopslag, limieten, cursors, transportfouten en de HTTP-routes voor login, browsing, afbeeldingen, admin, preferences en reacties.
+
+## Interactief overzicht, filters en kolommen
+Voer uit vanuit je bestaande deploymap op `nnspotty.hopseflop.nl`. Pauzeer webverkeer/retrieve en maak eerst een databasebackup; behoud je bestaande `.env`.
+
+```bash
+# Alleen gegenereerde Composer-bestanden veilig apart zetten wanneer lokaal gewijzigd.
+git stash push -m "Server Composer-autoload voor update" -- \
+  vendor/composer/autoload_classmap.php \
+  vendor/composer/autoload_static.php
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+composer check-platform-reqs
+php bin/console db migrate
+php bin/console db status
+php bin/console db health
+php tests/run.php
+curl -fsS -D - https://nnspotty.hopseflop.nl/assets/spots.js -o /dev/null
+curl -fsS -D - https://nnspotty.hopseflop.nl/assets/spotty.css -o /dev/null
+```
+
+Migratie `20261018_0009_user_spot_columns` moet uitgevoerd zijn. Geen nieuwe retrieve nodig. Beide assets moeten HTTP 200 met hun JavaScript/CSS MIME-type geven. Hervat daarna webverkeer/retrieve en herlaad zonder oude assetcache. De gegenereerde Composer-bestanden worden nog door Git gevolgd: zet de bovenstaande stash **niet** terug met `git stash pop`, want Composer heeft ze opnieuw voor de actuele code gegenereerd. Andere serverwijzigingen blijven onaangeroerd.
+
+Controleer ingelogd, met voldoende bestaande spots:
+1. Open `/spots?category=Beeld`: geen zichtbaar detailpaneel en geen paginanummers. Klik ergens op een regel, ook buiten de titel. Het paneel schuift van rechts in; Sluiten/Escape schuift uit en herstelt focus op de titel. Nieuwe bijgeladen regels moeten hetzelfde doen.
+2. Scroll een lange omschrijving helemaal uit in het paneel. De lijst mag daarbij niet bewegen. Test ook mobiel en een snelle wisseling tussen spots of sluiten terwijl de aanvraag nog loopt.
+3. Nader het einde van de lijst: volgende resultaten worden zonder herladen toegevoegd. Controleer unieke rijen, einde-melding en behoud van zoeken/filters. Zet in browser DevTools het netwerk tijdelijk offline: een foutmelding en retryknop moeten verschijnen; herstel het netwerk en probeer opnieuw.
+4. Kies bijvoorbeeld formaat plus genre en vervolgens nog een genre: de selectie gebruikt **EN**, ook binnen dezelfde dimensie. Nogmaals klikken en filterchips verwijderen alleen die code. Beide zoekvelden behouden filters; een andere hoofdcategorie reset ze.
+5. Stel in admin verschillende kolommen in voor Beeld/Geluid/Spellen/Applicaties. Account A volgt dit zonder override. Sla voor A een eigen selectie op; account B moet de globale standaard blijven zien. Wijzig de adminstandaard: A blijft eigen keuzes gebruiken tot **Globale standaard gebruiken** is opgeslagen. Titel is niet uit te schakelen.
+6. Test alle kolommen met zeer lange titels/spotternamen, open en gesloten preview, bij 320/390/768/1024/1440px. Geen horizontale tabel-/paginascroll; smalle regels worden kaarten. Controleer donker/licht, minder vervaagde hero en een ontbrekende afbeelding.
+7. Herhaal de erotica-matrix hierboven: ook `/spots/preview?key=...` en `/spots?batch=1...` mogen geen geblokkeerde inhoud lekken. Zonder sessie geven deze asynchrone routes HTTP 401; verborgen previews geven 404; ongeldige filters/cursors 400.
+
+De afzonderlijke integratiesuite test ook EN binnen/tussen dimensies, keysets met gelijke datums en gelijktijdige indexering, volledige HTTP-batchreeksen, kolomopslag/overrides/reset, CSRF en gebruikersisolatie. Draai deze uitsluitend met de testdatabase-instellingen uit de eerdere sectie, nooit met productiecredentials.
 
 ## Web checks via subdomein
 ```bash

@@ -82,27 +82,32 @@ try {
     $cookie = '';
     $anonymous = httpFixture($httpPort, '/spots/image?key=' . $spotId, $cookie);
     check($anonymous['status'] === 401, 'Afbeelding-endpoint vereist login');
+    check(httpFixture($httpPort, '/spots/preview?key=' . $spotId, $cookie)['status'] === 401
+        && httpFixture($httpPort, '/spots?batch=1', $cookie)['status'] === 401, 'Asynchrone preview en batches vereisen login zonder HTML-redirect');
     $login = httpFixture($httpPort, '/login', $cookie);
     preg_match('/name="_csrf" value="([^"]+)"/', $login['body'], $token);
     check($login['status'] === 200 && isset($token[1]), 'Loginpagina levert een CSRF token');
     $loginResult = httpFixture($httpPort, '/login', $cookie, ['_csrf' => $token[1], 'username' => 'http-tester', 'password' => $password]);
     check($loginResult['status'] === 302, 'Sessie-login via echte HTTP-route');
     $list = httpFixture($httpPort, '/spots', $cookie);
-    check($list['status'] === 200 && substr_count($list['body'], '>Details</a>') === 3, 'HTTP-overzicht bevat de drie individuele spots');
+    check($list['status'] === 200 && substr_count($list['body'], 'data-preview=') === 3
+        && str_contains($list['body'], 'aria-hidden="true" inert'), 'HTTP-overzicht bevat drie individuele spots en een gesloten detailpaneel');
     $headList = httpFixture($httpPort, '/spots?category=Beeld', $cookie);
-    check($headList['status'] === 200 && str_contains($headList['body'], '>WEBRip</a>')
-        && str_contains($headList['body'], '>Sciencefiction</a>') && !str_contains($headList['body'], '>Erotica</a>'), 'Hoofdcategorie toont volledige sidebar zonder verborgen erotica');
+    check($headList['status'] === 200 && str_contains($headList['body'], '>WEBRip<span')
+        && str_contains($headList['body'], '>Sciencefiction<span') && !str_contains($headList['body'], '>Erotica<span'), 'Hoofdcategorie toont volledige sidebar zonder verborgen erotica');
     $soundList = httpFixture($httpPort, '/spots?category=Geluid', $cookie);
-    check($soundList['status'] === 200 && str_contains($soundList['body'], '>FLAC</a>')
-        && !str_contains($soundList['body'], '>WEBRip</a>'), 'Hoofdcategorielink wisselt de bijbehorende sidebar via echte HTTP-route');
+    check($soundList['status'] === 200 && str_contains($soundList['body'], '>FLAC<span')
+        && !str_contains($soundList['body'], '>WEBRip<span'), 'Hoofdcategorielink wisselt de bijbehorende sidebar via echte HTTP-route');
     $oldDescription = $spots->getSpot($spotId)['description'];
     $descriptionUpdate = $pdo->prepare('UPDATE spotnet_spots SET description = :description WHERE id = :id');
     $descriptionUpdate->execute(['description' => '<p>Route <strong>opmaak</strong></p><script>unsafeFixture()</script>', 'id' => $spotId]);
-    $formattedPreview = httpFixture($httpPort, '/spots?category=Beeld&spot=' . $spotId, $cookie);
+    $formattedPreviewResponse = httpFixture($httpPort, '/spots/preview?key=' . $spotId, $cookie);
+    $formattedPreview = json_decode($formattedPreviewResponse['body'], true, 512, JSON_THROW_ON_ERROR)['html'];
     $formattedDetail = httpFixture($httpPort, '/spots/view?key=' . $spotId, $cookie);
-    check(str_contains($formattedPreview['body'], '<p>Route <strong>opmaak</strong></p>')
+    check(str_contains($formattedPreview, '<p>Route <strong>opmaak</strong></p>')
         && str_contains($formattedDetail['body'], '<p>Route <strong>opmaak</strong></p>')
-        && !str_contains($formattedPreview['body'], 'unsafeFixture') && !str_contains($formattedDetail['body'], 'unsafeFixture'), 'Preview en detail renderen dezelfde opgeschoonde HTML via echte HTTP-routes');
+        && !str_contains($formattedPreview, 'unsafeFixture') && !str_contains($formattedDetail['body'], 'unsafeFixture'), 'Preview en detail renderen dezelfde opgeschoonde HTML via echte HTTP-routes');
+    check(in_array('Cache-Control: private, no-store', $formattedPreviewResponse['headers'], true), 'Asynchrone preview heeft geen gedeelde of blijvende browsercache');
     $descriptionUpdate->execute(['description' => $oldDescription, 'id' => $spotId]);
     $stylesheet = httpFixture($httpPort, '/assets/spotty.css', $cookie);
     check($stylesheet['status'] === 200 && str_contains($stylesheet['body'], '.browse-grid')
@@ -128,6 +133,71 @@ try {
     ]);
     check($state->getUsenetSettings()['explicit_groups'] === 'spots:free.pt,comments:free.usenet', 'Admin weigert algemene headergroepen');
     check(httpFixture($httpPort, '/preferences', $cookie)['status'] === 200, 'Bestaande preferences blijven werken');
+    $defaults = $state->globalSpotColumns();
+    $globalForm = ['_csrf' => $token[1], 'column_0_size' => '1'];
+    httpFixture($httpPort, '/admin/columns', $cookie, ['column_0_size' => '1']);
+    check($state->globalSpotColumns() === $defaults, 'Globale kolommen vereisen CSRF');
+    $globalResult = httpFixture($httpPort, '/admin/columns', $cookie, $globalForm);
+    check($globalResult['status'] === 302 && $state->globalSpotColumns()[0] === ['title', 'size'], 'Admin slaat kolommen per hoofdcategorie in database op');
+    $minimalList = httpFixture($httpPort, '/spots?category=Beeld', $cookie);
+    check(str_contains($minimalList['body'], '<th scope="col" class="column-size">')
+        && !str_contains($minimalList['body'], '<th scope="col" class="column-cover">'), 'Overzicht gebruikt globale kolommen zonder persoonlijke override');
+    $personalForm = ['_csrf' => $token[1], 'username' => 'http-reader', 'column_mode_0' => 'custom', 'column_0_poster' => '1',
+        'column_mode_1' => 'inherit', 'column_mode_2' => 'inherit', 'column_mode_3' => 'inherit'];
+    httpFixture($httpPort, '/preferences/columns', $cookie, array_diff_key($personalForm, ['_csrf' => true]));
+    check($state->personalSpotColumns('http-tester') === [], 'Persoonlijke kolommen vereisen CSRF');
+    httpFixture($httpPort, '/preferences/columns', $cookie, $personalForm);
+    check($state->personalSpotColumns('http-tester') === [0 => ['title', 'poster']]
+        && $state->personalSpotColumns('http-reader') === [], 'Persoonlijke kolommen zijn uitsluitend gekoppeld aan de sessieusername');
+    $state->saveGlobalSpotColumns([0 => ['title', 'genre'], 1 => ['title'], 2 => ['title'], 3 => ['title']]);
+    check($state->effectiveSpotColumns('http-tester', 'Beeld') === ['title', 'poster']
+        && $state->effectiveSpotColumns('http-reader', 'Beeld') === ['title', 'genre'], 'Adminwijzigingen gelden voor inheriting gebruikers maar overschrijven persoonlijke keuzes niet');
+    $customBatch = httpFixture($httpPort, '/spots?batch=1&category=Beeld&subcategory=0%3Aa1%2C0%3Az0', $cookie);
+    $batchData = json_decode($customBatch['body'], true, 512, JSON_THROW_ON_ERROR);
+    check($customBatch['status'] === 200 && $batchData['count'] === 3 && $batchData['next'] === null
+        && str_contains($batchData['html'], 'column-poster') && !str_contains($batchData['html'], 'column-size'), 'Asynchrone batch gebruikt EN-filters en dezelfde persoonlijke kolommen');
+    $zeroBatch = json_decode(httpFixture($httpPort, '/spots?batch=1&subcategory=0%3Aa1%2C0%3Aa9', $cookie)['body'], true, 512, JSON_THROW_ON_ERROR);
+    check($zeroBatch === ['html' => '', 'count' => 0, 'next' => null], 'Lege asynchrone batch geeft een expliciet einde zonder nepresultaat');
+    $invalidForm = $personalForm;
+    $invalidForm['column_0_size'] = ['1'];
+    httpFixture($httpPort, '/preferences/columns', $cookie, $invalidForm);
+    check($state->personalSpotColumns('http-tester') === [0 => ['title', 'poster']], 'Ongeldige kolomarrays wijzigen opgeslagen voorkeuren niet');
+    $personalForm['column_mode_0'] = 'inherit';
+    httpFixture($httpPort, '/preferences/columns', $cookie, $personalForm);
+    check($state->personalSpotColumns('http-tester') === [] && $state->effectiveSpotColumns('http-tester', 'Beeld') === ['title', 'genre'], 'Reset verwijdert de override en gebruikt de actuele adminstandaard');
+    $state->saveGlobalSpotColumns($defaults);
+    foreach (['/spots?subcategory[]=0:a9', '/spots?q[]=text', '/spots?cursor=invalid', '/spots/preview?key[]=invalid'] as $invalidPath) {
+        check(httpFixture($httpPort, $invalidPath, $cookie)['status'] === 400, 'Ongeldige scalaire browse-invoer expliciet geweigerd: ' . $invalidPath);
+    }
+    $javascript = httpFixture($httpPort, '/assets/spots.js', $cookie);
+    check($javascript['status'] === 200 && str_contains($javascript['body'], 'IntersectionObserver'), 'Lazy-load JavaScript wordt via de echte HTTP-server geleverd');
+    $previousPreferences = $state->getPreferences('http-tester');
+    $state->savePreferences('http-tester', ['theme' => 'default', 'items_per_page' => 10, 'show_erotica' => false]);
+    for ($n = 0; $n < 25; $n++) {
+        $messageId = 'http-batch-' . $n . '@example.invalid';
+        $batchSpot = \NnSpotty\Usenet\SpotnetParser::spot($messageId, Fixtures::headers($messageId));
+        $batchSpot['title'] = 'HTTP batch fixture ' . $n;
+        $spots->saveSpot($batchSpot, 'free.pt');
+    }
+    $batchUrl = '/spots?batch=1&category=Beeld&subcategory=0%3Aa1%2C0%3Az0&q=HTTP+batch';
+    $seen = [];
+    $sizes = [];
+    do {
+        $batchResponse = httpFixture($httpPort, $batchUrl, $cookie);
+        $payload = json_decode($batchResponse['body'], true, 512, JSON_THROW_ON_ERROR);
+        check($batchResponse['status'] === 200 && in_array('Cache-Control: private, no-store', $batchResponse['headers'], true), 'Iedere vervolgbatch is authenticated JSON zonder blijvende cache');
+        $sizes[] = $payload['count'];
+        preg_match_all('/data-spot-id="([a-f0-9]+)"/', $payload['html'], $ids);
+        $seen = array_merge($seen, $ids[1]);
+        $batchUrl = $payload['next'];
+        if ($batchUrl !== null) {
+            check(str_contains($batchUrl, 'subcategory=0%3Aa1%2C0%3Az0') && str_contains($batchUrl, 'q=HTTP+batch')
+                && str_contains($batchUrl, 'cursor='), 'HTTP vervolg-URL behoudt alle filters en zoektekst plus keyset');
+        }
+    } while ($batchUrl !== null);
+    check($sizes === [10, 10, 5] && count($seen) === 25 && count(array_unique($seen)) === 25, 'HTTP lazy-load contract levert alle resultaten exact eenmaal en stopt bij einde');
+    $pdo->exec("DELETE FROM spotnet_spots WHERE message_id LIKE 'http-batch-%@example.invalid'");
+    $state->savePreferences('http-tester', $previousPreferences);
 
     $adult = \NnSpotty\Usenet\SpotnetParser::spot('http-adult@example.invalid', Fixtures::headers('http-adult@example.invalid',
         str_replace('<Sub>1a01</Sub>', '<Sub>1a09</Sub><Sub>1d23</Sub>', Fixtures::xml('Verborgen HTTP-testspot'))));
@@ -138,7 +208,11 @@ try {
     $assertHidden = static function (string $scenario) use ($httpPort, &$cookie, $adultKey, $adult, $spots, $token): void {
         $list = httpFixture($httpPort, '/spots?spot=' . $adultKey, $cookie);
         check($list['status'] === 200 && !str_contains($list['body'], 'Verborgen HTTP-testspot')
-            && !str_contains($list['body'], '>Erotica<') && substr_count($list['body'], '>Details</a>') === 3, $scenario . ': lijst, preview en aantallen afgeschermd');
+            && !str_contains($list['body'], '>Erotica<') && substr_count($list['body'], 'data-preview=') === 3, $scenario . ': lijst, preview en aantallen afgeschermd');
+        check(httpFixture($httpPort, '/spots/preview?key=' . $adultKey, $cookie)['status'] === 404, $scenario . ': asynchrone preview geweigerd');
+        $batch = httpFixture($httpPort, '/spots?batch=1&subcategory=0%3Ad75', $cookie);
+        check($batch['status'] === 200 && json_decode($batch['body'], true)['count'] === 0
+            && in_array('Cache-Control: private, no-store', $batch['headers'], true), $scenario . ': asynchrone batch kan erotica niet ontsluiten');
         check(!str_contains(httpFixture($httpPort, '/spots?category=Erotica&subcategory=0%3Aa9&q=Verborgen', $cookie)['body'], 'Verborgen HTTP-testspot'), $scenario . ': filters en zoeken kunnen niet ontsluiten');
         check(httpFixture($httpPort, '/spots/view?key=' . $adultKey, $cookie)['status'] === 404, $scenario . ': directe detail-link geweigerd');
         check(httpFixture($httpPort, '/spots/image?key=' . $adultKey, $cookie)['status'] === 404, $scenario . ': ook gecachte afbeelding geweigerd');
@@ -160,7 +234,7 @@ try {
     check($state->canViewErotica('http-tester') && !$state->canViewErotica('http-reader'), 'Persoonlijke opt-in opgeslagen op username, niet globaal');
     $visible = httpFixture($httpPort, '/spots?category=Erotica&subcategory=0%3Aa9&q=Verborgen', $cookie);
     check($visible['status'] === 200 && str_contains($visible['body'], 'Verborgen HTTP-testspot')
-        && substr_count($visible['body'], '>Details</a>') === 1 && str_contains($visible['body'], 'data-bs-theme="light"'), 'Opt-in toont juiste gefilterde spot en opgeslagen thema');
+        && substr_count($visible['body'], 'data-preview=') === 1 && str_contains($visible['body'], 'data-bs-theme="light"'), 'Opt-in toont juiste gefilterde spot en opgeslagen thema');
     check(httpFixture($httpPort, '/spots/view?key=' . $adultKey, $cookie)['status'] === 200
         && httpFixture($httpPort, '/spots/image?key=' . $adultKey, $cookie)['status'] === 200, 'Opt-in ontsluit detail en afbeelding');
     check(in_array('Cache-Control: private, no-store', $visible['headers'], true)
@@ -184,6 +258,9 @@ try {
     httpFixture($httpPort, '/login', $readerCookie, ['_csrf' => $readerToken[1], 'username' => 'http-reader', 'password' => $password]);
     check(httpFixture($httpPort, '/admin/content', $readerCookie, ['_csrf' => $readerToken[1], 'allow_erotica' => '1'])['status'] === 403
         && !$state->eroticaAllowed(), 'Gewone gebruiker kan globale instelling niet wijzigen');
+    check(httpFixture($httpPort, '/admin/columns', $readerCookie, ['_csrf' => $readerToken[1]])['status'] === 403
+        && $state->globalSpotColumns() === $defaults, 'Gewone gebruiker kan globale kolominstellingen niet wijzigen');
+    check((int) $pdo->query("SELECT COUNT(*) FROM admin_audit_logs WHERE action IN ('admin.columns.updated', 'user.columns.updated')")->fetchColumn() === 3, 'Kolomwijzigingen en reset worden geaudit');
     httpFixture($httpPort, '/admin/content', $cookie, ['_csrf' => $token[1], 'allow_erotica' => '1']);
     check(!str_contains(httpFixture($httpPort, '/spots', $readerCookie)['body'], 'Verborgen HTTP-testspot'), 'Opt-in van admin lekt niet naar tweede gebruiker');
     httpFixture($httpPort, '/preferences', $readerCookie, ['_csrf' => $readerToken[1], 'theme' => 'default', 'items_per_page' => '10', 'show_erotica' => '1', 'username' => 'http-tester']);
