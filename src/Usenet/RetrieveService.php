@@ -138,12 +138,12 @@ final class RetrieveService
                 $last = (int) $group['last'];
                 $cursorKey = 'spotnet:' . $role . ':' . $groupName;
                 $cursor = $mode === 'since-last' ? $this->cursor($cursorKey) : null;
-                // Date-filtered backfills scan every range because article numbers do not encode dates.
                 $start = $cursor !== null ? max($first, $cursor + 1) : $first;
                 $end = $mode === 'since-last'
                     ? min($last, $start + $settings['max_articles_per_group'] - 1)
                     : $last;
                 $newestFirst = in_array($mode, ['days', 'all'], true);
+                $oldBatches = 0;
                 if ($verbose) {
                     $log($role . ' ' . $groupName . ': ' . $start . '-' . $end
                         . ($newestFirst ? ' (hoogste artikelnummers eerst)' : ' (laagste artikelnummers eerst)')
@@ -249,6 +249,14 @@ final class RetrieveService
                         $log($groupName . ' batch ' . $from . '-' . $to . ': ' . count($rows)
                             . ' headers; datums=' . ($oldestDate ?? 'onbekend') . '..' . ($newestDate ?? 'onbekend')
                             . ' UTC; ' . implode(' ', $statistics) . '; totaal opgeslagen=' . $inserted);
+                    }
+                    // One old article is not a reliable boundary: require three entirely old, nonempty batches.
+                    $oldBatches = $newestFirst && $cutoff !== null && $rows !== [] && $counts['te_oud'] === count($rows)
+                        ? $oldBatches + 1 : 0;
+                    if ($oldBatches === 3) {
+                        $log($groupName . ': datumgrens ' . $cutoff->format('Y-m-d H:i:s')
+                            . ' UTC bereikt; gestopt na 3 opeenvolgende volledig oude batches. Oudere artikelranges worden niet gescand.');
+                        break;
                     }
                 }
                 if ($mode !== 'since-last' && ($this->cursor($cursorKey) ?? 0) < $last) {

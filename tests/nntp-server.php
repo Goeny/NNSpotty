@@ -13,8 +13,12 @@ flush();
 $fail = in_array('--fail', $argv, true);
 $failLower = in_array('--fail-lower', $argv, true);
 $slowImage = in_array('--slow-image', $argv, true);
+$dateBoundary = null;
 $signingKey = null;
 foreach ($argv as $argument) {
+    if (str_starts_with($argument, '--date-boundary=')) {
+        $dateBoundary = substr($argument, strlen('--date-boundary='));
+    }
     if (str_starts_with($argument, '--sign-spots=')) {
         $signingKey = openssl_pkey_get_private(file_get_contents(substr($argument, strlen('--sign-spots='))));
         if ($signingKey === false) throw new RuntimeException('Ongeldige synthetische NNTP-sleutel.');
@@ -39,8 +43,32 @@ while ($socket = stream_socket_accept($server, 60)) {
             multiline($socket, '215 Overview format', "Subject:\r\nFrom:\r\nDate:\r\nMessage-ID:\r\nReferences:\r\n:bytes\r\n:lines\r\nXref:full");
         } elseif (str_starts_with($command, 'GROUP ')) {
             $group = substr($command, 6);
-            fwrite($socket, $group === 'free.pt' ? "211 806 700 1505 free.pt\r\n" : "211 4 4000 4003 free.usenet\r\n");
+            fwrite($socket, $dateBoundary !== null ? "211 2000 1 2000 {$group}\r\n"
+                : ($group === 'free.pt' ? "211 806 700 1505 free.pt\r\n" : "211 4 4000 4003 free.usenet\r\n"));
         } elseif (preg_match('/^XOVER (\d+)-(\d+)$/', $command, $matches)) {
+            if ($dateBoundary !== null) {
+                $number = (int) $matches[2];
+                if ($number === 1250 && $dateBoundary === 'empty') {
+                    fwrite($socket, "420 No articles selected\r\n");
+                    continue;
+                }
+                if ($number === 1250 && $dateBoundary === 'invalid') {
+                    multiline($socket, '224 Overview follows', $number . "\tAfgebroken");
+                    continue;
+                }
+                $date = $number === 2000 || ($number === 1250 && $dateBoundary === 'recent')
+                    ? gmdate('r') : 'Thu, 01 Jan 2009 12:00:00 +0000';
+                if ($number === 1250 && $dateBoundary === 'boundary') $date = gmdate('D, d M Y') . ' 00:00:00 +0000';
+                if ($number === 1250 && $dateBoundary === 'invalid-date') $date = 'geen geldige datum';
+                $row = $number . "\tDatumgrenstest\tPoster\t" . $date
+                    . "\t<boundary-" . $number . "@example.invalid>\t\t123\t5\t";
+                if ($number === 1250 && $dateBoundary === 'mixed') {
+                    $row .= "\r\n" . ($number - 1) . "\tRecente test\tPoster\t" . gmdate('r')
+                        . "\t<boundary-mixed@example.invalid>\t\t123\t5\t";
+                }
+                multiline($socket, '224 Overview follows', $row);
+                continue;
+            }
             if ($fail || ($failLower && $group === 'free.pt' && (int) $matches[1] < 756)) {
                 fwrite($socket, "503 Temporary fixture failure\r\n");
                 continue;

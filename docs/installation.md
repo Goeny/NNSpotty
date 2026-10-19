@@ -40,7 +40,7 @@
    De meest recente grens van begindatum en retentie geldt. Retentie `0` betekent onbeperkt en schakelt ook het automatisch verwijderen van oude spots uit.
    Gebruik standaard `spots:free.pt,comments:free.usenet`; leeg gebruikt dezelfde defaults.
 7. Haal echte spots op met `php bin/console retrieve --days=30 --verbose` en open `/spots`.
-   Dit scant alle beschikbare headers om de datumfilter correct toe te passen en kan lang duren. `--full`/`--all` respecteert dezelfde retentiegrens; iedere geslaagde retrieve ruimt alle verlopen spots op in transactiebatches van maximaal 1000, zonder maximum per run.
+   Dit begint bij de hoogste artikelnummers en stopt per groep na drie opeenvolgende niet-lege batches met uitsluitend geldige datums voor de datumgrens. Een recente/ongeldige regel of lege batch onderbreekt de reeks. `--full`/`--all` gebruikt dezelfde stopregel en retentiegrens. Artikelnummer en datum zijn niet gegarandeerd gesorteerd: recente berichten die dieper dan deze stop liggen kunnen worden gemist. Zonder datumgrens blijft de volledige scan behouden. Iedere geslaagde retrieve ruimt alle verlopen spots op in transactiebatches van maximaal 1000, zonder maximum per run.
 
 ## Git en dependencies
 - Een verse checkout bevat geen `vendor/` of `.env`. Installeer dependencies vanuit de gevolgde `composer.lock` met Composer; maak je eigen `.env` op basis van `.env.example`.

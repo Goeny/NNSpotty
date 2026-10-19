@@ -367,6 +367,7 @@ try {
     $migrator->migrate();
     check($state->getUsenetSettings()['explicit_groups'] === 'spots:free.pt,comments:free.usenet', 'Migratie corrigeert uitsluitend de oude standaard reactiegroep');
     $settings['explicit_groups'] = 'spots:free.pt,comments:free.usenet';
+    require __DIR__ . '/retrieve-boundary-integration.php';
     foreach (['--fail-lower' => 'days', '--fail' => 'since-last'] as $failureFlag => $failureMode) {
         proc_terminate($server);
         foreach ($pipes as $pipe) {

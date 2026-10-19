@@ -235,7 +235,9 @@ php bin/console retrieve --days=30 --verbose
 
 Dit importeert spots en ingeschakelde reacties van de laatste dertig dagen. De spotgroep wordt eerst verwerkt, daarna de reactiegroep. Open vervolgens `/spots`.
 
-**Let op:** een datumimport scant de volledige beschikbare headerhistorie om de datumfilter betrouwbaar toe te passen. Artikelnummer en datum zijn niet gegarandeerd gesorteerd. Hoogste artikelnummers worden bij `--days` eerst verwerkt, zodat recente spots doorgaans eerder zichtbaar zijn, maar ook een kleine dagenwaarde kan lang duren. De incrementele artikellimiet begrenst deze historische scan niet.
+Een datumimport begint bij de hoogste artikelnummers en stopt per groep na **3 opeenvolgende volledig oude batches** van maximaal 250 headers. Iedere ontvangen regel moet een geldige datum strikt voor de datumgrens hebben. Een recente of ongeldige regel, of een lege batch, zet de reeks terug op nul. De stop wordt ook zonder `--verbose` gemeld. De incrementele artikellimiet begrenst deze historische scan niet.
+
+**Let op:** dit is een snelheidsafweging, geen gegarandeerde volledige datumzoekactie: artikelnummers zijn niet gegarandeerd op datum gesorteerd. Recente berichten die pas achter drie volledig oude batches staan, kunnen worden gemist. Dezelfde stopregel geldt voor reacties en `--refresh-spots`. Zonder datumgrens wordt wel de hele beschikbare historie gescand; `--since-last` behoudt zijn oplopende, begrensde verwerking.
 
 ### Alternatief: volledige retrieve binnen de ingestelde retentie
 
@@ -243,11 +245,11 @@ Dit importeert spots en ingeschakelde reacties van de laatste dertig dagen. De s
 php bin/console retrieve --full --verbose
 ```
 
-`--full` (alias: `--all`) scant alle beschikbare headers vanaf de hoogste artikelnummers, maar slaat niets op dat ouder is dan de ingestelde retentie of de optionele datum **Spots ophalen vanaf**. De meest recente van deze grenzen geldt. Retentie `0` schakelt de leeftijdsgrens uit; een ingestelde begindatum blijft wel gelden. De scan loopt ook door oudere ranges heen omdat artikelnummers geen betrouwbare datumindex zijn; oudere headers worden wel overgeslagen voordat de volledige spot wordt opgehaald. Je hoeft niet eerst `--days` en daarna `--full` te draaien.
+`--full` (alias: `--all`) begint bij de hoogste artikelnummers, maar slaat niets op dat ouder is dan de ingestelde retentie of de optionele datum **Spots ophalen vanaf**. De meest recente van deze grenzen geldt. Retentie `0` schakelt de leeftijdsgrens uit; een ingestelde begindatum blijft wel gelden. Ook deze scan stopt na drie opeenvolgende volledig oude batches volgens de bovenstaande regel. Oudere headers worden overgeslagen voordat de volledige spot wordt opgehaald. Je hoeft niet eerst `--days` en daarna `--full` te draaien.
 
 ### Nieuwe inhoud blijven ophalen
 
-Na een volledig geslaagde historische import staat de cursor aan het gescande einde. Gebruik daarna:
+Na een geslaagde historische import, inclusief een normale datumgrensstop, staat de cursor op het groepseinde zoals gemeld bij het begin van de run. Gebruik daarna:
 
 ```bash
 php bin/console retrieve --since-last --verbose

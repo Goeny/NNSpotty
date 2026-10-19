@@ -372,7 +372,7 @@ php bin/console retrieve --full
 php bin/console retrieve --days=30 --verbose
 ```
 
-`--since-last` verwerkt vanaf de oudste nog niet verwerkte positie maximaal het ingestelde aantal artikelen per groep. Herhaal dit om achterstand in te lopen. `--days`, `--all` en `--full` beginnen bij de hoogste artikelranges, zodat recente spots eerder zichtbaar zijn. Ze scannen ook oudere ranges, omdat artikelnummers niet betrouwbaar op datum gesorteerd zijn. Retentie en de optionele begindatum begrenzen wel wat wordt opgeslagen. Iedere geslaagde retrieve verwijdert alle spots ouder dan de retentie, plus gekoppelde reacties, in transactiebatches van maximaal 1000 zonder maximum per run. Retentie `0` schakelt deze verwijdering uit.
+`--since-last` verwerkt vanaf de oudste nog niet verwerkte positie maximaal het ingestelde aantal artikelen per groep. Herhaal dit om achterstand in te lopen. `--days`, `--all` en `--full` beginnen bij de hoogste artikelranges, zodat recente spots eerder zichtbaar zijn. Met een datumgrens stoppen ze per groep na drie opeenvolgende niet-lege batches met uitsluitend geldige datums strikt voor de grens. Een recente/ongeldige regel of lege batch onderbreekt de reeks. Dit geldt ook voor comments-only en refresh-spots; zonder datumgrens wordt de hele historie gescand. Deze snelheidsafweging kan recente berichten achter de stop missen, omdat artikelnummers niet betrouwbaar op datum gesorteerd zijn. Retentie en de optionele begindatum begrenzen wat wordt opgeslagen. Iedere geslaagde retrieve verwijdert alle spots ouder dan de retentie, plus gekoppelde reacties, in transactiebatches van maximaal 1000 zonder maximum per run. Retentie `0` schakelt deze verwijdering uit.
 
 Maak voor de eerste opruimrun of een retentieverlaging een databasebackup. Test op `nnspotty.hopseflop.nl` vanuit de deploymentmap:
 
@@ -393,6 +393,19 @@ php bin/console retrieve --days=30 --verbose
 ```
 
 Controleer dat de eerste `free.pt batch` nu bij het hoogste artikelnummer eindigt. Herhaal de run na een fout gerust: opgeslagen spots/reacties worden niet verdubbeld en een onvolledige omgekeerde scan verplaatst de incrementele cursor niet voorbij ongelezen historie.
+
+### Stoppen bij de datumgrens
+Wacht tot een lopende retrieve klaar is of stop je eigen foreground-run met Ctrl+C voordat je bijwerkt. Voer op `nnspotty.hopseflop.nl` vanuit de bestaande deploymap uit:
+
+```bash
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+php tests/run.php
+php bin/console retrieve --full --verbose
+php bin/console retrieve --since-last --verbose
+```
+
+Er is hiervoor geen migratie of cursorreset nodig. Stel voor een korte acceptatierun in het beheerpanel **Spots ophalen vanaf** op de eerste dag van de huidige maand in (retentie blijft een eventuele strengere grens). Controleer per groep de melding `gestopt na 3 opeenvolgende volledig oude batches` en dat daarna geen lagere XOVER-batches voor die groep verschijnen. Lege/ongeldige batches kunnen de stop uitstellen; dit wordt niet als een oude batch beschouwd. De run gaat normaal door met de volgende ingeschakelde groep, retentieopruiming en status completed. Een volgende `--since-last` gaat verder na het eerder gemelde groepseinde, niet opnieuw vanaf het begin van de historie.
 
 ## Upgrade en functionele Spotnet-controle
 Voer vanuit de bestaande deploymap op `nnspotty.hopseflop.nl` uit (overschrijf je bestaande `.env` niet):
@@ -612,7 +625,7 @@ php bin/console retrieve --refresh-spots --days=7 --verbose
 php bin/console retrieve --since-last --verbose
 ```
 
-`--comments-only` moet uitsluitend `comments free.usenet` melden, niet `spots free.pt`. Ook een datumsessie scant alle beschikbare headers van de geselecteerde groep; recente batches komen eerst, maar volledige afronding kan lang duren. Gebruik een ruimere periode voor oudere reacties/spots. De incrementele limiet geldt alleen bij `--since-last`; deze begint bij historische achterstand niet automatisch bij de nieuwste reacties.
+`--comments-only` moet uitsluitend `comments free.usenet` melden, niet `spots free.pt`. Ook deze datumsessie begint bij de hoogste artikelnummers en stopt na drie opeenvolgende volledig oude batches; recente berichten achter die stop kunnen worden gemist. Gebruik een ruimere periode voor oudere reacties/spots. De incrementele limiet geldt alleen bij `--since-last`; deze begint bij historische achterstand niet automatisch bij de nieuwste reacties.
 
 Controleer dezelfde spot als in Spotweb op basis van het exacte Message-ID, niet uitsluitend titel. Reeds verkeerd gekoppelde reacties moeten na migratie zichtbaar zijn; nog niet opgeslagen reacties pas na retrieval. Vergelijk de body, auteur en datum van reacties, en **Gepost met**, hoofdgroep, formaat, bron, bitrate en genre in detail en preview. De clientnaam verschijnt alleen als de provider/header/XML die levert; er wordt geen waarde verzonnen. Een identiek aantal reacties is niet gegarandeerd bij verschillende providerretentie, moderatie of retrievalperiodes. Bij nul reacties: controleer verbose output op `opgeslagen`, `te_oud`, `ongeldig`, `verdwenen` en transportfouten; deel die diagnostiek zonder serverwachtwoorden.
 
