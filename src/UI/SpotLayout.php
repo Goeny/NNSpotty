@@ -12,20 +12,25 @@ final class SpotLayout
     /** @param list<array<string, mixed>> $categories
      *  @param list<array<string, mixed>>|null $facets
      */
-    public static function render(string $title, string $username, bool $isAdmin, string $csrfField, string $content, array $categories = [], ?string $selected = null, string $theme = 'default', ?array $facets = [], string|array|null $selectedSubcategory = null, string $search = '', bool $showErotica = false, bool $browse = false): string
+    public static function render(string $title, string $username, bool $isAdmin, string $csrfField, string $content, array $categories = [], ?string $selected = null, string $theme = 'default', ?array $facets = [], string|array|null $selectedSubcategory = null, string $search = '', bool $showErotica = false, bool $browse = false, bool $favoritesOnly = false): string
     {
         $mode = $theme === 'plex-light' ? 'light' : 'dark';
         $head = SpotCategories::headForCategory($selected);
-        $allUrl = '/spots' . ($search === '' ? '' : '?' . http_build_query(['q' => $search]));
+        $favoriteQuery = $favoritesOnly ? ['favorites' => '1'] : [];
+        $allQuery = $favoriteQuery + ($search === '' ? [] : ['q' => $search]);
+        $allUrl = '/spots' . ($allQuery === [] ? '' : '?' . http_build_query($allQuery));
         $mainNavigation = '<a class="side-link' . ($head === null ? ' active' : '') . '" href="'
             . h($allUrl) . '"' . ($head === null ? ' aria-current="page"' : '') . '>Alle</a>';
         foreach (SpotCategories::HEADS as $index => $category) {
             $active = $index === $head ? ' active' : '';
             $mainNavigation .= '<a class="side-link' . $active . '"' . ($active !== '' ? ' aria-current="page"' : '') . ' href="'
-                . h('/spots?' . http_build_query(['category' => $category, 'q' => $search])) . '">' . h($category) . '</a>';
+                . h('/spots?' . http_build_query($favoriteQuery + ['category' => $category, 'q' => $search])) . '">' . h($category) . '</a>';
         }
         $filters = is_array($selectedSubcategory) ? $selectedSubcategory : SpotFilters::parse($selectedSubcategory);
-        $navigation = self::subcategories($head, $facets, $filters, $search, $showErotica);
+        $navigation = self::subcategories($head, $facets, $filters, $search, $showErotica, $favoritesOnly);
+        $favoritesNavigation = '<nav class="mb-3" aria-label="Mijn spots"><p class="nav-caption">Mijn spots</p>'
+            . '<a class="side-link' . ($favoritesOnly ? ' active' : '') . '" href="/spots?favorites=1"'
+            . ($favoritesOnly ? ' aria-current="page"' : '') . '>Favorieten</a></nav>';
         $admin = $isAdmin ? '<a class="dropdown-link" href="/admin">Beheerpanel</a>' : '';
         $safeTitle = h($title);
         $safeUsername = h($username);
@@ -34,13 +39,14 @@ final class SpotLayout
             . '<a class="dropdown-link" href="/preferences">Voorkeuren</a>' . $admin . '</div></details>';
         $categoryInput = $head !== null ? '<input type="hidden" name="category" value="' . h(SpotCategories::HEADS[$head]) . '">' : '';
         $filterInput = $filters !== [] ? '<input type="hidden" name="subcategory" value="' . h(implode(',', $filters)) . '">' : '';
+        $favoriteInput = $favoritesOnly ? '<input type="hidden" name="favorites" value="1">' : '';
         $contentClass = $browse ? 'content browse-page' : 'content';
         $scripts = $browse ? '<script src="/assets/spots.js" defer></script>' : '';
         $facetAttributes = '';
         if ($head !== null && $facets === null) {
             $facetAttributes = ' data-facets-url="' . h('/spots/facets?' . http_build_query([
                 'category' => $selected, 'subcategory' => implode(',', $filters), 'q' => $search,
-            ])) . '"';
+            ] + $favoriteQuery)) . '"';
             $scripts .= '<script src="/assets/facets.js" defer></script>';
         }
         $retrieveForm = $isAdmin
@@ -63,6 +69,7 @@ final class SpotLayout
   <script src="/assets/downloader.js" defer></script>
   <script src="/assets/metadata.js" defer></script>
   <script src="/assets/retrieve.js" defer></script>
+  <script src="/assets/favorites.js" defer></script>
   {$scripts}
 </head>
 <body class="spotty">
@@ -86,12 +93,14 @@ final class SpotLayout
     <form method="get" action="/spots" role="search" class="global-search">
       {$categoryInput}
       {$filterInput}
+      {$favoriteInput}
       <label for="global-search" class="visually-hidden">Zoek in spottitels</label>
       <input id="global-search" class="form-control form-control-sm" name="q" value="{$safeSearch}" type="search" maxlength="200" placeholder="Zoek in films, series, muziek, games...">
       <button class="btn btn-primary btn-sm" type="submit">Zoek</button>
     </form>
   </header>
   <aside class="sidebar" aria-label="Spotnavigatie">
+    {$favoritesNavigation}
     <nav aria-label="Hoofdcategorieen">
       <p class="nav-caption">Hoofdcategorieen</p>
       {$mainNavigation}
@@ -106,6 +115,10 @@ final class SpotLayout
   </aside>
   <div class="workspace">
     <main id="content" class="{$contentClass}" tabindex="-1">{$content}</main>
+    <div class="alert alert-info alert-dismissible favorite-notice" data-favorite-notice role="status" hidden>
+      <span data-favorite-message></span>
+      <button class="btn-close" type="button" data-favorite-dismiss aria-label="Melding sluiten"></button>
+    </div>
   </div>
   <dialog class="image-lightbox" id="image-lightbox" aria-labelledby="lightbox-title">
     <div class="lightbox-toolbar">
@@ -160,7 +173,7 @@ HTML;
     }
 
     /** @param list<array<string, mixed>>|null $facets */
-    private static function subcategories(?int $head, ?array $facets, array $selected, string $search, bool $showErotica): string
+    private static function subcategories(?int $head, ?array $facets, array $selected, string $search, bool $showErotica, bool $favoritesOnly = false): string
     {
         if ($head === null) {
             return '<p class="nav-caption">Subcategorieen</p><p class="small text-body-secondary px-2">Kies hierboven een hoofdcategorie om alle bijbehorende subcategorieen te bekijken.</p>';
@@ -168,6 +181,7 @@ HTML;
         $counts = array_column($facets ?? [], 'total', 'code');
         $category = SpotCategories::HEADS[$head];
         $base = ['category' => $category, 'q' => $search];
+        if ($favoritesOnly) $base['favorites'] = '1';
         $html = '<p class="nav-caption">' . h($category) . '</p><a class="side-link" href="'
             . h('/spots?' . http_build_query($base)) . '">Alles in ' . h($category) . '</a>'
             . '<p class="small text-body-secondary px-2">Nieuw sinds je vorige bezoek. Tellers blijven tijdens deze browsersessie staan.</p>';

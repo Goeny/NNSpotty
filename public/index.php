@@ -592,7 +592,31 @@ $router->post('/preferences/api-key', static function (Request $request) use ($s
     return Response::redirect('/preferences?status=' . rawurlencode('API-key bijgewerkt.') . '#api-key');
 });
 
-$router->get('/spots', static function (Request $request) use ($auth, $csrf, $state, $spots): Response {
+$router->post('/favorites', static function (Request $request) use ($auth, $csrf, $state, $spots, $pdo): Response {
+    $user = $auth->user();
+    if ($user === null) return Response::privateJson(['error' => 'Login vereist.'], 401);
+    if (!$csrf->verify($request->input('_csrf'))) return Response::privateJson(['error' => 'Ongeldige CSRF token.'], 403);
+    session_write_close();
+    try {
+        $id = $request->inputScalar('id') ?? '';
+        $favorite = $request->inputScalar('favorite');
+        if (!preg_match('/^[a-f0-9]{64}$/D', $id) || !in_array($favorite, ['0', '1'], true)) {
+            throw new InvalidArgumentException('Ongeldige favorietactie.');
+        }
+        if ($spots->getSpot($id, $state->canViewErotica($user['username'])) === null) {
+            return Response::privateJson(['error' => 'Spot niet gevonden.'], 404);
+        }
+        (new \NnSpotty\Favorites\Repository($pdo))->set($user['username'], $id, $favorite === '1');
+        return Response::privateJson(['id' => $id, 'favorite' => $favorite === '1']);
+    } catch (InvalidArgumentException $exception) {
+        return Response::privateJson(['error' => $exception->getMessage()], 400);
+    } catch (Throwable $exception) {
+        error_log('Favorieten opslaan: ' . $exception->getMessage());
+        return Response::privateJson(['error' => 'Favoriet opslaan mislukt. Probeer opnieuw.'], 500);
+    }
+});
+
+$router->get('/spots', static function (Request $request) use ($auth, $csrf, $state, $spots, $pdo): Response {
     $isBatch = $request->query('batch') === '1';
     if (!$auth->isAuthenticated()) {
         return $isBatch ? Response::privateJson(['error' => 'Login vereist.'], 401) : Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
@@ -618,7 +642,12 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
             throw new InvalidArgumentException('Zoektekst moet geldige tekst van maximaal 200 bytes zijn.');
         }
         $cursor = $request->queryScalar('cursor');
-        $batch = $spots->batch($selectedCategory, (int) $preferences['items_per_page'], $showErotica, $filters, $search, $cursor);
+        $favorites = $request->queryScalar('favorites');
+        if ($favorites !== null && $favorites !== '1') throw new InvalidArgumentException('Ongeldig favorietenfilter.');
+        $favoritesOnly = $favorites === '1';
+        $batch = $spots->batch($selectedCategory, (int) $preferences['items_per_page'], $showErotica, $filters, $search, $cursor,
+            $favoritesOnly ? $currentUser['username'] : null);
+        $batch['spots'] = (new \NnSpotty\Favorites\Repository($pdo))->annotate($batch['spots'], $currentUser['username']);
     } catch (InvalidArgumentException $exception) {
         return Response::privateJson(['error' => $exception->getMessage()], 400);
     }
@@ -630,7 +659,8 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
         return Response::privateJson([
             'html' => $batch['spots'] === [] ? '' : SpotsPageRenderer::rows($batch['spots'], $columns),
             'count' => count($batch['spots']),
-            'next' => SpotsPageRenderer::nextUrl(['category' => $selectedCategory, 'subcategory' => implode(',', $filters), 'q' => $search], $batch['next']),
+            'next' => SpotsPageRenderer::nextUrl(['category' => $selectedCategory, 'subcategory' => implode(',', $filters), 'q' => $search]
+                + ($favoritesOnly ? ['favorites' => '1'] : []), $batch['next']),
         ]);
     }
 
@@ -646,7 +676,8 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
         theme: $preferences['theme'],
         showErotica: $showErotica,
         columns: $columns,
-        nextCursor: $batch['next']
+        nextCursor: $batch['next'],
+        favoritesOnly: $favoritesOnly
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
@@ -666,10 +697,13 @@ $router->get('/spots/facets', static function (Request $request) use ($auth, $st
         $category = trim($request->queryScalar('category') ?? '');
         $filters = SpotFilters::parse($request->queryScalar('subcategory'));
         $search = trim($request->queryScalar('q') ?? '');
+        $favorites = $request->queryScalar('favorites');
+        if ($favorites !== null && $favorites !== '1') throw new InvalidArgumentException('Ongeldig favorietenfilter.');
         if (SpotCategories::headForCategory($category) === null || strlen($search) > 200 || preg_match('//u', $search) !== 1) {
             throw new InvalidArgumentException('Ongeldige categorie of zoektekst voor nieuwtellers.');
         }
-        $facets = $spots->facets($category, $state->canViewErotica($user['username']), $search, $filters, $newSince);
+        $facets = $spots->facets($category, $state->canViewErotica($user['username']), $search, $filters, $newSince,
+            $favorites === '1' ? $user['username'] : null);
         $counts = [];
         foreach ($facets as $facet) {
             $counts[$facet['code']] = (int) $facet['total'];
@@ -699,6 +733,7 @@ $router->get('/spots/preview', static function (Request $request) use ($auth, $s
     $spot = $spots->getSpot($id, $state->canViewErotica($auth->user()['username']));
     $content = $state->spotContentSettings();
     if ($spot === null) return Response::privateJson(['error' => 'Spot niet gevonden.'], 404);
+    $spot = (new \NnSpotty\Favorites\Repository($pdo))->annotate([$spot], $auth->user()['username'])[0];
     $metadata = $spot['category'] === 'Geluid'
         ? (new \NnSpotty\Music\Repository($pdo))->previewMetadata($spot, $auth->user()['username'], $content['images_enabled'])
         : (new \NnSpotty\Metadata\Repository($pdo))->previewMetadata($spot, $auth->user()['username']);
@@ -730,6 +765,7 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
     $csrfField = $csrf->field();
     $auth->newSpotsSince();
     session_write_close();
+    $spot = (new \NnSpotty\Favorites\Repository($pdo))->annotate([$spot], $currentUser['username'])[0];
     $content = $state->spotContentSettings();
     $html = SpotDetailPageRenderer::render(
         username: $currentUser['username'],

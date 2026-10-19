@@ -28,6 +28,7 @@ $httpMusicSpot['category'] = 'Geluid';
 $httpMusicSpot['subcategories'] = ['2z00'];
 $httpMusicSpot['title'] = 'Fixture Artist - Fixture Album (2020) FLAC';
 $spots->saveSpot($httpMusicSpot, 'free.pt');
+(new \NnSpotty\Favorites\Repository($pdo))->set('http-reader', $httpMusicSpot['id'], true);
 $httpMusicService = new \NnSpotty\Music\Service($musicHttpRepo, new MusicFixture());
 $musicPreviewPath = '/spots/preview?key=' . $httpMusicSpot['id'];
 check(!str_contains(httpFixture($httpPort, $musicPreviewPath, $readerCookie)['body'], 'music-hero')
@@ -39,6 +40,8 @@ check(str_contains($musicDetail['body'], 'MusicBrainz link') && str_contains($mu
     'Muziekdetail biedt gedeeld toegankelijke drawer met eigen provider/endpoint/MBID en adminbeheer');
 $musicLoaded = $musicPost(['action' => 'load', 'id' => $httpMusicSpot['id']], true);
 $musicData = json_decode($musicLoaded['body'], true, 64, JSON_THROW_ON_ERROR);
+check(str_contains($musicData['html'], 'data-favorite="' . $httpMusicSpot['id'] . '" aria-pressed="true"'),
+    'Asynchrone muziekmetadata bewaart persoonlijke geselecteerde favorietknop');
 check($musicLoaded['status'] === 200 && $musicData['state'] === 'matched' && str_contains($musicData['html'], 'music-hero')
     && str_contains($musicData['html'], 'Metadata van MusicBrainz') && str_contains($musicData['html'], 'MusicBrainz link')
     && in_array('Cache-Control: private, no-store', $musicLoaded['headers'], true), 'HTTP-muziekdetail verrijkt veilig met attributie en heropenbare link');

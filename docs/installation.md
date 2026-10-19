@@ -5,6 +5,8 @@
 - Composer 2.x
 - MySQL/MariaDB en PHP-extensies `pdo_mysql`, `SimpleXML`, `dom`, `iconv`, `zlib`, `curl`, `openssl`
 
+Bij updates met persoonlijke favorieten is migratie `20261019_0019_favorites` vereist: voer voor browsergebruik `php bin/console db migrate` en `php bin/console db status` uit. Geen extra instellingen of API-key nodig; favorieten zijn direct voor alle ingelogde gebruikers beschikbaar. Ververs de browsercache voor de nieuwe assets.
+
 ## Stappen
 1. Installeer dependencies:
    ```bash

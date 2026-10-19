@@ -92,6 +92,7 @@ HTML;
         $action = $preview
             ? '<a class="btn btn-sm btn-primary" href="/spots/view?key=' . rawurlencode($spot['id']) . '">' . ($showComments ? 'Volledige spot en reacties' : 'Volledige spot') . '</a>'
             : ($showComments ? '<a class="btn btn-sm btn-warning" href="#comments">Reacties</a>' : '');
+        $action = \NnSpotty\Favorites\View::button($spot) . $action;
         if ($spot['nzb_segments'] !== []) {
             $action .= ' <a class="btn btn-sm btn-primary" href="/spots/nzb?key=' . rawurlencode($spot['id']) . '">NZB</a>';
             $action .= ' <button class="btn btn-sm btn-warning" type="button" data-sab-send="' . h($spot['id']) . '">SABnzbd</button>';

@@ -27,6 +27,7 @@ $httpMetaSpot = \NnSpotty\Usenet\SpotnetParser::spot('http-meta@example.invalid'
 $httpMetaSpot['title'] = 'Fixture.Movie.2020.1080p';
 $httpMetaSpot['subcategories'] = ['1z00'];
 $spots->saveSpot($httpMetaSpot, 'free.pt');
+(new \NnSpotty\Favorites\Repository($pdo))->set('http-reader', $httpMetaSpot['id'], true);
 $httpMetaApi = new TvdbFixture();
 $httpMetaApi->searchResults = [TvdbFixture::candidate()];
 $httpMetadata = new \NnSpotty\Metadata\Service($tvdbRepo, $httpMetaApi);
@@ -75,6 +76,8 @@ check(str_contains($page['body'], 'data-tvdb-open') && str_contains($readerPage[
     && str_contains($page['body'], '<dialog id="metadata-drawer"'), 'Admin en gebruiker openen TVDB-status vanuit compacte hero-link');
 $loaded = $tvdbPost(['action' => 'load', 'id' => $httpMetaSpot['id']], true);
 $data = json_decode($loaded['body'], true, 64, JSON_THROW_ON_ERROR);
+check(str_contains($data['html'], 'data-favorite="' . $httpMetaSpot['id'] . '" aria-pressed="true"'),
+    'Asynchrone TVDB-metadata bewaart persoonlijke geselecteerde favorietknop');
 check($loaded['status'] === 200 && $data['state'] === 'matched' && str_contains($data['html'], 'metadata-hero')
     && str_contains($data['html'], 'Cast &amp; Crew') && in_array('Cache-Control: private, no-store', $loaded['headers'], true),
     'HTTP-metadata levert veilige verrijkte hero en cast uit gedeelde databasecache');

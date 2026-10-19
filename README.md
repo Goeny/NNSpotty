@@ -44,6 +44,9 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 
 ### Overzicht, zoeken en navigatie
 
+- **Favorieten:** persoonlijke bladwijzers met ster in overzicht, preview en detail, ook bij muziek-/TVDB-metadata. Klik om toe te voegen (oranje), klik opnieuw om te verwijderen. Via **Mijn spots > Favorieten** in de linker sidebar zie je je eigen selectie; zoeken, categorieen en lazyload blijven werken. **Alle spots** boven het favorietenoverzicht brengt je terug. Wijzigingen worden server-side opgeslagen en alle zichtbare knoppen voor dezelfde spot worden bijgewerkt. JavaScript is vereist voor de knop; fouten verschijnen als Bootstrap-alert.
+- Favorieten zijn gekoppeld aan je username, niet aan de gedeelde spot of browser. Ze veranderen zichtbaarheid niet en beschermen spots niet tegen retentie/cleanup: verwijderen van een spot of gebruiker verwijdert ook de bijbehorende favorieten. Bestaande installaties moeten eerst `php bin/console db migrate` uitvoeren voor migratie `20261019_0019_favorites`; ververs daarna de browsercache.
+
 - Na inloggen direct het spotsoverzicht; geen tussenhomepage. De root-URL verwijst naar `/spots`.
 - Vaste header met de enige zoekbalk. De zoekterm blijft bij hoofdgroep- en subcategoriefilters behouden.
 - Linker sidebar met eerst **Alle** en de hoofdgroepen **Beeld, Geluid, Spellen en Applicaties**, gevolgd door de volledige subcategorie-indeling van de gekozen hoofdgroep: type, formaat/platform, bron, taal/ondertiteling, bitrate en genre waar van toepassing.

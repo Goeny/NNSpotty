@@ -459,6 +459,16 @@ final class Migrator
                     ADD COLUMN IF NOT EXISTS fanart_key VARCHAR(255) NOT NULL DEFAULT \'\'',
                 'ALTER TABLE music_preferences ADD COLUMN IF NOT EXISTS fanart_enabled BOOLEAN NOT NULL DEFAULT 0',
             ],
+            '20261019_0019_favorites' => [
+                'CREATE TABLE IF NOT EXISTS spot_favorites (
+                    username VARCHAR(191) NOT NULL,
+                    spot_id CHAR(64) CHARACTER SET ascii NOT NULL,
+                    PRIMARY KEY (username, spot_id),
+                    INDEX idx_favorite_spot (spot_id),
+                    FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE,
+                    FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+            ],
         ];
     }
 }

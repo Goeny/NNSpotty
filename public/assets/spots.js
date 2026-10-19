@@ -118,6 +118,7 @@
     }
 
     rows.addEventListener('click', event => {
+        if (event.target.closest('[data-favorite]')) return;
         if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
         const row = event.target.closest('[data-spot-id]');
         if (!row) return;
@@ -133,6 +134,7 @@
         }
     });
     rows.addEventListener('dblclick', event => {
+        if (event.target.closest('[data-favorite]')) return;
         if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
         const row = event.target.closest('[data-spot-id]');
         if (!row) return;

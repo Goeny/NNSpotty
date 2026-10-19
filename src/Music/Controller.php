@@ -54,6 +54,7 @@ final class Controller
             if (!preg_match('/^[a-f0-9]{64}$/D', $id)) throw new \InvalidArgumentException('Ongeldig spot-ID.');
             $spot = (new SpotRepository($this->pdo))->getSpot($id, $this->state->canViewErotica($user['username']));
             if ($spot === null) return Response::privateJson(['error' => 'Spot niet gevonden.'], 404);
+            $spot = (new \NnSpotty\Favorites\Repository($this->pdo))->annotate([$spot], $user['username'])[0];
             if (Release::parse($spot) === null) throw new \InvalidArgumentException('Geen ondersteunde muziekspot.');
             $service = new Service($repo, new Client($repo, $this->contact));
             if ($action === 'search') {

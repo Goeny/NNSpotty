@@ -487,6 +487,7 @@ try {
     check(httpFixture($httpPort, '/spots?subcategory=invalid', $cookie)['status'] === 400
         && httpFixture($httpPort, '/spots?q=' . str_repeat('a', 201), $cookie)['status'] === 400, 'Ongeldige facet- en zoekinvoer wordt expliciet geweigerd');
     check((int) $pdo->query("SELECT COUNT(*) FROM admin_audit_logs WHERE action = 'admin.content.updated'")->fetchColumn() >= 3, 'Globale zichtbaarheidswijzigingen hebben auditregistratie');
+    require __DIR__ . '/favorites-http.php';
     $pdo->prepare('DELETE FROM post_comments WHERE post_id = ?')->execute([$adult['id']]);
     $pdo->prepare('DELETE FROM spotnet_spots WHERE id = ?')->execute([$adult['id']]);
     $state->setEroticaAllowed(false);

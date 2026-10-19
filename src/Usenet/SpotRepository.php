@@ -152,9 +152,9 @@ final class SpotRepository
     }
 
     /** @return list<array<string, mixed>> */
-    public function listSpots(?string $category, int $limit, int $offset, bool $showErotica = true, string|array|null $subcategory = null, string $search = '', ?array $after = null): array
+    public function listSpots(?string $category, int $limit, int $offset, bool $showErotica = true, string|array|null $subcategory = null, string $search = '', ?array $after = null, ?string $favoriteUser = null): array
     {
-        [$where, $parameters] = $this->filter($category, $showErotica, $subcategory, $search);
+        [$where, $parameters] = $this->filter($category, $showErotica, $subcategory, $search, $favoriteUser);
         if ($after !== null) {
             $where .= ($where === '' ? ' WHERE ' : ' AND ') . '(s.posted_at < :before_date OR (s.posted_at = :same_date AND s.id < :before_id))';
             $parameters['before_date'] = $after['date'];
@@ -187,7 +187,7 @@ final class SpotRepository
                 }
             }
         }
-        $scan = $search === '' ? '' : ' USE INDEX (PRIMARY)';
+        $scan = $search === '' || $favoriteUser !== null ? '' : ' USE INDEX (PRIMARY)';
         return $fetch('SELECT ' . $columns . '
             FROM spotnet_spots s
             JOIN (SELECT s.id FROM spotnet_spots s' . $scan . $where
@@ -198,7 +198,7 @@ final class SpotRepository
     /** @param list<string> $filters
      *  @return array{spots: list<array<string, mixed>>, next: ?string}
      */
-    public function batch(?string $category, int $limit, bool $showErotica, array $filters, string $search, ?string $cursor = null): array
+    public function batch(?string $category, int $limit, bool $showErotica, array $filters, string $search, ?string $cursor = null, ?string $favoriteUser = null): array
     {
         $after = null;
         if ($cursor !== null) {
@@ -213,7 +213,7 @@ final class SpotRepository
             $after = ['date' => $match[1], 'id' => $match[2]];
         }
         $limit = max(10, min(200, $limit));
-        $rows = $this->listSpots($category, $limit + 1, 0, $showErotica, $filters, $search, $after);
+        $rows = $this->listSpots($category, $limit + 1, 0, $showErotica, $filters, $search, $after, $favoriteUser);
         $more = count($rows) > $limit;
         if ($more) {
             array_pop($rows);
@@ -235,9 +235,9 @@ final class SpotRepository
     }
 
     /** @return list<array<string, mixed>> */
-    public function facets(?string $category, bool $showErotica, string $search = '', array $subcategories = [], ?string $newSince = null): array
+    public function facets(?string $category, bool $showErotica, string $search = '', array $subcategories = [], ?string $newSince = null, ?string $favoriteUser = null): array
     {
-        [$where, $parameters] = $this->filter($category, $showErotica, $subcategories, $search);
+        [$where, $parameters] = $this->filter($category, $showErotica, $subcategories, $search, $favoriteUser);
         if ($newSince !== null) {
             $where .= ($where === '' ? ' WHERE ' : ' AND ') . 's.created_at > :new_since';
             $parameters['new_since'] = $newSince;
@@ -298,10 +298,14 @@ final class SpotRepository
     }
 
     /** @return array{string, array<string, string>} */
-    private function filter(?string $category, bool $showErotica, string|array|null $subcategory, string $search): array
+    private function filter(?string $category, bool $showErotica, string|array|null $subcategory, string $search, ?string $favoriteUser = null): array
     {
         $conditions = [];
         $parameters = [];
+        if ($favoriteUser !== null) {
+            $conditions[] = 's.id IN (SELECT spot_id FROM spot_favorites WHERE username = :favorite_user)';
+            $parameters['favorite_user'] = $favoriteUser;
+        }
         if (!$showErotica) {
             $conditions[] = 's.is_erotica = 0';
         }

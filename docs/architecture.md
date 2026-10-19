@@ -6,6 +6,12 @@
 - MySQL/MariaDB is de primaire datastore.
 - `.env` bevat app-/databaseconfiguratie; operationele Usenet-instellingen worden in admin beheerd.
 
+## Persoonlijke favorieten
+
+`Favorites/Repository` bewaart `(username, spot_id)` in `spot_favorites` (migratie `20261019_0019_favorites`). De samengestelde primary key maakt toevoegen idempotent en gebruikersfilters geindexeerd; foreign keys verwijderen verwijzingen bij spot-/gebruikersverwijdering. Geen providerrequests of volledige favoriete spotcollectie bij pageload: de huidige begrensde batch krijgt via een enkele `IN`-lookup `is_favorite`. Favorietenlijsten/facets gebruiken dezelfde zichtbaarheid, zoekfilters en keysetpaginering met een gebruikersgebonden subquery.
+
+`POST /favorites` valideert login, CSRF, scalar spot-ID/status en zichtbaarheid, geeft de sessie vrij en zet expliciet `0`/`1` (geen retrygevoelige toggle). `Favorites/View` levert dezelfde toegankelijke knop aan overzicht, preview, detail en asynchrone muziek-/TVDB-responses. `favorites.js` gebruikt delegated events, per-ID pendingstatus en successtatus; nieuw ingevoegde HTML wordt met actuele lokale wijzigingen gesynchroniseerd. Geen optimistische succesmelding bij een fout. Favorietenlijst verwijdert een row direct na succesvolle verwijdering; opnieuw toevoegen vanuit een open preview verschijnt na herladen weer in de lijst. Andere tabs/apparaten tonen de nieuwste status na herladen.
+
 ## Spotteridentiteit en sleutelmoderatie
 
 `Moderation/SpotterIdentity` controleert `X-User-Key` (RSAKeyValue/Modulus/Exponent) en Spotnet-base64 `X-User-Signature` met OpenSSL RSA PKCS#1/SHA1 over het canonieke `<message-ID>`. Alleen exponent 65537 is toegestaan: Spotlist publiceert moduli zonder exponent, dus een aanvaller mag een modulus niet met een willekeurige exponent laten matchen. Een canonieke modulus zonder leidende nul krijgt een SHA256-fingerprint, niet een korte CRC-gebaseerde ID. Onbekend/ongeldig blijft opgeslagen als `missing`/`invalid`, zonder fingerprint of lijstclaim. Dit verifieert geen XML-inhoud of echte persoon; legacy XML-signature-only en reacties vallen buiten scope.

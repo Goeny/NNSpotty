@@ -807,6 +807,20 @@ Interpretatie:
 - Als `/index.php` ook 403 geeft zonder `.htaccess`: hosting/vhost policy blokkeert PHP in deze map.
 - Als `/index.php` werkt maar `/health` 403 geeft: rewrite of `AllowOverride` staat uit op serverniveau.
 
+## Persoonlijke favorieten accepteren
+
+Op `nnspotty.hopseflop.nl`, vanuit de bestaande installatie:
+
+```bash
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+php bin/console db migrate
+php bin/console db status
+php tests/run.php
+```
+
+Ververs de browsercache. Markeer een spot via de bladwijzer met ster: deze wordt oranje zonder een preview te openen. Controleer dezelfde status in preview/detail, ook na laden van muziek-/TVDB-metadata. Klik opnieuw om te verwijderen. Open **Mijn spots > Favorieten**, test categorie/zoeken/bijladen en verwijder een favoriet; de row verdwijnt direct. Controleer dark/light en smal scherm. Herhaal met een tweede account: favorieten mogen niet gedeeld worden. Verborgen erotica blijft verborgen; spot-/gebruikersverwijdering ruimt verwijzingen op. Bij een netwerkfout blijft de knopstatus ongewijzigd en verschijnt een waarschuwing. Een opnieuw toegevoegde spot vanuit een nog open preview verschijnt na herladen terug in de favorietenlijst.
+
 ## Cleanup
 ```bash
 php bin/console db cleanup --days=90

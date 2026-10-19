@@ -181,6 +181,16 @@
 .hero-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .hero-actions .btn { font-size: .75rem; }
 .hero-actions .metadata-link { margin-right: auto; padding-left: 0; }
+.spot-title-line { display: flex; align-items: flex-start; gap: 8px; }
+.spot-title-line > div { min-width: 0; }
+.favorite-button { display: inline-grid; place-items: center; flex: 0 0 auto; width: 36px; height: 36px; padding: 4px; border: 1px solid var(--spot-border); border-radius: 6px; background: var(--spot-bg); color: var(--bs-body-color); cursor: pointer; }
+.favorite-ribbon { fill: currentColor; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+.favorite-star { fill: var(--spot-bg); }
+.favorite-button.is-favorite { color: var(--plex-accent); }
+.favorite-button:hover { border-color: var(--plex-accent); }
+.favorite-button:focus-visible { outline: 3px solid var(--plex-accent); outline-offset: 2px; }
+.favorite-button:disabled { opacity: .55; cursor: wait; }
+.favorite-notice { position: fixed; right: 16px; bottom: 16px; z-index: 1100; max-width: min(420px, calc(100vw - 32px)); margin: 0; }
 .metadata-attribution { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .metadata-attribution img { width: 74px; height: 40px; object-fit: contain; }
 .tvdb-logo-light { display: none; }
