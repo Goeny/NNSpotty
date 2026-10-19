@@ -200,6 +200,23 @@ Migratie `20261019_0018_music_fanart` voegt globale en persoonlijke fanartschake
 7. Een onjuiste key/providerfout geeft bij de eerstvolgende niet-gecachete artiest een zichtbare waarschuwing, met bruikbare muziekmetadata. Foutcache duurt vijf minuten, geen automatische retries. Herstel de key; andere key gebruikt niet dezelfde foutcache. TLS nooit uitschakelen. Server moet HTTPS naar `webservice.fanart.tv` kunnen; browser laadt alleen `assets.fanart.tv` voor deze achtergronden.
 8. Check actuele [API-voorwaarden](https://fanart.tv/api-info/) en artworkrechten voor jouw gebruik. De ontwikkeltests gebruiken synthetische providerdata; geauthenticeerde acceptatie met je eigen key voer je hier uit.
 
+## Fanart zonder uitsnijden (muziek, films en series)
+
+Deze aanpassing is uitsluitend CSS. Voer vanuit de bestaande deploymap op `nnspotty.hopseflop.nl` uit:
+
+```bash
+git pull --ff-only origin main
+php tests/run.php
+curl -I https://nnspotty.hopseflop.nl/assets/spotty.css
+```
+
+Geen migratie, retrieve, API-keywijziging of providercacheflush nodig. Herlaad met Ctrl+F5 zodat de nieuwe CSS geladen wordt.
+
+- Vergelijk gematchte Simply Red/Spandau Ballet/Alice Cooper met de providerafbeelding: de fanart wordt volledig rechts ingepast, zonder zoom/uitrekken of uitsnede boven/onder. Links vloeit de afbeelding geleidelijk naar de tekstachtergrond.
+- Controleer hetzelfde bij film, serie en aflevering, zowel detail als kleine preview, donker/licht en op 390/1440/1920px. Lange titels en synopsissen blijven bruikbaar; de bestaande inhoud bepaalt de bannerhoogte. Op smalle kaders mag vrije ruimte boven/onder de afbeelding zichtbaar zijn.
+- Geen horizontale overflow, albumhoes blijft vierkant en posters/afleveringstills houden hun bestaande vorm. Bronlinks en NZB/SAB/reactieacties blijven werken.
+- Afbeeldingen uit toont geen achtergrond; zonder fanart blijven bestaande fallbacks gelden. Alleen de metadatahero verandert, niet de originele spotcover/lijstweergave. Geen extra providerrequests.
+
 ## TheTVDB metadata, posters en fanart
 Pauzeer webverkeer en retrieve-jobs en maak eerst een beveiligde databasebackup volgens de bestaande backup-procedure hieronder. Bestaande `.env` en lokale serverwijzigingen niet overschrijven. Voer in de bestaande deploymap uit:
 

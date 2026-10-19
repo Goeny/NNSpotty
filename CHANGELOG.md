@@ -4,6 +4,9 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
+### Fixed
+- Muziek-/film-/serie-/afleveringfanart past volledig en proportioneel rechts in de metadatahero, zonder afgesneden boven-/onderkant. Zachte linkerovergang en gedeelde donker/licht-tekstoverlay; geldt ook voor previews, zonder extra paginahoogte, requests of cachewijzigingen.
+
 ### Added
 - Optionele fanart.tv-artiestachtergronden bij muziekdetails en cache-only previews, op exacte MusicBrainz-artiest-ID met bronvermelding en donker/licht-overlay. Eigen server-side HTTPS-client, artist/key-cache (zeven dagen/ontbrekend een dag/fout vijf minuten), zichtbare waarschuwingen zonder muziekmetadata te verliezen, geen willekeurige compilatie-/multi-artiestkeuze. Migratie `20261019_0018_music_fanart` voor default-off globale/persoonlijke schakelaars en server-side API-key met behoud-/wisactie; afbeeldings- en muziek-opt-outs blijven gelden.
 - Verbeterde muziekdiscovery voor uitgebreide scene-/vinyl-/DTS-HD-/WAVPACK-titels, bronjaar vooraan en afsluitend Deluxe; gerichte artiest-EN-albumquery met letterlijke escaping en maximaal 25 kandidaten/een zoekrequest. Numerieke albums blijven intact, live-/concertsuggesties leiden niet automatisch tot een studiokoppeling. Oude resultaatcache wordt opnieuw beoordeeld zonder bestaande handmatige koppelingen/blokkeringen te verliezen; geen extra migratie of retrieve nodig.

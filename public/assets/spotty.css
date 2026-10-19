@@ -187,9 +187,9 @@
 [data-bs-theme="light"] .tvdb-logo-dark { display: none; }
 [data-bs-theme="light"] .tvdb-logo-light { display: inline; }
 .metadata-drawer:not([open]) { display: none; }
-.metadata-hero .hero-backdrop, .music-hero .hero-backdrop { filter: none; object-fit: cover; transform: none; }
-.metadata-hero::after { background: linear-gradient(90deg, rgba(11,17,25,.48), rgba(11,17,25,.88)); }
-[data-bs-theme="light"] .metadata-hero::after { background: linear-gradient(90deg, rgba(255,255,255,.5), rgba(255,255,255,.94)); }
+.metadata-hero .hero-backdrop, .music-hero .hero-backdrop { left: auto; width: auto; max-width: 100%; filter: none; object-fit: contain; object-position: right center; transform: none; mask-image: linear-gradient(90deg, transparent, #000 18%); }
+.metadata-hero::after, .music-hero::after { background: linear-gradient(90deg, rgba(11,17,25,.96), rgba(11,17,25,.85) 35%, rgba(11,17,25,.4) 75%, rgba(11,17,25,.3)); }
+[data-bs-theme="light"] .metadata-hero::after, [data-bs-theme="light"] .music-hero::after { background: linear-gradient(90deg, rgba(255,255,255,.96), rgba(255,255,255,.85) 35%, rgba(255,255,255,.4) 75%, rgba(255,255,255,.3)); }
 .metadata-overview { line-height: 1.7; white-space: normal; overflow-wrap: anywhere; }
 .metadata-facts, .metadata-release { overflow-wrap: anywhere; }
 .release-quality { margin-block: 16px; overflow-wrap: anywhere; }
