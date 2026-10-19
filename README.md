@@ -43,14 +43,14 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 ### Overzicht, zoeken en navigatie
 
 - Na inloggen direct het spotsoverzicht; geen tussenhomepage. De root-URL verwijst naar `/spots`.
-- Vaste header met zoeken en uitsluitend de hoofdgroepen **Beeld, Geluid, Spellen en Applicaties**, plus **Alle**.
-- Linker sidebar met de volledige subcategorie-indeling van de gekozen hoofdgroep: type, formaat/platform, bron, taal/ondertiteling, bitrate en genre waar van toepassing.
+- Vaste header met de enige zoekbalk. De zoekterm blijft bij hoofdgroep- en subcategoriefilters behouden.
+- Linker sidebar met eerst **Alle** en de hoofdgroepen **Beeld, Geluid, Spellen en Applicaties**, gevolgd door de volledige subcategorie-indeling van de gekozen hoofdgroep: type, formaat/platform, bron, taal/ondertiteling, bitrate en genre waar van toepassing.
 - Onder andere films, series, boeken, afbeeldingen, muziek, livesets, podcasts, luisterboeken, spellen en applicaties.
-- Subcategorieen als stapelbare **EN-filters**, ook binnen dezelfde dimensie; actieve filters zijn afzonderlijk verwijderbaar. Zoektekst en filters blijven behouden bij bijladen.
+- Subcategorieen als stapelbare **EN-filters**, ook binnen dezelfde dimensie; actieve filters zijn afzonderlijk verwijderbaar en staan naast de kolominstellingen. Zoektekst en filters blijven behouden bij bijladen.
 - Categorieaantallen volgen de zichtbaarheid van de gebruiker. Onbekende categoriecodes blijven bewaard en zichtbaar in technische details.
-- Achter subcategoriefilters staat **nieuw sinds je vorige bezoek**, niet het historische totaal. De grens is persoonlijk en blijft tijdens dezelfde browsersessie gelijk bij navigeren/herladen. Nieuwe imports tijdens het bezoek komen erbij; de overzichtskop blijft het totale aantal passende spots tonen.
+- Achter subcategoriefilters staat **nieuw sinds je vorige bezoek**, niet het historische totaal. De grens is persoonlijk en blijft tijdens dezelfde browsersessie gelijk bij navigeren/herladen. Nieuwe imports tijdens het bezoek komen erbij; het overzicht berekent geen exacte totaaltelling over alle passende spots.
 - De eerste keer na installatie/upgrade wordt een bezoekgrens vastgelegd: bestaande historie begint niet als nieuw. Bij een volgende browsersessie (of uit-/inloggen) geldt je laatste overzicht-/detailbezoek als grens. Tabs delen de sessie; de browser kan sessiecookies bij sessieherstel behouden. Dit zijn geen individuele gelezen/ongelezen-markeringen.
-- Infinite loading zonder paginanummers, met een knop **Meer resultaten laden** en opnieuw proberen na een fout. Persoonlijke laadbatch van 10-200 resultaten.
+- Infinite loading zonder paginanummers, met een knop **Meer resultaten laden** en opnieuw proberen na een fout. Persoonlijke laadbatch van 10-200 resultaten. De eerste request haalt alleen deze batch op; vervolgspots worden pas bij scrollen opgehaald. Een exacte totaalcount wordt niet bij iedere paginalaad berekend. Subcategorie-facetten worden alleen opgehaald wanneer een hoofdgroep is geselecteerd.
 - Browser-terug vanuit een detail herstelt de geladen lijst en je scrollpositie, ook na 500 of 1000 spots en op mobiel. Elke geschiedenisvermelding houdt een eigen plek bij met behoud van zoektekst/filters. Zonder browser-paginacache worden batches opnieuw opgehaald tot de eerdere lijstlengte en wordt de zichtbare spot als anker gebruikt; wijzigingen in de index kunnen de lijst veranderen. Bij een ophaalfout kun je het herstel opnieuw proberen. Alleen gebruikersgebonden positiegegevens worden in de browsergeschiedenis bewaard, geen spotinhoud.
 - Een enkele klik opent een sluitbare preview die van rechts in-/uitschuift. Dubbelklik opent de volledige detailpagina.
 - Preview met eigen scrollgebied, Escape en focusherstel; toetsenbordvriendelijke titellinks. Zonder JavaScript openen titels de volledige spot en is er een vervolglink.
@@ -103,6 +103,7 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 ### Gebruikers, beheer en weergave
 
 - Sessie-login/logout met gehashte wachtwoorden, adminrechten, CSRF-beschermde mutaties en login-rate-limiting: blokkering na vijf mislukte pogingen binnen vijftien minuten. De loginpagina gebruikt altijd het donkere thema; ingelogde gebruikers kiezen Default, Plex Dark of Plex Light.
+- Username-menu in de header met Voorkeuren en, uitsluitend voor admins, Beheerpanel. Admins kunnen vanuit de header een incrementele retrieve (`--since-last`) starten; een bewegende indicator toont actieve runs en de laatste uitvoeringstijd geldt voor zowel handmatige als cron-runs.
 - Consolebeheer voor gebruikers aanmaken, verwijderen, adminrol wijzigen, wachtwoord wijzigen en gebruikers tonen.
 - Username-gebonden voorkeuren, los van centrale instellingen: **Default**, **Plex Dark**, **Plex Light**, laadbatch, kolommen, erotica, Newznab-key, eigen SABnzbd en TVDB-toestemming.
 - Erotica standaard globaal en persoonlijk verborgen; pas zichtbaar na beide toestemmingen. Globaal uit geldt ook voor admins. Dit beleid geldt voor zoeken, aantallen, facetten, details, afbeeldingen, reacties, API en lokale verzendhistorie; indexing verwijdert deze inhoud niet.

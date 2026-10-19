@@ -104,7 +104,8 @@ try {
     check($rootPage['status'] === 302 && in_array('Location: /spots', $rootPage['headers'], true),
         'Voormalige homepage verwijst rechtstreeks naar spotsoverzicht');
     $anonymous = httpFixture($httpPort, '/spots/image?key=' . $spotId, $cookie);
-    check($anonymous['status'] === 401, 'Afbeelding-endpoint vereist login');
+    check($anonymous['status'] === 401 && httpFixture($httpPort, '/retrieve/status', $cookie)['status'] === 401,
+        'Afbeelding- en retrieve-status-endpoints vereisen login');
     check(httpFixture($httpPort, '/spots/preview?key=' . $spotId, $cookie)['status'] === 401
         && httpFixture($httpPort, '/spots?batch=1', $cookie)['status'] === 401, 'Asynchrone preview en batches vereisen login zonder HTML-redirect');
     $login = httpFixture($httpPort, '/login', $cookie);
@@ -116,6 +117,11 @@ try {
     $loggedInLogin = httpFixture($httpPort, '/login', $cookie);
     check($loggedInLogin['status'] === 302 && in_array('Location: /spots', $loggedInLogin['headers'], true),
         'Ingelogde bezoeker van loginpagina gaat direct naar overzicht');
+    $retrieveStatus = json_decode(httpFixture($httpPort, '/retrieve/status', $cookie)['body'], true, 512, JSON_THROW_ON_ERROR);
+    check(isset($retrieveStatus['running'], $retrieveStatus['last_status']) && $retrieveStatus['last_status'] === 'completed',
+        'HTTP-status toont laatste retrieve, inclusief uitgevoerd via console');
+    check(httpFixture($httpPort, '/admin/retrieve', $cookie, [])['status'] === 302,
+        'Handmatige retrieve weigert een ontbrekende CSRF-token zonder een run te starten');
     $list = httpFixture($httpPort, '/spots', $cookie);
     check($list['status'] === 200 && substr_count($list['body'], 'data-preview=') === 3
         && str_contains($list['body'], 'aria-hidden="true" inert'), 'HTTP-overzicht bevat drie individuele spots en een gesloten detailpaneel');
@@ -134,7 +140,8 @@ try {
     $spots->saveSpot($routeVisitSpot, 'free.pt');
     $visitPath = '/spots?category=Beeld&q=Visit+Route+Fixture';
     $visitPage = httpFixture($httpPort, $visitPath, $cookie);
-    check(str_contains($visitPage['body'], '1 nieuw sinds je vorige bezoek') && str_contains($visitPage['body'], '1 individuele spots'),
+    check(str_contains($visitPage['body'], '1 nieuw sinds je vorige bezoek')
+        && !str_contains($visitPage['body'], 'individuele spots'),
         'Nieuw geimporteerde oude post telt als nieuw sinds bezoek, niet op basis van publicatiedatum');
     check(str_contains(httpFixture($httpPort, $visitPath, $cookie)['body'], '1 nieuw sinds je vorige bezoek')
         && str_contains(httpFixture($httpPort, '/spots/view?key=' . $routeVisitSpot['id'], $cookie)['body'], '1 nieuw sinds je vorige bezoek'),
@@ -149,7 +156,7 @@ try {
     httpFixture($httpPort, '/login', $newVisitCookie, ['_csrf' => $newVisitToken[1], 'username' => 'http-tester', 'password' => $password]);
     $nextVisitPage = httpFixture($httpPort, $visitPath, $newVisitCookie);
     check(str_contains($nextVisitPage['body'], '0 nieuw sinds je vorige bezoek') && !str_contains($nextVisitPage['body'], '1 nieuw sinds je vorige bezoek')
-        && str_contains($nextVisitPage['body'], '1 individuele spots'), 'Nieuwe browsersessie gebruikt laatste browseactiviteit als grens; totale lijst verandert niet');
+        && !str_contains($nextVisitPage['body'], 'individuele spots'), 'Nieuwe browsersessie gebruikt laatste browseactiviteit als grens zonder totaaltelling');
     check(str_contains(httpFixture($httpPort, $visitPath, $cookie)['body'], '1 nieuw sinds je vorige bezoek'),
         'Nieuwe login op tweede apparaat wist de teller van een al geopende sessie niet');
     $pdo->prepare('DELETE FROM spotnet_spots WHERE id = ?')->execute([$routeVisitSpot['id']]);

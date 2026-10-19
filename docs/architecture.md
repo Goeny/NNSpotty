@@ -155,7 +155,8 @@ De compacte trigger "TVDB link" staat links in de hero-actierij, overige acties 
 De oude homepage-renderer is verwijderd. Root verwijst naar `/spots`; geslaagde login en een al ingelogde bezoeker op `/login` gaan daar direct heen. De normale login-/zichtbaarheidscontrole van het overzicht blijft leidend.
 
 ## Web en beveiligingsgrenzen
-- `/spots`: individuele spots, stapelbare type-/subcategoriefilters, titelzoekfunctie, keyset-batches, optionele thumbnails en een initieel gesloten preview.
+- `/spots`: individuele spots, stapelbare type-/subcategoriefilters, een header-titelzoekfunctie, keyset-batches, optionele thumbnails en een initieel gesloten preview. Alleen de eerste ingestelde batch wordt tijdens paginarendering geladen; exacte totaaltellingen worden niet synchroon berekend en rootpagina's slaan ongebruikte subcategorie-facetten over.
+- `/retrieve/status` en `POST /admin/retrieve`: ingelogde status van de laatste retrieve en admin-only incrementeel ophalen. Een databasegebonden MySQL/MariaDB advisory lock voorkomt gelijktijdige handmatige en cron-runs.
 - `/spots/view?key=...`: afbeelding, metadata, omschrijving, reacties en een CSRF-beveiligd formulier voor lokale reacties.
 - `/spots/image?key=...`: alleen voor ingelogde gebruikers met zichtbaarheidstoegang; rasterafbeeldingen met `nosniff` en databasecache. Lijst, detail en afbeeldingen gebruiken `private, no-store`, zodat ingetrokken zichtbaarheid niet via een normale browsercache wordt omzeild.
 - `/spots/nzb?key=...`: ingelogde gebruiker met zichtbaarheidstoegang, onafhankelijk van de globale API-schakelaar en afbeeldingsinstelling.

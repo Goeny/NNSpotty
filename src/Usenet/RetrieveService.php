@@ -20,6 +20,24 @@ final class RetrieveService
     ) {
     }
 
+    /** @return array{running: bool, last_run_at: ?string, last_status: ?string} */
+    public function status(): array
+    {
+        $lock = $this->pdo->prepare('SELECT IS_USED_LOCK(:lock_name) IS NOT NULL');
+        $lock->execute(['lock_name' => $this->lockName()]);
+        $running = (bool) $lock->fetchColumn();
+        $last = $this->pdo->query(
+            "SELECT status, DATE_FORMAT(completed_at, '%Y-%m-%dT%H:%i:%sZ') AS completed_at
+             FROM retrieval_runs WHERE status IN ('completed', 'failed') ORDER BY id DESC LIMIT 1"
+        )->fetch();
+
+        return [
+            'running' => $running,
+            'last_run_at' => is_array($last) ? $last['completed_at'] : null,
+            'last_status' => is_array($last) ? $last['status'] : null,
+        ];
+    }
+
     /** @return array{mode: string, days: ?int, status: string, message: string, inserted: int, refreshed: int, groups: int} */
     public function run(string $mode, ?int $days, bool $verbose = false, ?callable $logger = null, bool $commentsOnly = false, bool $refreshSpots = false): array
     {
@@ -52,13 +70,21 @@ final class RetrieveService
         if ($settings['max_articles_per_group'] < 100) {
             throw new \InvalidArgumentException('Max artikelen per groep moet minimaal 100 zijn.');
         }
-        $runId = $this->startRun($mode, $days);
+        $lockName = $this->lockName();
+        $lock = $this->pdo->prepare('SELECT GET_LOCK(:lock_name, 0)');
+        $lock->execute(['lock_name' => $lockName]);
+        if ((int) $lock->fetchColumn() !== 1) {
+            throw new \DomainException('Er is al een retrieve actief.');
+        }
+
         $client = null;
+        $runId = null;
         $inserted = 0;
         $refreshed = 0;
         $processedGroups = 0;
         $skipped = 0;
         try {
+            $runId = $this->startRun($mode, $days);
             $client = NntpClientFactory::connectFromSettings($settings);
             $format = $client->overviewFormat();
             $effectiveDays = $mode === 'all' ? null : ($days ?? ($settings['retention'] > 0 ? $settings['retention'] : null));
@@ -188,11 +214,22 @@ final class RetrieveService
             $this->finishRun($runId, 'completed', $message);
             return ['mode' => $mode, 'days' => $days, 'status' => 'completed', 'message' => $message, 'inserted' => $inserted, 'refreshed' => $refreshed, 'groups' => $processedGroups];
         } catch (Throwable $exception) {
-            $this->finishRun($runId, 'failed', 'Spotnet retrieve mislukt: ' . $exception->getMessage());
+            if ($runId !== null) {
+                $this->finishRun($runId, 'failed', 'Spotnet retrieve mislukt: ' . $exception->getMessage());
+            }
             throw $exception;
         } finally {
-            if ($client !== null) {
-                $client->disconnect();
+            try {
+                if ($client !== null) {
+                    $client->disconnect();
+                }
+            } finally {
+                $release = $this->pdo->prepare('SELECT RELEASE_LOCK(:lock_name)');
+                $release->execute(['lock_name' => $lockName]);
+                $released = $release->fetchColumn();
+                if ((int) $released !== 1) {
+                    throw new \RuntimeException('De retrieve-lock kon niet worden vrijgegeven.');
+                }
             }
         }
     }
@@ -228,5 +265,15 @@ final class RetrieveService
              ON DUPLICATE KEY UPDATE last_article = GREATEST(last_article, VALUES(last_article)), updated_at = UTC_TIMESTAMP()'
         );
         $statement->execute(['group_name' => $group, 'last_article' => $last]);
+    }
+
+    private function lockName(): string
+    {
+        $database = $this->pdo->query('SELECT DATABASE()')->fetchColumn();
+        if (!is_string($database) || $database === '') {
+            throw new \RuntimeException('Geen database geselecteerd voor retrieve-status.');
+        }
+
+        return 'nns:' . substr(hash('sha256', $database), 0, 60);
     }
 }

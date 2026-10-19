@@ -19,7 +19,6 @@ final class SpotsPageRenderer
         bool $isAdmin,
         array $spots,
         ?string $selectedCategory,
-        int $totalItems,
         string $csrfField,
         array $facets = [],
         array $filters = [],
@@ -31,15 +30,12 @@ final class SpotsPageRenderer
     ): string {
         $query = ['category' => $selectedCategory, 'subcategory' => implode(',', $filters), 'q' => $search];
         $heading = h($selectedCategory ?? 'Alle spots');
-        $categoryInput = $selectedCategory !== null ? '<input type="hidden" name="category" value="' . h($selectedCategory) . '">' : '';
-        $filterInput = '<input type="hidden" name="subcategory" value="' . h(implode(',', $filters)) . '">';
         $activeFilters = '';
         foreach ($filters as $filter) {
             $remove = '/spots?' . http_build_query(array_merge($query, ['subcategory' => implode(',', SpotFilters::toggle($filters, $filter))]));
             $activeFilters .= '<a class="tag-chip" href="' . h($remove) . '" aria-label="Verwijder filter ' . h(SpotCategories::label($filter)) . '">'
                 . h(SpotCategories::label($filter)) . ' &times;</a>';
         }
-        $safeSearch = h($search);
         $rows = self::rows($spots, $columns);
         $headers = '';
         foreach ($columns as $column) {
@@ -51,19 +47,19 @@ final class SpotsPageRenderer
         $loaded = count($spots);
         $endText = $nextCursor === null ? 'Alle resultaten geladen.' : '';
         $browseUser = h($username);
+        $headingActions = '';
+        if ($filters !== []) {
+            $headingActions .= '<div class="active-filters">' . $activeFilters . '</div>';
+        }
+        if ($selectedCategory !== null || $filters !== [] || $search !== '') {
+            $headingActions .= '<a class="btn btn-sm btn-outline-secondary" href="/spots">Wis filters</a>';
+        }
+        $headingActions .= '<a class="btn btn-sm btn-outline-secondary" href="/preferences#columns">Kolommen instellen</a>';
         $content = <<<HTML
 <div class="page-heading">
-  <div><h1 class="h2 mb-1">{$heading}</h1><span class="text-body-secondary">{$totalItems} individuele spots</span></div>
-  <a class="btn btn-sm btn-outline-secondary" href="/preferences#columns">Kolommen instellen</a>
+  <h1 class="h2 mb-0">{$heading}</h1>
+  <div class="page-heading-actions">{$headingActions}</div>
 </div>
-<form class="filter-bar" method="get" action="/spots">
-  {$categoryInput}{$filterInput}
-  <label for="filter-search" class="visually-hidden">Zoek in titels</label>
-  <input id="filter-search" class="form-control form-control-sm" name="q" value="{$safeSearch}" type="search" maxlength="200" placeholder="Zoek in titels">
-  <button class="btn btn-primary btn-sm" type="submit">Filteren</button>
-  <a class="btn btn-outline-secondary btn-sm" href="/spots">Wis filters</a>
-  <div class="active-filters">{$activeFilters}</div>
-</form>
 <div class="browse-grid" data-spot-browser data-browse-user="{$browseUser}">
   <section class="card spot-list" aria-label="Spotlijst">
     <div class="table-responsive" id="spot-scroll">

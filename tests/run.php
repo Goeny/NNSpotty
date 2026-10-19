@@ -186,26 +186,37 @@ try {
     check(!str_contains(SpotDetailPageRenderer::summary($unsafeReader, true), '<script>reader()'), 'Newsreader is ook in preview geescapete tekst');
     check(!str_contains($html, '<script>') && !str_contains($html, '<img src=x') && str_contains($html, '&lt;script&gt;'), 'Onbetrouwbare inhoud wordt geescaped');
     check(str_contains($html, 'Omschrijving') && str_contains($html, 'Reacties (1)') && !str_contains($html, 'Onderdelen (headers)'), 'Spotdetail toont inhoud en reacties, geen headerdelen');
-    $overview = SpotsPageRenderer::render('tester', false, [$spot, $other], null, 2, '');
+    $overview = SpotsPageRenderer::render('tester', false, [$spot, $other], null, '');
     check(substr_count($overview, 'data-preview=') === 2 && !str_contains($overview, 'Onderdelen'), 'Overzicht behoudt individuele spots');
     check(str_contains($overview, 'data-bs-theme="dark"') && str_contains($overview, 'class="sidebar"')
         && str_contains($overview, 'class="browse-grid"'), 'Donker overzicht met sidebar en detailpaneel');
-    $light = SpotsPageRenderer::render('tester', false, [$spot], 'Films', 25, '', [['code' => '0:a9', 'total' => 1]], ['0:a9'], 'film & serie', 'plex-light', nextCursor: 'fixture');
+    check(str_contains($overview, 'src="/assets/retrieve.js" defer')
+        && str_contains($overview, 'Laatste retrieve: laden...'), 'Layout laadt de retrieve-indicator en tijdweergave');
+    $light = SpotsPageRenderer::render('tester', false, [$spot], 'Films', '', [['code' => '0:a9', 'total' => 1]], ['0:a9'], 'film & serie', 'plex-light', nextCursor: 'fixture');
     check(str_contains($light, 'data-bs-theme="light"') && str_contains($light, 'x264') && !str_contains($light, 'Volledige spot en reacties'), 'Licht thema met leesbare subcategorie zonder vooraf geladen preview');
     check(str_contains($light, 'subcategory=0%3Aa9') && str_contains($light, 'q=film+%26+serie')
         && str_contains($light, 'cursor=fixture') && !str_contains($light, 'page=3'), 'Vervolgbatch behoudt categorie, filters en zoektekst zonder paginanummers');
     check(str_contains($light, '<noscript><a class="btn btn-outline-primary" href="/spots?')
         && str_contains($light, 'href="/spots/view?key='), 'Zonder JavaScript blijven vervolgbatches en volledige spotdetails bereikbaar');
-    preg_match('~<nav class="category-pills"[^>]*>(.*?)</nav>~s', $light, $mainMenu);
+    preg_match('~<nav aria-label="Hoofdcategorieen">(.*?)</nav>~s', $light, $mainMenu);
     check(isset($mainMenu[1]) && substr_count($mainMenu[1], '<a ') === 5
         && str_contains($mainMenu[1], '>Beeld</a>') && str_contains($mainMenu[1], '>Geluid</a>')
-        && !str_contains($mainMenu[1], 'Series') && !str_contains($mainMenu[1], 'x264'), 'Header toont uitsluitend Alle en de vier hoofdcategorieen');
+        && !str_contains($mainMenu[1], 'Series') && !str_contains($mainMenu[1], 'x264'), 'Sidebar toont uitsluitend Alle en de vier hoofdcategorieen boven de subcategorieen');
     check(str_contains($light, 'aria-label="Subcategorieen"') && str_contains($light, '>WEBRip<span')
         && str_contains($light, '>Sciencefiction<span') && str_contains($light, 'aria-current="page"'), 'Sidebar bevat alle subcategorieen, ook zonder spots, en markeert de actieve keuze');
     check(!str_contains($light, '>Erotica<span') && !str_contains($light, 'subcategory=0%3Ad75'), 'Verborgen adult-subcategorieen verschijnen niet in de sidebar');
-    check(str_contains($light, '25 individuele spots') && str_contains($light, '1 nieuw sinds je vorige bezoek')
-        && str_contains($light, 'Tellers blijven tijdens deze browsersessie staan.'),
-        'Sidebar noemt persoonlijke nieuwe spots terwijl de overzichtskop het totaal behoudt');
+    check(!str_contains($light, 'individuele spots') && str_contains($light, '1 nieuw sinds je vorige bezoek')
+        && str_contains($light, 'Tellers blijven tijdens deze browsersessie staan.')
+        && str_contains($light, '<span id="loaded-count">1</span> resultaten geladen'),
+        'Overzicht toont alleen geladen batches en behoudt persoonlijke nieuwe-spottellers');
+    check(substr_count($light, 'type="search"') === 1 && !str_contains($light, 'Zoek in titels')
+        && str_contains($light, 'Wis filters') && str_contains($light, 'Kolommen instellen'),
+        'Er is een zoekveld en filterchips/reset staan bij de kolominstellingen');
+    check(str_contains($light, 'Voorkeuren</a>') && !str_contains($light, 'Beheerpanel</a>')
+        && !str_contains($light, 'Spotsoverzicht'), 'Gebruikersmenu bevat voorkeuren, geen overbodige overzicht- of beheerkoppeling');
+    $adminLayout = SpotLayout::render('Test', 'admin', true, '<input name="_csrf">', '');
+    check(str_contains($adminLayout, 'Beheerpanel</a>') && str_contains($adminLayout, 'data-retrieve-form')
+        && str_contains($adminLayout, 'Laatste retrieve: laden...'), 'Admin ziet beheermenu en retrievebediening met status');
     check(str_contains($light, 'data-spot-browser data-browse-user="tester"'),
         'Browsergeschiedenis van de spotlijst is gekoppeld aan de huidige gebruiker');
     $counterDetail = SpotDetailPageRenderer::render('tester', false, $spot, [], '', facets: [['code' => '0:a9', 'total' => 100]]);
@@ -225,10 +236,11 @@ try {
     foreach (['invalid', '0:a999', '0:a9,,0:d0', '0:a09', '4:a0'] as $badFilter) {
         rejects(static fn () => SpotFilters::parse($badFilter), 'Onbekende of ongeldige filter geweigerd: ' . $badFilter);
     }
-    $stacked = SpotsPageRenderer::render('tester', false, [$spot], 'Beeld', 1, '', filters: ['0:a9', '0:d0'], search: 'test');
+    $stacked = SpotsPageRenderer::render('tester', false, [$spot], 'Beeld', '', filters: ['0:a9', '0:d0'], search: 'test');
     check(str_contains($stacked, 'subcategory=0%3Aa9%2C0%3Ad0%2C0%3Ad1')
         && str_contains($stacked, 'aria-label="Verwijder filter x264"')
-        && str_contains($stacked, 'name="subcategory" value="0:a9,0:d0"'), 'Sidebar stapelt filters, chips verwijderen apart en zoeken behoudt selectie');
+        && str_contains($stacked, 'name="subcategory" value="0:a9,0:d0"')
+        && str_contains($stacked, 'class="page-heading-actions"'), 'Sidebar stapelt filters, chips verwijderen apart en zoeken behoudt selectie');
     foreach (SpotColumns::defaults() as $selection) {
         check(SpotColumns::validate($selection) === $selection, 'Standaard kolommen zijn geldig en behouden vaste volgorde');
     }
@@ -245,6 +257,8 @@ try {
     check(SpotColumns::fromRequest($request, true) === [0 => ['title', 'size']], 'Persoonlijk formulier slaat alleen overrides op, met verplichte titel');
     rejects(static fn () => SpotColumns::fromRequest(new Request('POST', '/', [], ['column_0_size' => ['1']], 'local'), false), 'Array-invoer wordt niet stil als ontbrekende kolom behandeld');
     rejects(static fn () => (new Request('GET', '/', ['subcategory' => ['0:a9']], [], 'local'))->queryScalar('subcategory'), 'Array in scalaire filterinvoer wordt expliciet geweigerd');
+    check((new Request('POST', '/', [], [], 'local', 'application/json'))->expectsJson()
+        && !(new Request('POST', '/', [], [], 'local'))->expectsJson(), 'Request herkent JSON-verzoeken voor interactieve retrieve');
     $poster = SpotPresentation::image($spot, false);
     check(str_contains($poster, 'class="spot-poster mb-0"') && str_contains($poster, 'class="poster-backdrop"')
         && str_contains($poster, 'class="spot-poster-image"') && str_contains($html, 'class="hero-backdrop"'), 'Vast posterframe en hero gebruiken eigen decoratieve blurred image-laag');

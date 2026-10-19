@@ -15,7 +15,8 @@ final class Request
         private readonly string $uri,
         private readonly array $query,
         private readonly array $body,
-        private readonly string $clientIp
+        private readonly string $clientIp,
+        private readonly string $accept = ''
     ) {
     }
 
@@ -31,7 +32,8 @@ final class Request
             uri: (string) ($server['REQUEST_URI'] ?? '/'),
             query: $query,
             body: $post,
-            clientIp: (string) ($server['REMOTE_ADDR'] ?? 'unknown')
+            clientIp: (string) ($server['REMOTE_ADDR'] ?? 'unknown'),
+            accept: (string) ($server['HTTP_ACCEPT'] ?? '')
         );
     }
 
@@ -62,6 +64,11 @@ final class Request
     public function clientIp(): string
     {
         return $this->clientIp;
+    }
+
+    public function expectsJson(): bool
+    {
+        return str_contains(strtolower($this->accept), 'application/json');
     }
 
     public function queryScalar(string $key): ?string

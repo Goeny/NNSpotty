@@ -16,21 +16,30 @@ final class SpotLayout
     {
         $mode = $theme === 'plex-light' ? 'light' : 'dark';
         $head = SpotCategories::headForCategory($selected);
-        $mainNavigation = '<a class="' . ($head === null ? 'active' : '') . '" href="/spots">Alle</a>';
+        $allUrl = '/spots' . ($search === '' ? '' : '?' . http_build_query(['q' => $search]));
+        $mainNavigation = '<a class="side-link' . ($head === null ? ' active' : '') . '" href="'
+            . h($allUrl) . '"' . ($head === null ? ' aria-current="page"' : '') . '>Alle</a>';
         foreach (SpotCategories::HEADS as $index => $category) {
-            $mainNavigation .= '<a class="' . ($index === $head ? 'active' : '') . '" href="'
+            $active = $index === $head ? ' active' : '';
+            $mainNavigation .= '<a class="side-link' . $active . '"' . ($active !== '' ? ' aria-current="page"' : '') . ' href="'
                 . h('/spots?' . http_build_query(['category' => $category, 'q' => $search])) . '">' . h($category) . '</a>';
         }
         $filters = is_array($selectedSubcategory) ? $selectedSubcategory : SpotFilters::parse($selectedSubcategory);
         $navigation = self::subcategories($head, $facets, $filters, $search, $showErotica);
-        $admin = $isAdmin ? '<a class="side-link" href="/admin">Beheerpanel</a>' : '';
+        $admin = $isAdmin ? '<a class="dropdown-link" href="/admin">Beheerpanel</a>' : '';
         $safeTitle = h($title);
         $safeUsername = h($username);
         $safeSearch = h($search);
+        $userMenu = '<details class="user-menu"><summary class="account-link">' . $safeUsername . '</summary><div class="user-menu-dropdown">'
+            . '<a class="dropdown-link" href="/preferences">Voorkeuren</a>' . $admin . '</div></details>';
         $categoryInput = $head !== null ? '<input type="hidden" name="category" value="' . h(SpotCategories::HEADS[$head]) . '">' : '';
         $filterInput = $filters !== [] ? '<input type="hidden" name="subcategory" value="' . h(implode(',', $filters)) . '">' : '';
         $contentClass = $browse ? 'content browse-page' : 'content';
         $scripts = $browse ? '<script src="/assets/spots.js" defer></script>' : '';
+        $retrieveForm = $isAdmin
+            ? '<form method="post" action="/admin/retrieve" data-retrieve-form>' . $csrfField
+                . '<button class="btn btn-sm btn-outline-primary" type="submit">Retrieve</button></form>'
+            : '';
         $connectionOptions = '<option value="personal">Mijn SABnzbd</option>' . ($isAdmin ? '<option value="central">Centrale SABnzbd (admin)</option>' : '');
         return <<<HTML
 <!doctype html>
@@ -46,6 +55,7 @@ final class SpotLayout
   <script src="/assets/presentation.js" defer></script>
   <script src="/assets/downloader.js" defer></script>
   <script src="/assets/metadata.js" defer></script>
+  <script src="/assets/retrieve.js" defer></script>
   {$scripts}
 </head>
 <body class="spotty">
@@ -53,8 +63,17 @@ final class SpotLayout
   <header class="topbar">
     <div class="header-menu">
       <a class="brand" href="/spots"><img class="brand-mark" src="/assets/images/brand-icon.png" width="34" height="34" alt="">NNSpotty</a>
-      <nav class="category-pills" aria-label="Hoofdcategorieen">{$mainNavigation}</nav>
-      <a class="account-link" href="/preferences">{$safeUsername}</a>
+      <div class="retrieve-control" data-retrieve-control>
+        {$retrieveForm}
+        <div class="retrieve-status">
+          <span class="small text-body-secondary" data-retrieve-last>Laatste retrieve: laden...</span>
+          <span class="small retrieve-status-message" role="status" aria-live="polite">
+            <span class="spinner-border spinner-border-sm me-1" data-retrieve-indicator aria-hidden="true" hidden></span>
+            <span data-retrieve-state></span>
+          </span>
+        </div>
+      </div>
+      {$userMenu}
       <button class="btn btn-sm btn-outline-secondary" type="button" data-sab-open="personal">Downloads</button>
     </div>
     <form method="get" action="/spots" role="search" class="global-search">
@@ -65,15 +84,13 @@ final class SpotLayout
       <button class="btn btn-primary btn-sm" type="submit">Zoek</button>
     </form>
   </header>
-  <aside class="sidebar" aria-label="Subcategorieen en beheer">
+  <aside class="sidebar" aria-label="Spotnavigatie">
+    <nav aria-label="Hoofdcategorieen">
+      <p class="nav-caption">Hoofdcategorieen</p>
+      {$mainNavigation}
+    </nav>
     <nav aria-label="Subcategorieen">
       {$navigation}
-    </nav>
-    <nav aria-label="Beheer en voorkeuren">
-      <hr>
-      <a class="side-link" href="/preferences">Voorkeuren</a>
-      {$admin}
-      <a class="side-link" href="/spots">Spotsoverzicht</a>
     </nav>
     <div class="sidebar-footer">
       <span class="small text-body-secondary">0.0.1 &middot; Delta Integrale</span>
@@ -139,7 +156,7 @@ HTML;
     private static function subcategories(?int $head, array $facets, array $selected, string $search, bool $showErotica): string
     {
         if ($head === null) {
-            return '<p class="nav-caption">Subcategorieen</p><p class="small text-body-secondary px-2">Kies een hoofdcategorie bovenin om alle bijbehorende subcategorieen te bekijken.</p>';
+            return '<p class="nav-caption">Subcategorieen</p><p class="small text-body-secondary px-2">Kies hierboven een hoofdcategorie om alle bijbehorende subcategorieen te bekijken.</p>';
         }
         $counts = array_column($facets, 'total', 'code');
         $category = SpotCategories::HEADS[$head];

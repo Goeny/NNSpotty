@@ -13,6 +13,7 @@ use NnSpotty\Security\LoginRateLimiter;
 use NnSpotty\State\AppStateRepository;
 use NnSpotty\Usenet\SpotRepository;
 use NnSpotty\Usenet\SpotImageService;
+use NnSpotty\Usenet\RetrieveService;
 use NnSpotty\Usenet\SpotnetParser;
 use NnSpotty\Users\UserRepository;
 use NnSpotty\UI\AdminPageRenderer;
@@ -101,6 +102,56 @@ $router->get('/login', static function (Request $request) use ($auth, $csrf): Re
     $html = LoginPageRenderer::render($request->query('status'), $csrf->field());
 
     return Response::html($html);
+});
+
+$router->get('/retrieve/status', static function (Request $_request) use ($auth, $pdo, $state): Response {
+    if (!$auth->isAuthenticated()) {
+        return Response::privateJson(['error' => 'Login vereist.'], 401);
+    }
+
+    return Response::privateJson((new RetrieveService($pdo, $state))->status());
+});
+
+$router->post('/admin/retrieve', static function (Request $request) use ($auth, $csrf, $pdo, $state): Response {
+    if (!$auth->isAdmin()) {
+        return $request->expectsJson()
+            ? Response::privateJson(['error' => 'Admin login vereist.'], 403)
+            : Response::redirect('/login?status=' . rawurlencode('Admin login vereist.'));
+    }
+    try {
+        $csrfToken = $request->inputScalar('_csrf');
+    } catch (InvalidArgumentException $exception) {
+        return $request->expectsJson()
+            ? Response::privateJson(['error' => $exception->getMessage()], 400)
+            : Response::redirect('/spots');
+    }
+    if (!$csrf->verify($csrfToken)) {
+        return $request->expectsJson()
+            ? Response::privateJson(['error' => 'Ongeldige CSRF-token.'], 403)
+            : Response::redirect('/spots');
+    }
+
+    session_write_close();
+    try {
+        $result = (new RetrieveService($pdo, $state))->run(
+            'since-last',
+            null,
+            logger: static fn (string $message): bool => error_log($message)
+        );
+    } catch (DomainException $exception) {
+        return $request->expectsJson()
+            ? Response::privateJson(['error' => $exception->getMessage()], 409)
+            : Response::redirect('/spots');
+    } catch (Throwable $exception) {
+        error_log('Manual Spotnet retrieve: ' . $exception->getMessage());
+        return $request->expectsJson()
+            ? Response::privateJson(['error' => 'Retrieve mislukt. Controleer de serverlog.'], 500)
+            : Response::redirect('/spots');
+    }
+
+    return $request->expectsJson()
+        ? Response::privateJson(['status' => $result['status'], 'message' => $result['message']])
+        : Response::redirect('/spots');
 });
 
 $router->post('/login', static function (Request $request) use ($auth, $csrf, $loginRateLimiter): Response {
@@ -523,14 +574,17 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
         ]);
     }
 
+    $newSince = $auth->newSpotsSince();
+    $facets = $selectedCategory === null
+        ? []
+        : $spots->facets($selectedCategory, $showErotica, $search, $filters, $newSince);
     $html = SpotsPageRenderer::render(
         username: $currentUser['username'],
         isAdmin: $auth->isAdmin(),
         spots: $batch['spots'],
         selectedCategory: $selectedCategory,
-        totalItems: $spots->countSpots($selectedCategory, $showErotica, $filters, $search),
         csrfField: $csrf->field(),
-        facets: $spots->facets($selectedCategory, $showErotica, $search, $filters, $auth->newSpotsSince()),
+        facets: $facets,
         filters: $filters,
         search: $search,
         theme: $preferences['theme'],

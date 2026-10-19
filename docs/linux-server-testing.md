@@ -47,7 +47,7 @@ curl -fsS -o /dev/null -w 'CSS: %{http_code}\n' https://nnspotty.hopseflop.nl/as
 
 Migratie `20261018_0014_browse_visits` moet toegepast zijn. Hervat verkeer/jobs en herlaad met Ctrl+F5:
 
-1. Eerste bezoek na upgrade: bestaande historie telt niet als nieuw. De overzichtskop toont nog steeds het totale aantal passende spots. De filterbadges hebben uitleg en tonen alleen nieuwe imports; filters blijven de volledige resultaten filteren, niet alleen nieuwe spots.
+1. Eerste bezoek na upgrade: bestaande historie telt niet als nieuw. De filterbadges hebben uitleg en tonen alleen nieuwe imports; filters blijven de volledige resultaten filteren, niet alleen nieuwe spots. Het overzicht berekent geen exacte totaaltelling.
 2. Verlaat de sessie nadat je het overzicht hebt bezocht. Haal daarna nieuwe spots op met `php bin/console retrieve --since-last --verbose` (gebruik bij een schone installatie eerst de historische import uit de README). Log opnieuw in: de badge Films toont uitsluitend de nieuw geimporteerde films, niet het eerdere totaal plus die films.
 3. Herlaad, wissel hoofdgroep/filter/zoektekst en open een detail: de persoonlijke grens blijft gelijk. Nieuwe imports tijdens dit bezoek mogen de teller verhogen. Een andere gebruiker heeft een eigen bezoekgeschiedenis. Een nieuwe sessie voor dezelfde gebruiker gebruikt de laatst bewaarde browseactiviteit; reeds geopende sessies behouden hun eigen grens.
 4. Test terug-/inloggen of een echt nieuwe browsersessie: de vorige grens wordt vervangen. Een tab delen is geen nieuw bezoek; browsers die sessiecookies herstellen kunnen dezelfde sessie behouden. Achtergrondbijladen, metadata-/downloadpolling en Newznab markeren geen bezoek.
@@ -554,6 +554,14 @@ curl -I https://nnspotty.hopseflop.nl/preferences
 ```
 
 De loginpagina hoort in de HTML `<html lang="nl" data-bs-theme="dark">` te bevatten en toont ook zonder gebruikersvoorkeur een donkere Bootstrap-weergave. Ingelogde pagina's blijven de persoonlijke Default/Plex Dark/Plex Light-keuze volgen.
+
+Controleer na inloggen dat de header precies een zoekveld heeft, de hoofdcategorieen bovenaan de linker sidebar staan en de subcategorieen daaronder volgen. Filters moeten naast **Kolommen instellen** zichtbaar zijn; Voorkeuren en (alleen admin) Beheerpanel staan onder de username. Het overzicht hoort alleen de ingestelde eerste laadbatch te tonen; scrollen laadt verdere batches op aanvraag. De header toont de laatste uitgevoerde retrieve (handmatig of cron). Voor admins start **Retrieve** een incrementele run; de knop krijgt een spinner totdat de run is voltooid. De statusendpoint is alleen voor ingelogde gebruikers:
+
+```bash
+curl -i https://nnspotty.hopseflop.nl/retrieve/status
+```
+
+Zonder login hoort dit `401` te geven. Test een daadwerkelijke retrieve alleen nadat de Usenet-instellingen zijn gecontroleerd; de knop verwerkt nieuwe artikelen.
 
 Let op: zonder login geven `/admin` en `/preferences` een redirect naar `/login`.
 POST-acties zijn CSRF-beveiligd; functionele POST-tests doe je het best via browser (of met cookie + CSRF token parsing).

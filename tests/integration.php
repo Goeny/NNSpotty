@@ -66,6 +66,30 @@ try {
     $firstRun = $service->run('since-last', null, true, $logger);
     check($firstRun['inserted'] === 2, 'Incrementele run is begrensd per groep en haalt reacties op');
     check($firstRun['groups'] === 2, 'Reacties opnieuw aan verwerkt de eerder overgeslagen groep vanaf de oorspronkelijke positie');
+    $retrieveStatus = $service->status();
+    check(!$retrieveStatus['running'] && $retrieveStatus['last_status'] === 'completed'
+        && is_string($retrieveStatus['last_run_at']), 'Retrieve-status toont laatste afgeronde run en geen actieve run');
+    $lockPdo = new PDO($dsn, getenv('NNSPOTTY_TEST_USER') ?: 'root', getenv('NNSPOTTY_TEST_PASSWORD') ?: '', [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    ]);
+    $lockPdo->exec('USE `' . $database . '`');
+    $lockName = 'nns:' . substr(hash('sha256', $database), 0, 60);
+    $lockStatement = $lockPdo->prepare('SELECT GET_LOCK(:lock_name, 0)');
+    $lockStatement->execute(['lock_name' => $lockName]);
+    try {
+        check($service->status()['running'], 'Retrieve-status detecteert actieve advisory lock');
+        try {
+            $service->run('since-last', null, true, $logger);
+            check(false, 'Gelijktijdige retrieve wordt geweigerd');
+        } catch (DomainException) {
+            check(true, 'Gelijktijdige retrieve wordt geweigerd');
+        }
+    } finally {
+        $releaseLock = $lockPdo->prepare('SELECT RELEASE_LOCK(:lock_name)');
+        $releaseLock->execute(['lock_name' => $lockName]);
+        $releaseLock->fetchColumn();
+    }
     $cursor = (int) $pdo->query("SELECT last_article FROM retrieval_cursors WHERE group_name = 'spotnet:spots:free.pt'")->fetchColumn();
     check($cursor === 799, 'Cursor bevat het echte laatste verwerkte artikelnummer');
     $service->run('since-last', null, true, $logger);
