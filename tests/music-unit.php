@@ -39,3 +39,59 @@ check(MusicRelease::parse($musicSpot) === null, 'Luisterboeken worden niet als m
 $musicSpot['category'] = 'Beeld';
 check(MusicRelease::parse($musicSpot) === null, 'Filmspot wordt niet als muziek gekoppeld');
 check(MusicRelease::mbid($musicCandidate['id']) && !MusicRelease::mbid('../etc/passwd'), 'MusicBrainz-identiteiten zijn begrensde UUIDs');
+$musicSpot['category'] = 'Geluid';
+$musicSpot['subcategories'] = ['2z00'];
+foreach ([
+    'Paul McCartney - The Boys of Dungeon Lane DeLuxe in DTS-HD-*HRA*. ( OV )' => ['Paul McCartney', 'The Boys of Dungeon Lane', null],
+    'Simply Red - Holding Back The Years (Live In Santiago 2026)' => ['Simply Red', 'Holding Back The Years (Live In Santiago 2026)', null],
+    'Spandau Ballet-True-LP-32BIT-WAVPACK-1983-REETKEVER' => ['Spandau Ballet', 'True', null],
+    '1973 - Alice Cooper - Killer [USA Vinyl LP 24-192 kHz]' => ['Alice Cooper', 'Killer', null],
+    'AC-DC - Back In Black (1980) FLAC' => ['AC-DC', 'Back In Black', '1980'],
+    'Various Artists - Dance Hits (2020) MP3' => ['Various Artists', 'Dance Hits', '2020'],
+    'Fixture Artist - Live (2020) FLAC' => ['Fixture Artist', 'Live', '2020'],
+    'Taylor Swift - 1989 FLAC' => ['Taylor Swift', '1989', null],
+    'Prince - 1999 FLAC' => ['Prince', '1999', null],
+    'Prince-1999' => ['Prince', '1999', null],
+    '1983 - Numeric Artist Album FLAC' => ['1983', 'Numeric Artist Album', null],
+    'The 1975 - Being Funny In A Foreign Language FLAC' => ['The 1975', 'Being Funny In A Foreign Language', null],
+    'Kansas - Vinyl Confessions (1982) FLAC' => ['Kansas', 'Vinyl Confessions', '1982'],
+    'Fixture Artist - MP3' => ['Fixture Artist', 'MP3', null],
+    'Fixture Artist - Album (DTS Live In London) FLAC' => ['Fixture Artist', 'Album (DTS Live In London)', null],
+] as $musicTitle => [$expectedArtist, $expectedAlbum, $expectedYear]) {
+    $musicSpot['title'] = $musicTitle;
+    $musicParsed = MusicRelease::parse($musicSpot);
+    check($musicParsed !== null && $musicParsed['artist'] === $expectedArtist && $musicParsed['title'] === $expectedAlbum
+        && $musicParsed['year'] === $expectedYear && $musicParsed['auto'],
+        'Uitgebreide muziektitel behoudt juiste identiteit: ' . $musicTitle);
+}
+$musicSpot['title'] = 'Spandau Ballet-True-LP-32BIT-WAVPACK-1983-REETKEVER';
+check(MusicRelease::parse($musicSpot)['source_year'] === '1983', 'Scenejaar na technische suffix blijft als bronhint beschikbaar');
+$musicSpot['title'] = 'Simply Red - Holding Back The Years (Live In Santiago 2026)';
+$liveMusic = MusicRelease::parse($musicSpot);
+$studioCandidate = $musicCandidate;
+$studioCandidate['artist'] = 'Simply Red';
+$studioCandidate['names'] = ['Holding Back The Years'];
+check(MusicRelease::select($liveMusic, [$studioCandidate]) === null, 'Live-/locatie-/concertjaarclaim koppelt niet aan studioalbum of single');
+$musicSpot['title'] = '1973 - Alice Cooper - Killer [USA Vinyl LP 24-192 kHz]';
+$vinylCandidate = $musicCandidate;
+$vinylCandidate['artist'] = 'Alice Cooper';
+$vinylCandidate['names'] = ['Killer'];
+$vinylCandidate['year'] = '1971';
+check(MusicRelease::select(MusicRelease::parse($musicSpot), [$vinylCandidate]) === $vinylCandidate,
+    'Vinyl-/prefixjaar blokkeert unieke albumgroep met ander oorspronkelijk jaar niet');
+foreach ([
+    ['Paul McCartney - The Boys of Dungeon Lane DeLuxe in DTS-HD-*HRA*. ( OV )', 'Paul McCartney', 'The Boys of Dungeon Lane', '2026'],
+    ['Spandau Ballet-True-LP-32BIT-WAVPACK-1983-REETKEVER', 'Spandau Ballet', 'True', '1983'],
+    ['Prince-1999', 'Prince', '1999', '1982'],
+] as [$spotTitle, $artist, $album, $year]) {
+    $musicSpot['title'] = $spotTitle;
+    $expectedMusic = array_replace($musicCandidate, ['artist' => $artist, 'names' => [$album], 'year' => $year]);
+    check(MusicRelease::select(MusicRelease::parse($musicSpot), [$expectedMusic]) === $expectedMusic,
+        'Opgeschoonde titel selecteert de unieke juiste albumgroep: ' . $spotTitle);
+}
+$liveCandidate = array_replace($studioCandidate, ['names' => [$liveMusic['title']], 'year' => '2026']);
+check(MusicRelease::select($liveMusic, [$studioCandidate, $liveCandidate]) === $liveCandidate,
+    'Volledige concertidentiteit kiest een exacte livekandidaat boven studiosuggestie');
+$duplicateLive = array_replace($liveCandidate, ['id' => $otherMusic['id']]);
+check(MusicRelease::select($liveMusic, [$liveCandidate, $duplicateLive]) === null,
+    'Ook livekandidaten vereisen unieke identiteit');

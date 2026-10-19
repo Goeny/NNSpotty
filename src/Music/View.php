@@ -21,7 +21,7 @@ final class View
             . ($personal ? 'Muziekmetadata voor mij ophalen en tonen' : 'Muziekmetadata globaal toestaan') . '</label></div>'
             . '<button class="btn btn-primary mt-3" type="submit">' . ($personal ? 'Muziekmetadatavoorkeur opslaan' : 'Muziekmetadata-instellingen opslaan') . '</button></form>';
         if (!$personal) $html .= '<p class="form-text mt-3">Iedere gebruiker, ook admins, schakelt persoonlijk in onder Voorkeuren. APP_URL wordt als publieke contact-URL meegestuurd in de User-Agent; gebruik geen URL met geheimen. Maximaal een MusicBrainz-aanvraag per 1,1 seconde voor deze installatie. Data zeven dagen, zoekacties/negatieve matches een dag, fouten vijf minuten in de database. Geen massale retrieve-backfill.</p>'
-            . '<p class="form-text">Automatisch alleen een unieke exacte artiest-/albumtitelmatch; jaartal indien aanwezig moet overeenkomen. Albumgroep is geen specifieke remaster/persing. Kies voor een exacte tracklist handmatig een uitgave. Alleen admins zoeken/corrigeren/blokkeren gedeelde matches. Controleer API-, data- en artworkvoorwaarden bij commercieel gebruik.</p>';
+            . '<p class="form-text">Automatisch alleen een unieke exacte artiest-/albumtitelmatch; afzonderlijk slotjaar moet overeenkomen, bronjaar vooraan of bij LP/vinyl/CDRIP niet. Live-/concertdetails worden niet aan een studioversie gekoppeld. Albumgroep is geen specifieke remaster/persing. Kies voor een exacte tracklist handmatig een uitgave. Alleen admins zoeken/corrigeren/blokkeren gedeelde matches. Controleer API-, data- en artworkvoorwaarden bij commercieel gebruik.</p>';
         return $html . '</div></section>';
     }
 
@@ -43,7 +43,7 @@ final class View
                 . '<option value="release">Specifieke uitgave met tracklist</option><option value="artist"' . ($release['type'] === 'artist' ? ' selected' : '') . '>Artiest / discografie</option></select>'
                 . '<button class="btn btn-sm btn-primary mt-2">Zoeken bij MusicBrainz</button></form>'
                 . '<form data-tvdb-choice method="post" action="/music-metadata" class="mt-3">' . $context . '<div data-tvdb-candidates></div>'
-                . '<p class="small text-body-secondary">Controleer artiest, jaar, editie en toelichting. Correcties gelden voor iedereen; een discografie is geen enkel album.</p>'
+                . '<p class="small text-body-secondary">Controleer artiest, jaar, editie en toelichting. Bij live/concerttitels kunnen suggesties ook studioversies zijn: controleer de opname. Correcties gelden voor iedereen; een discografie is geen enkel album.</p>'
                 . '<button class="btn btn-sm btn-primary mt-2">Geselecteerde match opslaan</button></form>'
                 . '<div class="d-flex flex-wrap gap-2 mt-3"><button class="btn btn-sm btn-outline-secondary" type="button" data-tvdb-reset>Opnieuw automatisch matchen</button>'
                 . '<button class="btn btn-sm btn-outline-danger" type="button" data-tvdb-block>Geen metadata voor deze spot</button></div></section>';

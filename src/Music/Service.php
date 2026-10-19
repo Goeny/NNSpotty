@@ -49,7 +49,17 @@ final class Service
         if (strlen(trim($query)) < 2 || strlen($query) > 200 || !in_array($type, ['artist', 'release-group', 'release'], true)) {
             throw new \InvalidArgumentException('Gebruik een zoekterm van 2 tot 200 tekens en een geldig muziektype.');
         }
-        $data = $this->cached($type, null, ['query' => trim($query), 'dismax' => 'true', 'limit' => 25]);
+        $parsed = $type === 'release-group' ? Release::parseTitle($query) : null;
+        if ($parsed !== null && $parsed['auto'] && $parsed['type'] !== 'artist') {
+            // Broaden discovery, not identity: automatic selection still checks the full live title.
+            $title = trim(preg_replace('/\s*[\[(](?:live|concert)\b[^)\]]*[)\]]$/i', '', $parsed['title']));
+            if ($title === '') $title = $parsed['title'];
+            $terms = 'artist:' . self::quoted($parsed['artist']) . ' AND releasegroup:' . self::quoted($title);
+            $parameters = ['query' => $terms, 'limit' => 25];
+        } else {
+            $parameters = ['query' => trim($query), 'dismax' => 'true', 'limit' => 25];
+        }
+        $data = $this->cached($type, null, $parameters);
         $rows = $data[match ($type) { 'artist' => 'artists', 'release' => 'releases', default => 'release-groups' }] ?? null;
         if (!is_array($rows) || !array_is_list($rows)) throw new RuntimeException('MusicBrainz gaf geen geldige zoekresultaten.');
         $results = [];
@@ -78,18 +88,23 @@ final class Service
         return $results;
     }
 
+    private static function quoted(string $value): string
+    {
+        return '"' . preg_replace('/([+\-&|!(){}\[\]^"~*?:\\\\\/])/', '\\\\$1', $value) . '"';
+    }
+
     public function lookup(array $spot): array
     {
         $release = Release::parse($spot);
         if ($release === null) return ['state' => 'unsupported'];
         $old = $this->repo->match($spot['id']);
-        $hash = Release::signature($spot);
+        $hash = Release::matchSignature($spot);
         if ($old !== null && $old['input_hash'] === $hash && $old['fresh'] && $old['result_json'] !== null) return $old['result_json'];
         if (!$this->repo->lock('spot:' . $spot['id'])) return ['state' => 'busy'];
         try {
             $old = $this->repo->match($spot['id']);
             if ($old !== null && $old['input_hash'] === $hash && $old['fresh'] && $old['result_json'] !== null) return $old['result_json'];
-            $choice = $old !== null && ($old['choice_json']['input'] ?? '') === $hash ? $old['choice_json'] : null;
+            $choice = $old !== null && ($old['choice_json']['input'] ?? '') === Release::signature($spot) ? $old['choice_json'] : null;
             if ($choice['blocked'] ?? false) {
                 $result = ['state' => 'blocked'];
             } else {

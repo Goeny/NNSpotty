@@ -73,7 +73,7 @@ final class Repository
         $this->pdo->prepare('INSERT INTO music_matches (spot_id, input_hash, result_json, expires_at)
             VALUES (?, ?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? SECOND))
             ON DUPLICATE KEY UPDATE input_hash = VALUES(input_hash), result_json = VALUES(result_json), expires_at = VALUES(expires_at)')
-            ->execute([$spot['id'], Release::signature($spot), json_encode($value, JSON_THROW_ON_ERROR), $seconds]);
+            ->execute([$spot['id'], Release::matchSignature($spot), json_encode($value, JSON_THROW_ON_ERROR), $seconds]);
     }
 
     public function choose(array $spot, ?array $choice): void
@@ -87,7 +87,7 @@ final class Repository
     {
         if (!$this->allowed($username) || Release::parse($spot) === null) return null;
         $row = $this->match($spot['id']);
-        return $row !== null && $row['fresh'] && $row['input_hash'] === Release::signature($spot)
+        return $row !== null && $row['fresh'] && $row['input_hash'] === Release::matchSignature($spot)
             && !(($row['choice_json']['input'] ?? '') === Release::signature($spot) && ($row['choice_json']['blocked'] ?? false))
             && ($row['result_json']['state'] ?? '') === 'matched'
             ? $row['result_json']['metadata'] : null;

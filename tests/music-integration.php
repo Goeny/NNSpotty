@@ -15,6 +15,7 @@ $musicDbSpot = \NnSpotty\Usenet\SpotnetParser::spot('music-db@example.invalid', 
 $musicDbSpot['category'] = 'Geluid';
 $musicDbSpot['subcategories'] = ['2z00'];
 $musicDbSpot['title'] = 'Fixture Artist - Fixture Album (2020) FLAC';
+$legacyMusicInput = hash('sha256', json_encode([$musicDbSpot['title'], $musicDbSpot['category'], $musicDbSpot['subcategories'], 'music-v1'], JSON_THROW_ON_ERROR));
 $spots->saveSpot($musicDbSpot, 'free.pt');
 $musicApi = new MusicFixture();
 $musicService = new \NnSpotty\Music\Service($musicRepo, $musicApi);
@@ -24,10 +25,41 @@ check($musicResult['state'] === 'matched' && $musicResult['metadata']['type'] ==
     && $musicResult['metadata']['artist'] === 'Fixture Artist' && $musicResult['metadata']['tracks'] === [],
     'Uniek album wordt albumgroep, niet willekeurige editie/tracklist');
 $musicCalls = count($musicApi->calls);
+check($musicCalls === 2 && $musicApi->calls[0] === ['release-group', null, [
+    'query' => 'artist:"Fixture Artist" AND releasegroup:"Fixture Album"', 'limit' => 25,
+]], 'Albumdiscovery gebruikt exact een gerichte artiest-EN-albumquery en een detailrequest');
 check($musicService->lookup($musicDbSpot) === $musicResult && count($musicApi->calls) === $musicCalls,
     'Muziekmatch blijft in database zonder herhaalde providerrequests');
 check($musicRepo->previewMetadata($musicDbSpot, 'music-reader') === $musicResult['metadata'],
     'Muziekpreview hergebruikt verse gedeelde databasecache');
+$pdo->prepare('UPDATE music_matches SET input_hash = ?, result_json = ? WHERE spot_id = ?')->execute([
+    $legacyMusicInput, '{"state":"unmatched"}', $musicDbSpot['id'],
+]);
+check($musicRepo->previewMetadata($musicDbSpot, 'music-reader') === null
+    && $musicService->lookup($musicDbSpot)['state'] === 'matched'
+    && $musicRepo->match($musicDbSpot['id'])['input_hash'] === \NnSpotty\Music\Release::matchSignature($musicDbSpot),
+    'Oude negatieve parsercache wordt bij detail opnieuw beoordeeld zonder previewfetch of databaseflush');
+foreach ([
+    ['Paul McCartney - The Boys of Dungeon Lane DeLuxe in DTS-HD-*HRA*. ( OV )', 'artist:"Paul McCartney" AND releasegroup:"The Boys of Dungeon Lane"'],
+    ['Simply Red - Holding Back The Years (Live In Santiago 2026)', 'artist:"Simply Red" AND releasegroup:"Holding Back The Years"'],
+    ['Spandau Ballet-True-LP-32BIT-WAVPACK-1983-REETKEVER', 'artist:"Spandau Ballet" AND releasegroup:"True"'],
+    ['1973 - Alice Cooper - Killer [USA Vinyl LP 24-192 kHz]', 'artist:"Alice Cooper" AND releasegroup:"Killer"'],
+    ['AC-DC - Test "One": Love & War?', 'artist:"AC\\-DC" AND releasegroup:"Test \\"One\\"\\: Love \\& War\\?"'],
+    ['Fixture + Artist - Back\\Slash / Album', 'artist:"Fixture \\+ Artist" AND releasegroup:"Back\\\\Slash \\/ Album"'],
+] as [$sceneTitle, $expectedQuery]) {
+    $beforeSearch = count($musicApi->calls);
+    $musicService->search($sceneTitle, 'release-group');
+    check(count($musicApi->calls) === $beforeSearch + 1 && $musicApi->calls[$beforeSearch] === [
+        'release-group', null, ['query' => $expectedQuery, 'limit' => 25],
+    ], 'Zoekquery is gericht, letterlijk ontsnapt en begrensd tot een request: ' . $sceneTitle);
+    $musicService->search($sceneTitle, 'release-group');
+    check(count($musicApi->calls) === $beforeSearch + 1, 'Identieke scenezoekactie hergebruikt providercache');
+}
+$beforeEditionSearch = count($musicApi->calls);
+$musicService->search('Fixture Artist - Fixture Album (Deluxe Edition)', 'release');
+check($musicApi->calls[$beforeEditionSearch] === ['release', null, [
+    'query' => 'Fixture Artist - Fixture Album (Deluxe Edition)', 'dismax' => 'true', 'limit' => 25,
+]], 'Handmatig zoeken naar een specifieke uitgave behoudt editiezoektermen');
 $musicHtml = \NnSpotty\UI\SpotDetailPageRenderer::summary($musicDbSpot, true, metadata: $musicResult['metadata']);
 check(str_contains($musicHtml, 'music-hero') && str_contains($musicHtml, 'Metadata van MusicBrainz')
     && str_contains($musicHtml, 'Hoezen: Cover Art Archive') && str_contains($musicHtml, '<h2>Fixture Album</h2>')
@@ -38,6 +70,13 @@ $musicEdition = $musicService->lookup($musicDbSpot);
 check($musicEdition['manual'] && $musicEdition['metadata']['type'] === 'release'
     && count($musicEdition['metadata']['tracks']) === 2 && $musicEdition['metadata']['duration'] === 305000
     && $musicEdition['metadata']['labels'] === ['Fixture Label'], 'Handmatig gevalideerde uitgave toont juiste tracklist, speelduur en label');
+$pdo->prepare('UPDATE music_matches SET input_hash = ?, result_json = ?, choice_json = ? WHERE spot_id = ?')->execute([
+    $legacyMusicInput, '{"state":"unmatched"}',
+    json_encode(['type' => 'release', 'id' => MusicFixture::RELEASE, 'input' => $legacyMusicInput], JSON_THROW_ON_ERROR), $musicDbSpot['id'],
+]);
+$upgradedMusicEdition = $musicService->lookup($musicDbSpot);
+check($upgradedMusicEdition['manual'] && $upgradedMusicEdition['metadata']['id'] === MusicFixture::RELEASE,
+    'Nieuwe discoveryversie behoudt bestaande music-v1-handmatige editie, niet opnieuw automatisch matchen');
 $musicEditionHtml = \NnSpotty\UI\SpotDetailPageRenderer::summary($musicDbSpot, false, metadata: $musicEdition['metadata'], metadataLink: true);
 check(str_contains($musicEditionHtml, 'Tracklist (2)') && str_contains($musicEditionHtml, '5:05')
     && str_contains($musicEditionHtml, 'Track &lt;Two&gt;') && str_contains($musicEditionHtml, 'MusicBrainz link')
@@ -71,8 +110,12 @@ try {
 }
 check($musicRepo->match($musicDbSpot['id']) === $oldMusicMatch, 'Ongeldige keuze behoudt vorige muziekkoppeling');
 $musicService->choose($musicDbSpot, ['blocked' => true]);
+$pdo->prepare('UPDATE music_matches SET input_hash = ?, result_json = ?, choice_json = ?, expires_at = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 1 DAY) WHERE spot_id = ?')->execute([
+    $legacyMusicInput, json_encode($musicResult, JSON_THROW_ON_ERROR),
+    json_encode(['blocked' => true, 'input' => $legacyMusicInput], JSON_THROW_ON_ERROR), $musicDbSpot['id'],
+]);
 check($musicService->lookup($musicDbSpot)['state'] === 'blocked' && $musicRepo->previewMetadata($musicDbSpot, 'music-reader') === null,
-    'Muziekblokkering geldt voor detail en preview');
+    'Bestaande music-v1-muziekblokkering blijft bij nieuwe discovery gelden voor detail en preview');
 $musicDbSpot['title'] = 'Fixture Artist - Fixture Album 2020 MP3';
 check($musicService->lookup($musicDbSpot)['state'] === 'matched'
     && $musicRepo->previewMetadata($musicDbSpot, 'music-reader') !== null, 'Gewijzigde broninput invalideert oude muziekblokkering ook in preview');

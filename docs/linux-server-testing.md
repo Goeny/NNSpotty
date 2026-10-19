@@ -152,7 +152,12 @@ curl -I https://nnspotty.hopseflop.nl/assets/metadata.js
 
 Controleer APP_URL in je bestaande `.env`: publieke HTTP(S)-contact/project-URL zonder credentials/query/fragment. Geen API-key nodig. Werk CLI/FPM CA-certificaten bij indien HTTPS faalt; schakel TLS-controle niet uit. Test:
 1. Schakel in onder `/admin#music-metadata`, daarna voor jezelf onder `/preferences#music-metadata`. Beide staan standaard uit en werken onafhankelijk van TVDB.
-2. Open een herkenbare muziekspot, bijvoorbeeld artiest-album-jaar-FLAC. Controleer async metadata, MusicBrainz link en bronattributie; alleen overtuigende unieke naam/jaarcombinaties matchen automatisch. Geen match is geen foutieve albumkeuze.
+2. Open een herkenbare muziekspot, bijvoorbeeld artiest-album-jaar-FLAC. Controleer async metadata, MusicBrainz link en bronattributie; alleen overtuigende unieke naam/jaarcombinaties matchen automatisch. Geen match is geen foutieve albumkeuze. Test specifiek:
+   - `Paul McCartney - The Boys of Dungeon Lane DeLuxe in DTS-HD-*HRA*. ( OV )`: artiest Paul McCartney, albumgroep **The Boys of Dungeon Lane**, geen claim over de Deluxe/DTS-uitgave.
+   - `Spandau Ballet-True-LP-32BIT-WAVPACK-1983-REETKEVER`: artiest Spandau Ballet, albumgroep **True**, geen codec/uploader in de zoekterm.
+   - `1973 - Alice Cooper - Killer [USA Vinyl LP 24-192 kHz]`: artiest Alice Cooper, albumgroep **Killer**; bronjaar 1973 blokkeert het oorspronkelijke album uit 1971 niet.
+   - `Simply Red - Holding Back The Years (Live In Santiago 2026)`: bruikbare titel-/artiestsuggesties via adminzoeken, maar geen automatische koppeling aan studioversie of verkeerde liveopname.
+   - `Taylor Swift - 1989 FLAC` en `Prince - 1999 FLAC`: numerieke albumtitel blijft onderdeel van de zoekterm.
 3. Zoek als admin via MusicBrainz link. Kies een specifieke uitgave voor tracklist/label/speelduur; vergelijk MBID, artiest, jaar en editie met MusicBrainz. Reset en blokkering gelden voor iedereen; een gewone gebruiker ziet geen matchbeheer.
 4. Controleer een artiest/discografie: artiestweergave met decoratief symbool, geen willekeurig album of verzonnen artiestfoto/biografie.
 5. Heropen dezelfde spot: databasecache; open kleine preview: uitsluitend cache, geen `/music-metadata` of server-side providerrequest. Zonder match/verlopen cache blijft de oorspronkelijke preview.
@@ -161,6 +166,15 @@ Controleer APP_URL in je bestaande `.env`: publieke HTTP(S)-contact/project-URL 
 8. Een 503/timeout/bezette limiet moet zichtbaar zijn in het paneel, met oorspronkelijke spot bruikbaar; geen snelle automatische retry. Na foutcache van vijf minuten opnieuw controleren. MusicBrainz-requeststarts zijn installatiebreed begrensd tot minimaal 1,1 seconde; beheer de gezamenlijke limiet bij meerdere installaties achter hetzelfde publieke IP.
 
 Uitgebreide tests gebruiken uitsluitend een afzonderlijke testserver via `NNSPOTTY_TEST_DSN`/`NNSPOTTY_TEST_USER`/`NNSPOTTY_TEST_PASSWORD` en `php tests/run.php --integration`; geen productiecredentials.
+
+Voor alleen deze discoveryverbetering is geen extra migratie/retrieve/cacheflush nodig. Voer vanuit de bestaande deploymap op `nnspotty.hopseflop.nl` uit:
+
+```bash
+git pull --ff-only origin main
+php tests/run.php
+```
+
+Open eerder niet gevonden spots opnieuw in de volledige detailweergave: oude automatische/negatieve caches worden opnieuw beoordeeld. Controleer dat bestaande handmatige koppelingen en blokkeringen juist behouden blijven, ook als het oude matchresultaat nog vers was. Kleine previews lezen uitsluitend de nieuwe verse resultaatcache; ze starten geen discovery.
 
 ## TheTVDB metadata, posters en fanart
 Pauzeer webverkeer en retrieve-jobs en maak eerst een beveiligde databasebackup volgens de bestaande backup-procedure hieronder. Bestaande `.env` en lokale serverwijzigingen niet overschrijven. Voer in de bestaande deploymap uit:
