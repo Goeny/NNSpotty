@@ -6,6 +6,16 @@
 - MySQL/MariaDB is de primaire datastore.
 - `.env` bevat app-/databaseconfiguratie; operationele Usenet-instellingen worden in admin beheerd.
 
+## Browseperformance en requestconcurrency
+
+Gewone lijstqueries begrenzen eerst de IDs op datum/ID-keyset en selecteren vervolgens uitsluitend lijstvelden. Bekende hoofdgroepen/types gebruiken enkelvoudige categorie-/typepredicates. Migratie `20261019_0015_browse_performance` indexeert `(is_erotica, posted_at, id)`.
+
+Letterlijke deeltekstzoekacties proberen eerst de normale geordende zoekquery met circa 500 ms databasebudget. MariaDB gebruikt `SET STATEMENT max_statement_time=0.5 FOR SELECT`; MySQL gebruikt de `MAX_EXECUTION_TIME(500)`-optimizerhint. Een voltooide query is direct volledig, ook bij minder dan de batchgrootte. Alleen de specifieke timeoutcodes 1969/3024 schakelen over op een volledige primary-key-scan met dezelfde filters/keyset/sortering; andere PDO-fouten worden doorgegeven. Zo blijven snelle veelvoorkomende termen/kleine selecties snel en worden onbegrensde willekeurige datumindexlezingen begrensd. Geen fulltext-tokenisatie, zoekdieptelimiet of garantie dat iedere term/cachetoestand sneller is. Het budget is geen totale requesttimeout: de volledige fallback mag langer duren.
+
+Persoonlijke exacte facetten zijn een aparte `/spots/facets`-JSON-request, niet langer onderdeel van de initiele overzicht-/detailquery. De renderer toont pending-badges en bruikbare filterlinks; `facets.js` vult gehele aantallen in en biedt foutfeedback/retry. `SessionAuth::newSpotsBoundary()` leest alleen de reeds vastgelegde bezoekgrens; ontbrekende grens geeft 409, geen nieuwe bezoekregistratie. Authenticatie, zoek-/EN-filters en zichtbaarheid blijven gelijk; antwoorden zijn `private, no-store`.
+
+Lees-/providerrequests sluiten de PHP-sessie voor langzame I/O. Waar nodig worden CSRF en browseactiviteit eerst vastgelegd. Daardoor blokkeren NNTP-afbeeldingen geen andere requests met hetzelfde sessie-ID; onderliggende PHP-workers en DB blijven uiteraard nodig. Optionele `APP_TIMING=true` geeft alleen admins `Server-Timing` met sessiewachttijd, DB-connectie en routerduur, zonder querydetails of stacktraces.
+
 ## Spotnet is geen algemene headerindex
 Een binary-release groeperen op onderwerp levert geen Spotnet-spot op. Een spot is een afzonderlijk bericht met een eigen message-ID en XML-metadata.
 

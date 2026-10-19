@@ -71,6 +71,11 @@ final class SessionAuth
         return $_SESSION[self::SESSION_KEY]['new_spots_since'];
     }
 
+    public function newSpotsBoundary(): ?string
+    {
+        return $_SESSION[self::SESSION_KEY]['new_spots_since'] ?? null;
+    }
+
     public function isAdmin(): bool
     {
         $user = $this->user();

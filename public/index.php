@@ -23,6 +23,7 @@ use NnSpotty\UI\SpotDetailPageRenderer;
 use NnSpotty\UI\SpotsPageRenderer;
 use NnSpotty\UI\SpotColumns;
 use NnSpotty\Usenet\SpotFilters;
+use NnSpotty\Usenet\SpotCategories;
 
 $autoloadPath = __DIR__ . '/../vendor/autoload.php';
 if (!is_file($autoloadPath)) {
@@ -72,11 +73,15 @@ session_set_cookie_params([
     'samesite' => 'Lax',
 ]);
 session_name('nnspotty_session');
+$sessionStartedAt = hrtime(true);
 session_start();
+$sessionMilliseconds = (hrtime(true) - $sessionStartedAt) / 1000000;
 
 $config = AppConfig::fromEnvironment();
 $router = new NnSpotty\Http\Router();
+$databaseStartedAt = hrtime(true);
 $pdo = ConnectionFactory::fromEnvironment();
+$databaseMilliseconds = (hrtime(true) - $databaseStartedAt) / 1000000;
 $state = new AppStateRepository($pdo);
 $users = new UserRepository($pdo);
 $auth = new SessionAuth($users);
@@ -109,6 +114,7 @@ $router->get('/retrieve/status', static function (Request $_request) use ($auth,
         return Response::privateJson(['error' => 'Login vereist.'], 401);
     }
 
+    session_write_close();
     return Response::privateJson((new RetrieveService($pdo, $state))->status());
 });
 
@@ -556,6 +562,11 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
         return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
     }
 
+    $csrfField = $isBatch ? '' : $csrf->field();
+    if (!$isBatch) {
+        $auth->newSpotsSince();
+    }
+    session_write_close();
     $preferences = $state->getPreferences($currentUser['username']);
     $showErotica = $state->canViewErotica($currentUser['username']);
     try {
@@ -582,17 +593,13 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
         ]);
     }
 
-    $newSince = $auth->newSpotsSince();
-    $facets = $selectedCategory === null
-        ? []
-        : $spots->facets($selectedCategory, $showErotica, $search, $filters, $newSince);
     $html = SpotsPageRenderer::render(
         username: $currentUser['username'],
         isAdmin: $auth->isAdmin(),
         spots: $batch['spots'],
         selectedCategory: $selectedCategory,
-        csrfField: $csrf->field(),
-        facets: $facets,
+        csrfField: $csrfField,
+        facets: null,
         filters: $filters,
         search: $search,
         theme: $preferences['theme'],
@@ -604,10 +611,42 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
 });
 
+$router->get('/spots/facets', static function (Request $request) use ($auth, $state, $spots): Response {
+    $user = $auth->user();
+    if ($user === null) {
+        return Response::privateJson(['error' => 'Login vereist.'], 401);
+    }
+    $newSince = $auth->newSpotsBoundary();
+    session_write_close();
+    if ($newSince === null) {
+        return Response::privateJson(['error' => 'Open eerst het spotsoverzicht om de bezoekgrens vast te leggen.'], 409);
+    }
+    try {
+        $category = trim($request->queryScalar('category') ?? '');
+        $filters = SpotFilters::parse($request->queryScalar('subcategory'));
+        $search = trim($request->queryScalar('q') ?? '');
+        if (SpotCategories::headForCategory($category) === null || strlen($search) > 200 || preg_match('//u', $search) !== 1) {
+            throw new InvalidArgumentException('Ongeldige categorie of zoektekst voor nieuwtellers.');
+        }
+        $facets = $spots->facets($category, $state->canViewErotica($user['username']), $search, $filters, $newSince);
+        $counts = [];
+        foreach ($facets as $facet) {
+            $counts[$facet['code']] = (int) $facet['total'];
+        }
+        return Response::privateJson(['counts' => (object) $counts]);
+    } catch (InvalidArgumentException $exception) {
+        return Response::privateJson(['error' => $exception->getMessage()], 400);
+    } catch (Throwable $exception) {
+        error_log('Spot facets: ' . $exception->getMessage());
+        return Response::privateJson(['error' => 'Nieuwtellers ophalen mislukt. Controleer de serverlog.'], 500);
+    }
+});
+
 $router->get('/spots/preview', static function (Request $request) use ($auth, $state, $spots): Response {
     if (!$auth->isAuthenticated()) {
         return Response::privateJson(['error' => 'Login vereist.'], 401);
     }
+    session_write_close();
     try {
         $id = $request->queryScalar('key') ?? '';
         if (!preg_match('/^[a-f0-9]{64}$/D', $id)) {
@@ -642,6 +681,9 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
         return Response::notFound();
     }
 
+    $csrfField = $csrf->field();
+    $auth->newSpotsSince();
+    session_write_close();
     $content = $state->spotContentSettings();
     $html = SpotDetailPageRenderer::render(
         username: $currentUser['username'],
@@ -649,16 +691,15 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
         spot: $spot,
         comments: $content['show_comments'] ? $spots->comments($spotId) : [],
         statusMessage: $request->query('status'),
-        csrfField: $csrf->field(),
-        categories: $spots->listCategoriesWithCounts($state->canViewErotica($currentUser['username'])),
+        csrfField: $csrfField,
         theme: $state->getPreferences($currentUser['username'])['theme'],
         showErotica: $state->canViewErotica($currentUser['username']),
         showComments: $content['show_comments'],
         imagesEnabled: $content['images_enabled'],
         retrieveComments: $content['retrieve_comments'],
         metadataControls: (new \NnSpotty\Metadata\Repository($pdo))->allowed($currentUser['username'])
-            ? \NnSpotty\Metadata\View::controls($spot, $currentUser['is_admin'], $csrf->field()) : '',
-        facets: $spots->facets($spot['category'], $state->canViewErotica($currentUser['username']), newSince: $auth->newSpotsSince())
+            ? \NnSpotty\Metadata\View::controls($spot, $currentUser['is_admin'], $csrfField) : '',
+        facets: null
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
@@ -668,6 +709,7 @@ $router->get('/spots/image', static function (Request $request) use ($auth, $spo
     if (!$auth->isAuthenticated()) {
         return new Response(401, 'Login vereist.', ['Content-Type' => 'text/plain; charset=utf-8']);
     }
+    session_write_close();
     if (!$state->spotContentSettings()['images_enabled']) {
         return new Response(403, 'Afbeeldingen zijn door de beheerder uitgeschakeld.', ['Content-Type' => 'text/plain; charset=utf-8', 'Cache-Control' => 'private, no-store']);
     }
@@ -693,6 +735,7 @@ $router->get('/spots/nzb', static function (Request $request) use ($auth, $spots
     if (!$auth->isAuthenticated()) {
         return new Response(401, 'Login vereist.');
     }
+    session_write_close();
     try {
         $id = $request->queryScalar('key') ?? '';
         if (preg_match('/^[a-f0-9]{64}$/D', $id) !== 1) {
@@ -792,5 +835,10 @@ $router->post('/preferences', static function (Request $request) use ($state, $a
 });
 
 $request = Request::fromGlobals($_SERVER, $_GET, $_POST);
+$applicationStartedAt = hrtime(true);
 $response = $router->dispatch($request);
+if ($auth->isAdmin() && filter_var(envValue('APP_TIMING', 'false'), FILTER_VALIDATE_BOOL)) {
+    header(sprintf('Server-Timing: session;dur=%.2f, database;dur=%.2f, application;dur=%.2f',
+        $sessionMilliseconds, $databaseMilliseconds, (hrtime(true) - $applicationStartedAt) / 1000000));
+}
 $response->send();

@@ -10,7 +10,7 @@ use NnSpotty\Usenet\SpotFilters;
 final class SpotsPageRenderer
 {
     /** @param list<array<string, mixed>> $spots
-     *  @param list<array<string, mixed>> $facets
+     *  @param list<array<string, mixed>>|null $facets
      *  @param list<string> $filters
      *  @param list<string> $columns
      */
@@ -20,7 +20,7 @@ final class SpotsPageRenderer
         array $spots,
         ?string $selectedCategory,
         string $csrfField,
-        array $facets = [],
+        ?array $facets = [],
         array $filters = [],
         string $search = '',
         string $theme = 'default',

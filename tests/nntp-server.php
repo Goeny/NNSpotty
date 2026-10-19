@@ -12,6 +12,7 @@ echo substr(strrchr(stream_socket_get_name($server, false), ':'), 1) . PHP_EOL;
 flush();
 $fail = in_array('--fail', $argv, true);
 $failLower = in_array('--fail-lower', $argv, true);
+$slowImage = in_array('--slow-image', $argv, true);
 
 function multiline($socket, string $status, string $data): void
 {
@@ -74,6 +75,11 @@ while ($socket = stream_socket_accept($server, 60)) {
         } elseif (preg_match('/^ARTICLE <([^>]+)>$/', $command, $matches)) {
             multiline($socket, '220 Article follows', Fixtures::comment($matches[1] === 'comment@example.invalid' ? '<spot-one@example.invalid>' : '<wrong-provider-reference@example.invalid>'));
         } elseif ($command === 'BODY <image@example.invalid>') {
+            if ($slowImage) {
+                echo "IMAGE_STARTED\n";
+                flush();
+                sleep(3);
+            }
             $encoded = strtr(Fixtures::image(), ["\0" => '=A', "\r" => '=B', "\n" => '=C', '=' => '=D']);
             multiline($socket, '222 Body follows', rtrim(chunk_split($encoded, 32, "\r\n"), "\r\n"));
         } elseif ($command === 'BODY <nzb@example.invalid>') {

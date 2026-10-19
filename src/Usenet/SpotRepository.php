@@ -158,18 +158,38 @@ final class SpotRepository
             $parameters['same_date'] = $after['date'];
             $parameters['before_id'] = $after['id'];
         }
-        $statement = $this->pdo->prepare(
-            'SELECT s.id, title, category, browse_type, subcategories, poster, size, posted_at, image_url, image_segments
-             FROM spotnet_spots s' . $where .
-            ' ORDER BY posted_at DESC, id DESC LIMIT :limit OFFSET :offset'
-        );
-        foreach ($parameters as $key => $value) {
-            $statement->bindValue(':' . $key, $value);
+        $columns = 's.id, title, category, browse_type, subcategories, poster, size, posted_at, image_url, image_segments';
+        $fetch = function (string $sql) use ($parameters, $limit, $offset): array {
+            $statement = $this->pdo->prepare($sql);
+            foreach ($parameters as $key => $value) {
+                $statement->bindValue(':' . $key, $value);
+            }
+            $statement->bindValue(':limit', max(1, $limit), PDO::PARAM_INT);
+            $statement->bindValue(':offset', max(0, $offset), PDO::PARAM_INT);
+            $statement->execute();
+            return array_map($this->decode(...), $statement->fetchAll());
+        };
+        if ($search !== '') {
+            $ordered = 'SELECT ' . $columns . ' FROM spotnet_spots s' . $where
+                . ' ORDER BY s.posted_at DESC, s.id DESC LIMIT :limit OFFSET :offset';
+            $timed = str_contains((string) $this->pdo->getAttribute(PDO::ATTR_SERVER_VERSION), 'MariaDB')
+                ? 'SET STATEMENT max_statement_time=0.5 FOR ' . $ordered
+                : 'SELECT /*+ MAX_EXECUTION_TIME(500) */ ' . substr($ordered, 7);
+            try {
+                return $fetch($timed);
+            } catch (\PDOException $exception) {
+                // Only an exhausted read budget switches plans; other database errors remain failures.
+                if (!in_array((int) ($exception->errorInfo[1] ?? 0), [1969, 3024], true)) {
+                    throw $exception;
+                }
+            }
         }
-        $statement->bindValue(':limit', max(1, $limit), PDO::PARAM_INT);
-        $statement->bindValue(':offset', max(0, $offset), PDO::PARAM_INT);
-        $statement->execute();
-        return array_map($this->decode(...), $statement->fetchAll());
+        $scan = $search === '' ? '' : ' USE INDEX (PRIMARY)';
+        return $fetch('SELECT ' . $columns . '
+            FROM spotnet_spots s
+            JOIN (SELECT s.id FROM spotnet_spots s' . $scan . $where
+                . ' ORDER BY s.posted_at DESC, s.id DESC LIMIT :limit OFFSET :offset) page ON page.id = s.id
+            ORDER BY s.posted_at DESC, s.id DESC');
     }
 
     /** @param list<string> $filters
@@ -283,9 +303,17 @@ final class SpotRepository
             $conditions[] = 's.is_erotica = 0';
         }
         if ($category !== null) {
-            $conditions[] = '(s.browse_type = :type OR s.category = :head)';
-            $parameters['type'] = $category;
-            $parameters['head'] = $category;
+            if (in_array($category, SpotCategories::HEADS, true)) {
+                $conditions[] = 's.category = :category';
+                $parameters['category'] = $category;
+            } elseif (SpotCategories::headForCategory($category) !== null) {
+                $conditions[] = 's.browse_type = :type';
+                $parameters['type'] = $category;
+            } else {
+                $conditions[] = '(s.browse_type = :type OR s.category = :head)';
+                $parameters['type'] = $category;
+                $parameters['head'] = $category;
+            }
         }
         $subcategories = is_array($subcategory) ? $subcategory : SpotFilters::parse($subcategory);
         foreach ($subcategories as $index => $code) {

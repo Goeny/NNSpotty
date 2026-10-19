@@ -25,6 +25,7 @@ $environment = array_merge(getenv(), [
     'DB_USERNAME' => getenv('NNSPOTTY_TEST_USER') ?: 'root',
     'DB_PASSWORD' => getenv('NNSPOTTY_TEST_PASSWORD') ?: '',
     'DB_CHARSET' => 'utf8mb4',
+    'APP_TIMING' => 'true',
 ]);
 if (PHP_OS_FAMILY === 'Windows' && $environment['DB_PASSWORD'] === '') {
     throw new RuntimeException('HTTP-integratietests op Windows vereisen een testdatabasegebruiker met een niet-leeg wachtwoord; Windows kan lege child-process environmentvariabelen verwijderen.');
@@ -106,7 +107,8 @@ try {
     $anonymous = httpFixture($httpPort, '/spots/image?key=' . $spotId, $cookie);
     check($anonymous['status'] === 401 && httpFixture($httpPort, '/retrieve/status', $cookie)['status'] === 401,
         'Afbeelding- en retrieve-status-endpoints vereisen login');
-    check(httpFixture($httpPort, '/spots/preview?key=' . $spotId, $cookie)['status'] === 401
+    check(httpFixture($httpPort, '/spots/facets?category=Beeld', $cookie)['status'] === 401
+        && httpFixture($httpPort, '/spots/preview?key=' . $spotId, $cookie)['status'] === 401
         && httpFixture($httpPort, '/spots?batch=1', $cookie)['status'] === 401, 'Asynchrone preview en batches vereisen login zonder HTML-redirect');
     $login = httpFixture($httpPort, '/login', $cookie);
     preg_match('/name="_csrf" value="([^"]+)"/', $login['body'], $token);
@@ -114,6 +116,8 @@ try {
     $loginResult = httpFixture($httpPort, '/login', $cookie, ['_csrf' => $token[1], 'username' => 'http-tester', 'password' => $password]);
     check($loginResult['status'] === 302 && in_array('Location: /spots', $loginResult['headers'], true),
         'Geslaagde sessie-login opent rechtstreeks het overzicht');
+    check(httpFixture($httpPort, '/spots/facets?category=Beeld', $cookie)['status'] === 409,
+        'Nieuwtellers zonder browsegrens melden een fout en starten niet zelf een bezoek');
     $loggedInLogin = httpFixture($httpPort, '/login', $cookie);
     check($loggedInLogin['status'] === 302 && in_array('Location: /spots', $loggedInLogin['headers'], true),
         'Ingelogde bezoeker van loginpagina gaat direct naar overzicht');
@@ -128,11 +132,19 @@ try {
     $headList = httpFixture($httpPort, '/spots?category=Beeld', $cookie);
     check($headList['status'] === 200 && str_contains($headList['body'], '>WEBRip<span')
         && str_contains($headList['body'], '>Sciencefiction<span') && !str_contains($headList['body'], '>Erotica<span'), 'Hoofdcategorie toont volledige sidebar zonder verborgen erotica');
+    check(str_contains($headList['body'], 'data-facets-url=') && str_contains($headList['body'], 'Nieuwtellers laden...')
+        && count(array_filter($headList['headers'], static fn (string $header): bool => str_starts_with($header, 'Server-Timing: session;dur='))) === 1,
+        'Pagina levert filters direct en laadt nieuwtellers apart; admin kan veilige timings bekijken');
     $soundList = httpFixture($httpPort, '/spots?category=Geluid', $cookie);
     check($soundList['status'] === 200 && str_contains($soundList['body'], '>FLAC<span')
         && !str_contains($soundList['body'], '>WEBRip<span'), 'Hoofdcategorielink wisselt de bijbehorende sidebar via echte HTTP-route');
     $firstVisitPage = httpFixture($httpPort, '/spots?category=Beeld&q=Visit+Route+Fixture', $cookie);
-    check(str_contains($firstVisitPage['body'], '0 nieuw sinds je vorige bezoek'), 'Eerste browsersessie begint met nul nieuwe spots, niet het volledige historische totaal');
+    $firstVisitCounts = json_decode(httpFixture($httpPort, '/spots/facets?category=Beeld&q=Visit+Route+Fixture', $cookie)['body'], true, 512, JSON_THROW_ON_ERROR)['counts'];
+    check($firstVisitCounts === [], 'Eerste browsersessie begint met nul nieuwe spots, niet het volledige historische totaal');
+    foreach (['category[]=Beeld', 'category=onbekend', 'category=Beeld&subcategory=invalid', 'category=Beeld&q=' . str_repeat('x', 201)] as $invalidFacetQuery) {
+        check(httpFixture($httpPort, '/spots/facets?' . $invalidFacetQuery, $cookie)['status'] === 400,
+            'Nieuwtellerendpoint weigert ongeldige categorie, filters of zoektekst');
+    }
     $routeVisitSpot = \NnSpotty\Usenet\SpotnetParser::spot('visit-route@example.invalid', Fixtures::headers('visit-route@example.invalid'));
     $routeVisitSpot['title'] = 'Visit Route Fixture';
     $routeVisitSpot['subcategories'] = ['1z00', '1a09'];
@@ -140,14 +152,19 @@ try {
     $spots->saveSpot($routeVisitSpot, 'free.pt');
     $visitPath = '/spots?category=Beeld&q=Visit+Route+Fixture';
     $visitPage = httpFixture($httpPort, $visitPath, $cookie);
-    check(str_contains($visitPage['body'], '1 nieuw sinds je vorige bezoek')
+    $visitCountPath = '/spots/facets?category=Beeld&q=Visit+Route+Fixture';
+    $visitCounts = json_decode(httpFixture($httpPort, $visitCountPath, $cookie)['body'], true, 512, JSON_THROW_ON_ERROR)['counts'];
+    check($visitCounts['0:z0'] === 1
         && !str_contains($visitPage['body'], 'individuele spots'),
         'Nieuw geimporteerde oude post telt als nieuw sinds bezoek, niet op basis van publicatiedatum');
-    check(str_contains(httpFixture($httpPort, $visitPath, $cookie)['body'], '1 nieuw sinds je vorige bezoek')
-        && str_contains(httpFixture($httpPort, '/spots/view?key=' . $routeVisitSpot['id'], $cookie)['body'], '1 nieuw sinds je vorige bezoek'),
+    httpFixture($httpPort, $visitPath, $cookie);
+    $repeatCounts = json_decode(httpFixture($httpPort, $visitCountPath, $cookie)['body'], true, 512, JSON_THROW_ON_ERROR)['counts'];
+    check($repeatCounts['0:z0'] === 1
+        && str_contains(httpFixture($httpPort, '/spots/view?key=' . $routeVisitSpot['id'], $cookie)['body'], 'data-facets-url='),
         'Herladen, filters en detailnavigatie houden de huidige sessiegrens vast');
     $visitBeforeBatch = $pdo->query("SELECT last_visit_at FROM user_browse_visits WHERE username = 'http-tester'")->fetchColumn();
     httpFixture($httpPort, '/spots?batch=1', $cookie);
+    httpFixture($httpPort, $visitCountPath, $cookie);
     check($pdo->query("SELECT last_visit_at FROM user_browse_visits WHERE username = 'http-tester'")->fetchColumn() === $visitBeforeBatch,
         'Achtergrondbijladen markeert geen nieuw bezoek of activiteit');
     $newVisitCookie = '';
@@ -155,9 +172,10 @@ try {
     preg_match('/name="_csrf" value="([^"]+)"/', $newVisitLogin['body'], $newVisitToken);
     httpFixture($httpPort, '/login', $newVisitCookie, ['_csrf' => $newVisitToken[1], 'username' => 'http-tester', 'password' => $password]);
     $nextVisitPage = httpFixture($httpPort, $visitPath, $newVisitCookie);
-    check(str_contains($nextVisitPage['body'], '0 nieuw sinds je vorige bezoek') && !str_contains($nextVisitPage['body'], '1 nieuw sinds je vorige bezoek')
+    $nextVisitCounts = json_decode(httpFixture($httpPort, $visitCountPath, $newVisitCookie)['body'], true, 512, JSON_THROW_ON_ERROR)['counts'];
+    check($nextVisitCounts === []
         && !str_contains($nextVisitPage['body'], 'individuele spots'), 'Nieuwe browsersessie gebruikt laatste browseactiviteit als grens zonder totaaltelling');
-    check(str_contains(httpFixture($httpPort, $visitPath, $cookie)['body'], '1 nieuw sinds je vorige bezoek'),
+    check(json_decode(httpFixture($httpPort, $visitCountPath, $cookie)['body'], true, 512, JSON_THROW_ON_ERROR)['counts']['0:z0'] === 1,
         'Nieuwe login op tweede apparaat wist de teller van een al geopende sessie niet');
     $pdo->prepare('DELETE FROM spotnet_spots WHERE id = ?')->execute([$routeVisitSpot['id']]);
     $oldDescription = $spots->getSpot($spotId)['description'];
@@ -204,6 +222,7 @@ try {
     check($imageResponse['status'] === 200 && $imageResponse['body'] === Fixtures::image()
         && in_array('Content-Type: image/png', $imageResponse['headers'], true), 'HTTP-afbeelding levert de juiste bytes en MIME');
     check($spots->image($spotId) !== null, 'HTTP-afbeelding wordt bij een cache-miss via NNTP geladen en opgeslagen');
+    require __DIR__ . '/session-concurrency.php';
     $before = count($spots->comments($spotId));
     httpFixture($httpPort, '/spots/comment', $cookie, ['spot_id' => $spotId, 'comment' => 'Niet opslaan']);
     check(count($spots->comments($spotId)) === $before, 'Reactie zonder CSRF wordt niet opgeslagen');
@@ -216,6 +235,7 @@ try {
         && str_contains($admin['body'], 'id="images_enabled"'), 'Admin biedt afzonderlijke schakelaars voor ophalen, reacties tonen en afbeeldingen');
     check(str_contains($admin['body'], 'id="retrieve_after"') && str_contains($admin['body'], 'name="retrieve_after"'),
         'Admin biedt een optionele kalenderdatum voor de retrievegrens');
+    $originalHttpUsenetSettings = $state->getUsenetSettings();
     httpFixture($httpPort, '/admin/settings', $cookie, [
         '_csrf' => $token[1], 'server' => '127.0.0.1', 'port' => '119', 'retention' => '30',
         'retrieve_after' => '2019-01-02', 'encryption' => 'none', 'explicit_groups' => 'movies:alt.binaries.movies',
@@ -237,6 +257,7 @@ try {
     ]);
     check($validSettingsResponse['status'] === 302 && $state->getUsenetSettings()['retrieve_after'] === '2019-01-02',
         'Admin slaat een geldige retrieve-begindatum op');
+    $state->saveUsenetSettings($originalHttpUsenetSettings);
     check(httpFixture($httpPort, '/preferences', $cookie)['status'] === 200, 'Bestaande preferences blijven werken');
     $defaults = $state->globalSpotColumns();
     $globalForm = ['_csrf' => $token[1], 'column_0_size' => '1'];
@@ -361,6 +382,13 @@ try {
     $readerLogin = httpFixture($httpPort, '/login', $readerCookie);
     preg_match('/name="_csrf" value="([^"]+)"/', $readerLogin['body'], $readerToken);
     httpFixture($httpPort, '/login', $readerCookie, ['_csrf' => $readerToken[1], 'username' => 'http-reader', 'password' => $password]);
+    $readerPage = httpFixture($httpPort, '/spots', $readerCookie);
+    check(count(array_filter($readerPage['headers'], static fn (string $header): bool => str_starts_with($header, 'Server-Timing:'))) === 0,
+        'Server-Timing wordt niet aan gewone gebruikers getoond');
+    $hiddenFacetResponse = httpFixture($httpPort, '/spots/facets?category=Erotica', $readerCookie);
+    check(json_decode($hiddenFacetResponse['body'], true, 512, JSON_THROW_ON_ERROR)['counts'] === []
+        && in_array('Cache-Control: private, no-store', $hiddenFacetResponse['headers'], true),
+        'Asynchrone tellers lekken geen verborgen erotica en zijn niet cachebaar');
     check(httpFixture($httpPort, '/admin/content', $readerCookie, ['_csrf' => $readerToken[1], 'allow_erotica' => '1'])['status'] === 403
         && !$state->eroticaAllowed(), 'Gewone gebruiker kan globale instelling niet wijzigen');
     check(httpFixture($httpPort, '/admin/columns', $readerCookie, ['_csrf' => $readerToken[1]])['status'] === 403

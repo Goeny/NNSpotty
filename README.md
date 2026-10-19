@@ -50,13 +50,23 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 - Categorieaantallen volgen de zichtbaarheid van de gebruiker. Onbekende categoriecodes blijven bewaard en zichtbaar in technische details.
 - Achter subcategoriefilters staat **nieuw sinds je vorige bezoek**, niet het historische totaal. De grens is persoonlijk en blijft tijdens dezelfde browsersessie gelijk bij navigeren/herladen. Nieuwe imports tijdens het bezoek komen erbij; het overzicht berekent geen exacte totaaltelling over alle passende spots.
 - De eerste keer na installatie/upgrade wordt een bezoekgrens vastgelegd: bestaande historie begint niet als nieuw. Bij een volgende browsersessie (of uit-/inloggen) geldt je laatste overzicht-/detailbezoek als grens. Tabs delen de sessie; de browser kan sessiecookies bij sessieherstel behouden. Dit zijn geen individuele gelezen/ongelezen-markeringen.
-- Infinite loading zonder paginanummers, met een knop **Meer resultaten laden** en opnieuw proberen na een fout. Persoonlijke laadbatch van 10-200 resultaten. De eerste request haalt alleen deze batch op; vervolgspots worden pas bij scrollen opgehaald. Een exacte totaalcount wordt niet bij iedere paginalaad berekend. Subcategorie-facetten worden alleen opgehaald wanneer een hoofdgroep is geselecteerd.
+- Infinite loading zonder paginanummers, met een knop **Meer resultaten laden** en opnieuw proberen na een fout. Persoonlijke laadbatch van 10-200 resultaten. De eerste request haalt alleen deze batch op; vervolgspots worden pas bij scrollen opgehaald. Een exacte totaalcount wordt niet bij iedere paginalaad berekend.
+- Nieuwtellers laden apart na het overzicht/de volledige detailpagina, uitsluitend bij een geselecteerde categorie. Tijdens laden staat er `...`, geen verzonnen nul; bij een fout verschijnt **Opnieuw proberen**. Filters werken meteen, ook zonder JavaScript; alleen de tellers vereisen JavaScript. Achtergrondtellingen veranderen de persoonlijke bezoekgrens niet.
 - Browser-terug vanuit een detail herstelt de geladen lijst en je scrollpositie, ook na 500 of 1000 spots en op mobiel. Elke geschiedenisvermelding houdt een eigen plek bij met behoud van zoektekst/filters. Zonder browser-paginacache worden batches opnieuw opgehaald tot de eerdere lijstlengte en wordt de zichtbare spot als anker gebruikt; wijzigingen in de index kunnen de lijst veranderen. Bij een ophaalfout kun je het herstel opnieuw proberen. Alleen gebruikersgebonden positiegegevens worden in de browsergeschiedenis bewaard, geen spotinhoud.
 - Een enkele klik opent een sluitbare preview die van rechts in-/uitschuift. Dubbelklik opent de volledige detailpagina.
 - Preview met eigen scrollgebied, Escape en focusherstel; toetsenbordvriendelijke titellinks. Zonder JavaScript openen titels de volledige spot en is er een vervolglink.
 - Instelbare overzichtskolommen per hoofdgroep: globale adminstandaarden en persoonlijke overrides met herstel naar de actuele globale standaard. Titel blijft verplicht; **Alle** gebruikt een vaste gemengde kolomset.
 - Responsive kaarten op kleine schermen, afbrekende lange waarden en geen horizontale tabelscroll.
 - Plex-geinspireerde oranje/gouden accenten voor primaire knoppen, badges, filterlabels, selectieknoppen en schakelaars, in donker en licht; overige layout en semantische fout-/succes-/informatiekleuren blijven behouden.
+
+### Browseperformance en diagnose
+
+- Afbeeldingen en andere lees-/providerrequests geven de PHP-sessielock vroeg vrij. Een trage Usenet-cover houdt zo niet meer het overzicht, bijladen of de retrieve-status van dezelfde gebruiker tegen. CSRF en bezoekregistratie gebeuren voor het vrijgeven waar nodig.
+- Gewone lijstqueries selecteren eerst een beperkte set IDs en halen daarna alleen de benodigde lijstvelden op, zonder omschrijving of volledige XML. Migratie `20261019_0015_browse_performance` voegt datum-/ID-indexen voor zichtbaarheid en type toe; er is geen nieuwe retrieve nodig.
+- Titelzoeken blijft een **letterlijke deeltekstzoekactie**, inclusief `%`, `_` en `!`. Eerst krijgt de normale geordende zoekquery ongeveer 500 ms databasebudget (`max_statement_time` op MariaDB, `MAX_EXECUTION_TIME` op MySQL). Veel voorkomende termen en kleine selecties kunnen meteen terugkomen. Alleen bij een database-timeout volgt een volledige primary-key-scan met dezelfde filters, sortering en keyset, zonder resultaatverlies of maximale zoekdiepte. Andere databasefouten blijven fouten. Zo worden dure willekeurige rijlezingen via een datumindex begrensd; niet iedere individuele zoekterm is op iedere cache/hardware sneller.
+- Een exacte nieuwtelling en zeldzame titelzoekactie blijven afhankelijk van de indexgrootte; asynchroon tellen maakt de SQL zelf niet gratis. Afbeeldingen zonder databasecache blijven afhankelijk van je Usenet-provider. Newznab heeft een afzonderlijk zoekpad en wordt hiermee niet opnieuw ontworpen.
+- Optioneel `APP_TIMING=true` in `.env`: **uitsluitend ingelogde admins** krijgen de HTTP-header `Server-Timing` met sessiewachttijd (`session`), databaseverbinding (`database`) en routeverwerking (`application`), in milliseconden. Bekijk die in DevTools > Network > Timing voor het overzicht en de aparte tel-/afbeeldingsrequests. Geen SQL, credentials of stacktraces in de header; standaard uit. Browserdownload/rendering en wachttijd voor PHP-FPM vallen buiten deze servermeting.
+- Zie de [Linux-performancechecks](./docs/linux-server-testing.md#browseperformance-en-sessielocks) voor veilige migratie en metingen op je eigen server. De reproduceerbare benchmark hieronder gebruikt alleen synthetische data, geen productiespots.
 
 ### Detailpagina, afbeeldingen en releasekwaliteit
 
@@ -160,6 +170,7 @@ Bewerk `.env` in de projectroot:
 APP_NAME=NNSpotty
 APP_ENV=production
 APP_DEBUG=false
+APP_TIMING=false
 APP_URL=https://nnspotty.hopseflop.nl
 APP_VERSION=0.0.1
 APP_CODENAME=Delta Integrale
@@ -409,10 +420,16 @@ export NNSPOTTY_TEST_USER='nnspotty_test'
 read -rsp 'Wachtwoord testdatabase: ' NNSPOTTY_TEST_PASSWORD; echo
 export NNSPOTTY_TEST_PASSWORD
 php tests/run.php --integration
+# Optioneel: synthetische browsebenchmark (standaard 300.000 spots, 1.000-2.000.000 toegestaan).
+# Kan minuten duren en meerdere GiB opslag gebruiken. Alleen een aparte testserver gebruiken.
+NNSPOTTY_PERF_SPOTS=300000 php tests/browse-performance.php
+# Grotere fixture, bijvoorbeeld:
+NNSPOTTY_PERF_SPOTS=1300000 php tests/browse-performance.php
 unset NNSPOTTY_TEST_DSN NNSPOTTY_TEST_USER NNSPOTTY_TEST_PASSWORD
 ```
 
 Gebruik **geen productiecredentials**: de testgebruiker moet tijdelijke testschema's kunnen maken/verwijderen. Zie [Linux-serverchecks](./docs/linux-server-testing.md) voor voorwaarden, asset-/routechecks en echte productieacceptatie.
+De benchmark verwijdert zijn eigen willekeurig benoemde testschema na afloop, vergelijkt oude/nieuwe zoekresultaten, controleert batchgrootte en keysetvolgorde, begrenst gewone eerste batches tot maximaal 512 gemeten indexstappen en bewaakt maximaal 32 MiB PHP-piekgeheugen. Looptijden zijn metingen, geen hardware-onafhankelijke SLA. De HTTP-suite controleert met twee echte PHP-workers dat een drie seconden vertraagde NNTP-afbeelding een batch en statusrequest van dezelfde sessie niet blokkeert (samen minder dan 1,5 seconde).
 
 Een fixturetest bewijst geen providerbeschikbaarheid. Controleer met je eigen accounts een echte spot, reacties, afbeelding, NZB-download, Prowlarr-zoekactie, SABnzbd-upload/wachtrij en TVDB-match. Test mobiel/desktop en donker/licht. Gedeelde VS Code-taken bieden syntaxcontrole en lokaal serveren; aanbevolen extensies staan in [extensions.json](./.vscode/extensions.json).
 
@@ -420,6 +437,7 @@ Een fixturetest bewijst geen providerbeschikbaarheid. Controleer met je eigen ac
 
 - Nog geen installatiewizard, ingebouwde scheduler/jobqueue of begin-/einddatumkalender voor historische retrieve; gebruik voorlopig console/cron en retentie in dagen.
 - Geen cryptografische Spotnet-handtekeningverificatie of geverifieerde spotteridentiteit; geregistreerde whitelist/blacklist is nog geen afgedwongen moderatiefilter.
+- Externe Spotnet-whitelist-/blacklistimport en badges blijven vervolgwerk. De [Spotlist-whitelist](https://spotlist.store/spotnet/whitelist.xml) en [blacklist](https://spotlist.store/spotnet/blacklist.xml) bevatten publieke sleutels met namen; alleen namen vergelijken is geen betrouwbare identificatie. Op verzoek gaat browseperformance eerst; er worden nu geen externe lijsten gedownload of blacklisted spots overgeslagen.
 - Niet alle exotische Spotnet-tags/legacy-XML, dagelijkse/absolute afleveringscodes of multi-episodevarianten worden volledig ondersteund.
 - Geen Usenet-publicatie van lokale reacties, playback, reviews of verzonnen verificatie-/beoordelingsbadges.
 - Geen NZBGet-forwarding, afgeronde SABnzbd-historiesynchronisatie of SABnzbd-pauzeer/verwijderbediening.

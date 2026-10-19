@@ -222,6 +222,17 @@ try {
     $counterDetail = SpotDetailPageRenderer::render('tester', false, $spot, [], '', facets: [['code' => '0:a9', 'total' => 100]]);
     check(str_contains($counterDetail, '100 nieuw sinds je vorige bezoek'),
         'Volledige detailpagina kan dezelfde persoonlijke facetbadge tonen als het overzicht');
+    $pending = SpotsPageRenderer::render('tester', false, [$spot], 'Films', '', facets: null,
+        filters: ['0:a9', '0:d0'], search: 'film & serie');
+    check(str_contains($pending, '/assets/facets.js') && str_contains($pending, 'data-facets-url="/spots/facets?category=Films')
+        && str_contains($pending, 'subcategory=0%3Aa9%2C0%3Ad0&amp;q=film+%26+serie')
+        && str_contains($pending, 'data-facet-count="0:a9"')
+        && str_contains($pending, 'Nieuwtellers vereisen JavaScript; de filters werken zonder.')
+        && !str_contains($pending, '0 nieuw sinds je vorige bezoek'),
+        'Uitgestelde nieuwtellers bewaren exacte categorie en filters zonder fictieve nullen');
+    check(!str_contains(SpotsPageRenderer::render('tester', false, [$spot], null, '', facets: null), '/assets/facets.js')
+        && str_contains(SpotDetailPageRenderer::render('tester', false, $spot, [], '', facets: null), 'data-facets-url='),
+        'Alle-categorie heeft geen telrequest; detail ondersteunt dezelfde uitgestelde tellers');
     $sound = SpotLayout::render('Test', 'tester', false, '', '', selected: 'Geluid');
     check(str_contains($sound, '>FLAC<span') && str_contains($sound, '>Lossless<span')
         && !str_contains($sound, '>WEBRip<span'), 'Hoofdcategorie wisselen vervangt de subcategorieen');

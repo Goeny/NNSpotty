@@ -11,7 +11,7 @@ final class SpotDetailPageRenderer
     /** @param array<string, mixed> $spot
      *  @param list<array<string, mixed>> $comments
      *  @param list<array<string, mixed>> $categories
-     *  @param list<array<string, mixed>> $facets
+     *  @param list<array<string, mixed>>|null $facets
      */
     public static function render(
         string $username,
@@ -27,7 +27,7 @@ final class SpotDetailPageRenderer
         bool $imagesEnabled = true,
         bool $retrieveComments = true,
         string $metadataControls = '',
-        array $facets = []
+        ?array $facets = []
     ): string {
         $id = h($spot['id']);
         $summary = self::summary($spot, false, $imagesEnabled, $showComments, metadataLink: $metadataControls !== '');

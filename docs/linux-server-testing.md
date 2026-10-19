@@ -8,6 +8,45 @@ cp .env.example .env
 # vul daarna .env met jouw basis app + DB gegevens
 ```
 
+## Browseperformance en sessielocks
+
+Voer uit in de bestaande deploymap op `nnspotty.hopseflop.nl`. Bewaar `.env`, maak eerst een beveiligde databasebackup volgens de procedure hieronder en pauzeer webverkeer/retrieve-jobs tijdens de migratie. Nieuwe indexen op een grote spottabel kosten tijd en extra schijfruimte; laat de migratie uitlopen.
+
+```bash
+cd <pad-naar-project>
+git status --short
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+composer check-platform-reqs
+php bin/console db migrate
+php bin/console db status
+php bin/console db health
+php tests/run.php
+curl -fsS https://nnspotty.hopseflop.nl/health
+curl -fsS -o /dev/null -w 'Nieuwtellers-JS: %{http_code}\n' https://nnspotty.hopseflop.nl/assets/facets.js
+```
+
+Controleer migratie `20261019_0015_browse_performance`. Geen nieuwe/full retrieve nodig. Hervat verkeer/jobs en herlaad met Ctrl+F5.
+
+1. Log in als admin. Open **Alle**, **Beeld**, **Films**, een EN-filtercombinatie en een detail. De HTML bevat direct de eerste beperkte batch; nieuwtellers komen via `/spots/facets` apart binnen. Het overzicht/detail hoort niet te wachten op de telrequest. De rootpagina doet geen telrequest. Aantallen blijven exact en volgen dezelfde persoonlijke grens/zichtbaarheid/zoektekst/EN-filters.
+2. Blokkeer alleen `/spots/facets` in DevTools: filterlinks blijven werken, tellers tonen geen valse nullen en er verschijnt een zichtbare fout met **Opnieuw proberen**. Hef de blokkade op en probeer opnieuw. Controleer ook zonder JavaScript: filters blijven bruikbaar, de uitleg meldt dat tellers JavaScript nodig hebben.
+3. Zet tijdelijk `APP_TIMING=true` in de bestaande `.env` (of de gelijknamige PHP-FPM-omgeving). Herlaad PHP-FPM alleen indien jouw deployment dat voor gewijzigde omgevingsvariabelen vereist. Bekijk ingelogd als admin in DevTools > Network de `Server-Timing`-header: `session`, `database`, `application`. Meet apart de documentrequest, telrequest, afbeelding en vervolgbatch. Een gewone gebruiker krijgt deze diagnoseheader niet. Zet de optie na diagnose weer uit. Deel geen sessiecookies of productiecredentials.
+4. Test een niet-gecachete cover terwijl je met **dezelfde ingelogde browsersessie** in een tweede tab het overzicht opent of verder bladert. Het tweede verzoek mag niet op de NNTP-cover wachten. Gebruik PHP-FPM met meerdere workers; de PHP developmentserver met maar een worker kan zelf geen parallelle requests afhandelen.
+5. Vergelijk een veel voorkomende titelterm, een schaarse deeltekst en een niet-bestaande titel. Zoekresultaten blijven datum/ID-gesorteerd, `%`, `_` en `!` zijn letterlijk, vervolgpagina's hebben geen dubbelen. Schaarse/ontbrekende termen kunnen nog steeds een volledige databasescan vereisen; noteer echte servertijden en database-/FPM-belasting, niet alleen de duur van het laden van alle covers.
+6. Test donker/licht en mobiel/desktop, detail/preview, browser-terug naar een diepe lijst, verborgen erotica en nieuwe imports tijdens dezelfde sessie. De voorkeuren voor reacties/afbeeldingen blijven leidend. Geen externe whitelist-/blacklistimport of nieuwe retrieve-incrementinstelling in deze update.
+
+Voor de database-/HTTP-regressies en benchmark gebruik je uitsluitend een **aparte** MySQL/MariaDB-testserver met testcredentials en rechten om testschema's te maken/verwijderen. Zie de README voor `NNSPOTTY_TEST_*`; de benchmark kan minuten duren en meerdere GiB opslag gebruiken:
+
+```bash
+php tests/run.php --integration
+NNSPOTTY_PERF_SPOTS=300000 php tests/browse-performance.php
+NNSPOTTY_PERF_SPOTS=1300000 php tests/browse-performance.php
+```
+
+De suite test echte gelijktijdigheid met twee lokale PHP-workers en een NNTP-afbeelding die drie seconden wacht: een batch plus retrieve-status van dezelfde sessie moeten samen binnen 1,5 seconde gereed zijn, terwijl de afbeelding nog wacht. Benchmarktijden zijn lokale synthetische metingen, geen productietijden of garantie voor jouw hardware.
+
+Referentie op MariaDB 11.4.9 met 256 MiB InnoDB-buffer: 1,3 miljoen synthetische spots gaf gewone batches van circa 7-34 ms; de exacte nieuwtelling duurde 12,6 s, maar zit niet meer in de eerste HTML-request. De definitieve 300k-zoekrun gaf 3,2 ms voor een dichte term en 1,22 s voor een ontbrekende term, tegenover respectievelijk 1,1 ms en 4,16 s voor de oude queryvorm. Een schaarse eerste batch was juist langzamer (1,42 s tegenover 0,27 s voor de later gemeten oude vorm). Cachevolgorde/hardware spelen mee; vergelijk daarom ook je eigen zoektermen en niet alleen de gunstigste meting. Geen belofte dat iedere zoekactie sneller is. De gewone eerste batches blijven klein (gemeten 50-74 indexstappen, 2 MiB PHP-piek in de 300k-benchmark).
+
 ## Browser-terug naar de plek in de spotlijst
 Deze update vereist geen nieuwe migratie of retrieve. Voer vanuit de bestaande deploymap op `nnspotty.hopseflop.nl` uit:
 

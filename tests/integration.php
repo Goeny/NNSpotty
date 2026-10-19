@@ -160,8 +160,9 @@ try {
     $settings['retention'] = 30;
     $settings['retrieve_after'] = '2000-01-01';
     $state->saveUsenetSettings($settings);
+    $log = [];
     $all = $service->run('all', null, true, $logger);
-    check($spots->countSpots(null) === 2 && $all['inserted'] === 1
+    check($spots->countSpots(null) === 2 && $all['inserted'] === 0
         && count(array_filter($log, static fn (string $line): bool => str_contains($line, 'datumgrens=')
             && !str_contains($line, 'datumgrens=geen'))) === 2,
         '--all respecteert retentie en past de strengste begindatum toe');
@@ -224,6 +225,12 @@ try {
             && $spots->countSpots(null) === $recentCount,
             'Een cron-retrieve ruimt alle ' . $expiredCount . ' verlopen spots op en bewaart recente spots');
     }
+    $settings['retention'] = 0;
+    $settings['retrieve_after'] = null;
+    $state->saveUsenetSettings($settings);
+    $unlimitedRun = $service->run('all', null, true, $logger);
+    check($spots->countSpots(null) === 3 && $unlimitedRun['inserted'] === 1,
+        'Retentie nul zonder begindatum haalt oude spots op en verwijdert ze niet');
     $again = $service->run('since-last', null, true, $logger);
     check($again['inserted'] === 0, 'Na backfill gaat since-last verder vanaf het einde');
     check(count(array_filter($log, static fn (string $line): bool => str_contains($line, '914 overgeslagen'))) > 0, 'Corrupte spot XML wordt expliciet gerapporteerd');
@@ -237,7 +244,7 @@ try {
     check(count($spots->listCategoriesWithCounts()) === 1, 'Categorieaantallen uit echte spots');
     $caseSpot = SpotnetParser::spot('Spot-one@example.invalid', Fixtures::headers('Spot-one@example.invalid'));
     $spots->saveSpot($caseSpot, 'free.pt');
-    check($spots->countSpots(null) === 3, 'Message-IDs met verschillende hoofdletters blijven verschillende spots');
+    check($spots->countSpots(null) === 4, 'Message-IDs met verschillende hoofdletters blijven verschillende spots');
     $caseComment = SpotnetParser::comment('Comment@example.invalid', Fixtures::comment());
     $spots->saveComment($caseComment);
     check(count($spots->comments($spotId)) === 4, 'Reactie message-IDs zijn hoofdlettergevoelig');
@@ -309,6 +316,28 @@ try {
     rejects(static fn () => $spots->batch(null, 10, false, [], '', 'invalid'), 'Ongeldige keyset wordt expliciet geweigerd');
     rejects(static fn () => $spots->batch(null, 10, false, [], '', base64_encode('2026-02-31 00:00:00|' . str_repeat('a', 64))), 'Ongeldige keysetdatum wordt geweigerd');
     $pdo->exec("DELETE FROM spotnet_spots WHERE message_id LIKE 'batch-%@example.invalid'");
+    $probeSpot = $adult;
+    $probeSpot['subcategories'] = ['1z00'];
+    for ($n = 1; $n <= 600; $n++) {
+        $probeSpot['message_id'] = 'search-probe-' . $n . '@example.invalid';
+        $probeSpot['id'] = hash('sha256', $probeSpot['message_id']);
+        $probeSpot['title'] = 'Probe fixture ' . $n . ($n % 150 === 1 ? ' %_!' : '');
+        $probeSpot['posted_at'] = gmdate('Y-m-d H:i:s', strtotime('2025-01-01 00:00:00 UTC') + $n);
+        $spots->saveSpot($probeSpot, 'free.pt');
+    }
+    $dense = $spots->batch('Beeld', 50, false, [], 'pRoBe fixture');
+    $denseNext = $spots->batch('Beeld', 50, false, [], 'pRoBe fixture', $dense['next']);
+    $denseExpected = $pdo->query("SELECT id FROM spotnet_spots WHERE title LIKE '%Probe fixture%'
+        ORDER BY posted_at DESC, id DESC LIMIT 100")->fetchAll(PDO::FETCH_COLUMN);
+    check(array_merge(array_column($dense['spots'], 'id'), array_column($denseNext['spots'], 'id')) === $denseExpected,
+        'Geordend zoeken behoudt databasecollatie, sortering en keyset zonder dubbelen');
+    $sparse = $spots->batch('Beeld', 10, false, [], '%_!');
+    check(count($sparse['spots']) === 4 && $sparse['next'] === null
+        && in_array(hash('sha256', 'search-probe-1@example.invalid'), array_column($sparse['spots'], 'id'), true),
+        'Schaarse zoekactie heeft geen zoekdieptelimiet en behandelt procent, underscore en uitroepteken letterlijk');
+    check(array_column($spots->listSpots('Beeld', 10, 7, false, [], 'Probe fixture'), 'id') === array_slice($denseExpected, 7, 10),
+        'Zoeken met offset behoudt dezelfde gefilterde sorteervolgorde');
+    $pdo->exec("DELETE FROM spotnet_spots WHERE message_id LIKE 'search-probe-%@example.invalid'");
     $multi = $adult;
     $multi['message_id'] = 'multi-facet@example.invalid';
     $multi['id'] = hash('sha256', $multi['message_id']);

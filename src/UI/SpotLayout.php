@@ -10,9 +10,9 @@ use NnSpotty\Usenet\SpotFilters;
 final class SpotLayout
 {
     /** @param list<array<string, mixed>> $categories
-     *  @param list<array<string, mixed>> $facets
+     *  @param list<array<string, mixed>>|null $facets
      */
-    public static function render(string $title, string $username, bool $isAdmin, string $csrfField, string $content, array $categories = [], ?string $selected = null, string $theme = 'default', array $facets = [], string|array|null $selectedSubcategory = null, string $search = '', bool $showErotica = false, bool $browse = false): string
+    public static function render(string $title, string $username, bool $isAdmin, string $csrfField, string $content, array $categories = [], ?string $selected = null, string $theme = 'default', ?array $facets = [], string|array|null $selectedSubcategory = null, string $search = '', bool $showErotica = false, bool $browse = false): string
     {
         $mode = $theme === 'plex-light' ? 'light' : 'dark';
         $head = SpotCategories::headForCategory($selected);
@@ -36,6 +36,13 @@ final class SpotLayout
         $filterInput = $filters !== [] ? '<input type="hidden" name="subcategory" value="' . h(implode(',', $filters)) . '">' : '';
         $contentClass = $browse ? 'content browse-page' : 'content';
         $scripts = $browse ? '<script src="/assets/spots.js" defer></script>' : '';
+        $facetAttributes = '';
+        if ($head !== null && $facets === null) {
+            $facetAttributes = ' data-facets-url="' . h('/spots/facets?' . http_build_query([
+                'category' => $selected, 'subcategory' => implode(',', $filters), 'q' => $search,
+            ])) . '"';
+            $scripts .= '<script src="/assets/facets.js" defer></script>';
+        }
         $retrieveForm = $isAdmin
             ? '<form method="post" action="/admin/retrieve" data-retrieve-form>' . $csrfField
                 . '<button class="btn btn-sm btn-outline-primary" type="submit">Retrieve</button></form>'
@@ -89,7 +96,7 @@ final class SpotLayout
       <p class="nav-caption">Hoofdcategorieen</p>
       {$mainNavigation}
     </nav>
-    <nav aria-label="Subcategorieen">
+    <nav aria-label="Subcategorieen"{$facetAttributes}>
       {$navigation}
     </nav>
     <div class="sidebar-footer">
@@ -152,18 +159,23 @@ final class SpotLayout
 HTML;
     }
 
-    /** @param list<array<string, mixed>> $facets */
-    private static function subcategories(?int $head, array $facets, array $selected, string $search, bool $showErotica): string
+    /** @param list<array<string, mixed>>|null $facets */
+    private static function subcategories(?int $head, ?array $facets, array $selected, string $search, bool $showErotica): string
     {
         if ($head === null) {
             return '<p class="nav-caption">Subcategorieen</p><p class="small text-body-secondary px-2">Kies hierboven een hoofdcategorie om alle bijbehorende subcategorieen te bekijken.</p>';
         }
-        $counts = array_column($facets, 'total', 'code');
+        $counts = array_column($facets ?? [], 'total', 'code');
         $category = SpotCategories::HEADS[$head];
         $base = ['category' => $category, 'q' => $search];
         $html = '<p class="nav-caption">' . h($category) . '</p><a class="side-link" href="'
             . h('/spots?' . http_build_query($base)) . '">Alles in ' . h($category) . '</a>'
             . '<p class="small text-body-secondary px-2">Nieuw sinds je vorige bezoek. Tellers blijven tijdens deze browsersessie staan.</p>';
+        if ($facets === null) {
+            $html .= '<p class="small text-body-secondary px-2" data-facets-status role="status">Nieuwtellers laden...</p>'
+                . '<button class="btn btn-sm btn-outline-secondary mb-2" data-facets-retry type="button" hidden>Opnieuw proberen</button>'
+                . '<noscript><p class="small px-2">Nieuwtellers vereisen JavaScript; de filters werken zonder.</p></noscript>';
+        }
         foreach (SpotCategories::dimensions($head) as $dimension => $name) {
             $html .= '<details class="category-group" open><summary>' . h($name) . '</summary>';
             foreach (SpotCategories::definitions()[$head][$dimension] as $number => $label) {
@@ -174,8 +186,9 @@ HTML;
                     continue;
                 }
                 $active = in_array($code, $selected, true) ? ' active' : '';
-                $count = '<span class="side-count" title="Nieuw sinds je vorige bezoek" aria-label="'
-                    . (int) ($counts[$code] ?? 0) . ' nieuw sinds je vorige bezoek">' . (int) ($counts[$code] ?? 0) . '</span>';
+                $countLabel = $facets === null ? 'Nieuwteller wordt geladen' : (int) ($counts[$code] ?? 0) . ' nieuw sinds je vorige bezoek';
+                $count = '<span class="side-count" data-facet-count="' . h($code) . '" title="' . h($countLabel) . '" aria-label="'
+                    . h($countLabel) . '">' . ($facets === null ? '&hellip;' : (int) ($counts[$code] ?? 0)) . '</span>';
                 $html .= '<a class="side-link' . $active . '"' . ($active !== '' ? ' aria-current="page"' : '') . ' href="'
                     . h('/spots?' . http_build_query($base + ['subcategory' => implode(',', SpotFilters::toggle($selected, $code))])) . '">' . h($label) . $count . '</a>';
             }

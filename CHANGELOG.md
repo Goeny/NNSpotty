@@ -5,6 +5,8 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Added
+- Browseperformance: sessielocks vrijgegeven voor lees-/providerrequests, asynchrone exacte nieuwtellers met fout/retry, ID-first lijstqueries en een geordende zoekpoging met database-tijdbudget en volledige sequentiele fallback. Letterlijke deeltekstsemantiek, filters en keysets blijven behouden.
+- Migratie `20261019_0015_browse_performance` voor zichtbaarheid-/type-datumindexen, optionele admin-only `APP_TIMING`-diagnose, synthetische 300k/1,3M-benchmark en echte gelijktijdige HTTP/NNTP-sessieregressie.
 - Volledige retrieve (`--full`/`--all`) respecteert retentie, met een optionele admin-begindatum. Geslaagde retrieves verwijderen alle verlopen spots en gekoppelde reacties in transactiebatches van 1000, zonder maximum per run; retentie `0` houdt alles bij.
 - Browser-terug/-vooruit herstelt eerder bijgeladen spotlijsten en hun scrollpositie, met een eigen gebruikersgebonden positie per geschiedenisvermelding, desktop-/mobielondersteuning, zichtbaar herstel en opnieuw proberen bij ophaalfouten. Geen spot-HTML in browseropslag; ontbrekende batches worden opnieuw opgehaald met de bestaande filters.
 - Persoonlijke filterbadges met nieuw geimporteerde spots sinds het vorige browsebezoek, met vaste grens tijdens de huidige browsersessie; overzichttotalen blijven totaalwaarden. Eerste bezoek begint zonder historische nieuwmeldingen. Ook detail-sidebars tonen dezelfde tellers; zoeken/EN-filters/zichtbaarheid blijven gelden.

@@ -407,6 +407,11 @@ final class Migrator
                 'ALTER TABLE spotnet_spots MODIFY COLUMN created_at DATETIME(6) NOT NULL',
                 'ALTER TABLE spotnet_spots ADD INDEX IF NOT EXISTS idx_spotnet_created_at (created_at)',
             ],
+            '20261019_0015_browse_performance' => [
+                'ALTER TABLE spotnet_spots
+                    ADD INDEX IF NOT EXISTS idx_spotnet_visible_date (is_erotica, posted_at, id),
+                    ADD INDEX IF NOT EXISTS idx_spotnet_type_date (browse_type, posted_at, id)',
+            ],
         ];
     }
 }
