@@ -226,9 +226,13 @@ final class RetrieveService
                 }
                 $processedGroups++;
             }
-            $expiredDeleted = $retentionCutoff !== null
-                ? $repository->deleteExpiredSpots($retentionCutoff->format('Y-m-d H:i:s'))
-                : 0;
+            $expiredDeleted = 0;
+            if ($retentionCutoff !== null) {
+                do {
+                    $deleted = $repository->deleteExpiredSpots($retentionCutoff->format('Y-m-d H:i:s'));
+                    $expiredDeleted += $deleted;
+                } while ($deleted > 0);
+            }
             $message = 'Spotnet retrieve voltooid: ' . $inserted . ' nieuwe spots/reacties opgeslagen; '
                 . $refreshed . ' spots vernieuwd; ' . $skipped . ' berichten overgeslagen.';
             if ($expiredDeleted > 0) {

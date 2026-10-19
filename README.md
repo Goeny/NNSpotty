@@ -108,7 +108,7 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 - Username-gebonden voorkeuren, los van centrale instellingen: **Default**, **Plex Dark**, **Plex Light**, laadbatch, kolommen, erotica, Newznab-key, eigen SABnzbd en TVDB-toestemming.
 - Erotica standaard globaal en persoonlijk verborgen; pas zichtbaar na beide toestemmingen. Globaal uit geldt ook voor admins. Dit beleid geldt voor zoeken, aantallen, facetten, details, afbeeldingen, reacties, API en lokale verzendhistorie; indexing verwijdert deze inhoud niet.
 - Admin met zeven deelbare submenu's: **Usenet**, **Inhoud en weergave**, **Newznab**, **SABnzbd**, **TVDB metadata**, **Moderatie en reacties**, **Auditlog**. Zonder JavaScript blijven de secties zichtbaar.
-- Usenet-host, poort, login, encryptie, retentie, optionele startdatum, groepsrollen en incrementele artikellimiet centraal beheren. `--full`/`--all` respecteert de ingestelde grenzen; geslaagde retrieves ruimen oude spots stapsgewijs op.
+- Usenet-host, poort, login, encryptie, retentie, optionele startdatum, groepsrollen en incrementele artikellimiet centraal beheren. `--full`/`--all` respecteert de ingestelde grenzen; geslaagde retrieves ruimen alle verlopen spots op.
 - Reacties indexeren, reacties tonen/lokaal plaatsen en afbeeldingen ophalen/tonen afzonderlijk schakelen. Uitschakelen verwijdert geen data; afbeeldingen uit blokkeert ook cachehits en TVDB-afbeeldingen. Lokale TVDB-attributie blijft wel zichtbaar.
 - Spotter-whitelist/blacklist registreren en tonen, en lokale reacties toevoegen/bekijken in admin. **De spotterlijsten worden nog niet als retrieval-/zichtbaarheidsfilter afgedwongen; spotteridentiteiten zijn nog niet cryptografisch geverifieerd.**
 - Auditlog voor beheeracties, database-migraties/status/health/cleanup en publiek `/health` met applicatieversie/codenaam.
@@ -266,7 +266,7 @@ php bin/console retrieve --refresh-spots --days=7 --verbose
 - Ook deze datumruns scannen de volledige beschikbare headers van de geselecteerde groep.
 - `--comments-only` laat de spotcursor ongemoeid en respecteert de admininstelling voor reacties.
 - `--refresh-spots` verwerkt alleen spots en vereist `--days`, `--all` of `--full`; normale runs slaan reeds opgeslagen spots over.
-- Na iedere geslaagde retrieve verwijdert de retriever maximaal 1000 spots ouder dan de ingestelde retentie, inclusief gekoppelde reacties en lokale reacties. Herhaalde cronruns ruimen een bestaande achterstand geleidelijk op; bij retentie `0` wordt niets verwijderd. Dit is geen grote eenmalige purge.
+- Na het ophalen verwijdert de retriever alle spots ouder dan de ingestelde retentie, inclusief gekoppelde reacties en lokale reacties. Dat gebeurt in transactiebatches van maximaal 1000 spots, zonder maximum per run: ook 10.000 verlopen spots worden in dezelfde retrieve opgeruimd. De run is pas geslaagd als de opruiming klaar is; databasefouten laten de run expliciet mislukken. Bij retentie `0` wordt niets verwijderd. Maak voor de eerste run of een retentieverlaging een databasebackup; een grote achterstand kan de run verlengen.
 - Beide opties zijn niet combineerbaar.
 - `--verbose` toont ranges/datums en onder andere `te_oud`, `bestaand`, `geen_spot`, `ongeldig`, `verdwenen` en `opgeslagen`.
 

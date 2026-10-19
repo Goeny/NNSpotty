@@ -5,7 +5,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Added
-- Volledige retrieve (`--full`/`--all`) respecteert retentie, met een optionele admin-begindatum. Geslaagde retrieves verwijderen maximaal 1000 verlopen spots per run en ruimen gekoppelde reacties op; retentie `0` houdt alles bij.
+- Volledige retrieve (`--full`/`--all`) respecteert retentie, met een optionele admin-begindatum. Geslaagde retrieves verwijderen alle verlopen spots en gekoppelde reacties in transactiebatches van 1000, zonder maximum per run; retentie `0` houdt alles bij.
 - Browser-terug/-vooruit herstelt eerder bijgeladen spotlijsten en hun scrollpositie, met een eigen gebruikersgebonden positie per geschiedenisvermelding, desktop-/mobielondersteuning, zichtbaar herstel en opnieuw proberen bij ophaalfouten. Geen spot-HTML in browseropslag; ontbrekende batches worden opnieuw opgehaald met de bestaande filters.
 - Persoonlijke filterbadges met nieuw geimporteerde spots sinds het vorige browsebezoek, met vaste grens tijdens de huidige browsersessie; overzichttotalen blijven totaalwaarden. Eerste bezoek begint zonder historische nieuwmeldingen. Ook detail-sidebars tonen dezelfde tellers; zoeken/EN-filters/zichtbaarheid blijven gelden.
 - Migratie `20261018_0014_browse_visits` voor username-gebonden browseactiviteit, microseconde-importtijden en tijdindex; refresh/duplicaten tellen niet opnieuw als nieuw.

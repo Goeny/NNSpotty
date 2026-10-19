@@ -191,6 +191,39 @@ try {
     check((int) $pdo->query("SELECT COUNT(*) FROM post_comments WHERE post_id = '" . $expiredSpot['id'] . "'")->fetchColumn() === 0
         && str_contains($cleanupRun['message'], '1 spots ouder dan de retentie verwijderd'),
         'Spotretentie ruimt ook lokale reacties op en meldt verwijderingen');
+    $copyExpiredSpot = $pdo->prepare(
+        'INSERT INTO spotnet_spots
+            (id, message_id, group_name, title, description, poster, newsreader, category, subcategories, size,
+             posted_at, website, tag, image_url, image_segments, nzb_segments, full_xml, browse_type, is_erotica, created_at)
+         SELECT :id, :message_id, group_name, title, description, poster, newsreader, category, subcategories, size,
+             posted_at, website, tag, image_url, image_segments, nzb_segments, full_xml, browse_type, is_erotica, created_at
+         FROM spotnet_spots WHERE id = :source'
+    );
+    foreach ([10, 10000] as $expiredCount) {
+        $spots->saveSpot($expiredSpot, 'free.pt');
+        $pdo->beginTransaction();
+        try {
+            for ($index = 1; $index < $expiredCount; $index++) {
+                $messageId = 'retention-batch-' . $index . '@example.invalid';
+                $copyExpiredSpot->execute([
+                    'id' => hash('sha256', $messageId),
+                    'message_id' => $messageId,
+                    'source' => $expiredSpot['id'],
+                ]);
+            }
+            $pdo->commit();
+        } catch (Throwable $exception) {
+            $pdo->rollBack();
+            throw $exception;
+        }
+        $recentCount = $spots->countSpots(null) - $expiredCount;
+        $batchCleanupRun = $service->run('since-last', null, true, $logger);
+        check($batchCleanupRun['status'] === 'completed'
+            && str_contains($batchCleanupRun['message'], $expiredCount . ' spots ouder dan de retentie verwijderd')
+            && (int) $pdo->query("SELECT COUNT(*) FROM spotnet_spots WHERE posted_at < '2000-01-02'")->fetchColumn() === 0
+            && $spots->countSpots(null) === $recentCount,
+            'Een cron-retrieve ruimt alle ' . $expiredCount . ' verlopen spots op en bewaart recente spots');
+    }
     $again = $service->run('since-last', null, true, $logger);
     check($again['inserted'] === 0, 'Na backfill gaat since-last verder vanaf het einde');
     check(count(array_filter($log, static fn (string $line): bool => str_contains($line, '914 overgeslagen'))) > 0, 'Corrupte spot XML wordt expliciet gerapporteerd');

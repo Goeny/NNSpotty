@@ -291,7 +291,16 @@ php bin/console retrieve --full
 php bin/console retrieve --days=30 --verbose
 ```
 
-`--since-last` verwerkt vanaf de oudste nog niet verwerkte positie maximaal het ingestelde aantal artikelen per groep. Herhaal dit om achterstand in te lopen. `--days`, `--all` en `--full` beginnen bij de hoogste artikelranges, zodat recente spots eerder zichtbaar zijn. Ze scannen ook oudere ranges, omdat artikelnummers niet betrouwbaar op datum gesorteerd zijn. Retentie en de optionele begindatum begrenzen wel wat wordt opgeslagen. Na iedere geslaagde retrieve verwijdert het systeem maximaal 1000 spots ouder dan de retentie, plus gekoppelde reacties. Retentie `0` schakelt deze verwijdering uit.
+`--since-last` verwerkt vanaf de oudste nog niet verwerkte positie maximaal het ingestelde aantal artikelen per groep. Herhaal dit om achterstand in te lopen. `--days`, `--all` en `--full` beginnen bij de hoogste artikelranges, zodat recente spots eerder zichtbaar zijn. Ze scannen ook oudere ranges, omdat artikelnummers niet betrouwbaar op datum gesorteerd zijn. Retentie en de optionele begindatum begrenzen wel wat wordt opgeslagen. Iedere geslaagde retrieve verwijdert alle spots ouder dan de retentie, plus gekoppelde reacties, in transactiebatches van maximaal 1000 zonder maximum per run. Retentie `0` schakelt deze verwijdering uit.
+
+Maak voor de eerste opruimrun of een retentieverlaging een databasebackup. Test op `nnspotty.hopseflop.nl` vanuit de deploymentmap:
+
+```bash
+php tests/run.php
+php bin/console retrieve --since-last --verbose
+```
+
+Controleer het totale aantal verwijderde spots in de eindmelding; dat mag groter zijn dan 1000. Een grote bestaande achterstand kan de run verlengen. De status blijft actief tijdens het opruimen; bij een fout wordt de run failed en hervat de volgende run de resterende opruiming.
 
 Bij verbose output staat nu per batch het UTC-datumbereik en `te_oud`, `bestaand`, `geen_spot`, `ongeldig`, `verdwenen`, `opgeslagen` plus het totale aantal opgeslagen berichten. `te_oud=250` verklaart bijvoorbeeld waarom een batch niets opslaat. Ontbrekende optionele overview-velden zijn toegestaan. Een echt afgebroken regel wordt met range, regelnummer en veldaantallen gemeld en overgeslagen; de overige regels gaan door. Een transportfout blijft fataal.
 

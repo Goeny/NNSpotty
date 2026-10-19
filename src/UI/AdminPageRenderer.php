@@ -152,7 +152,7 @@ HTML;
               <div class="mb-3">
                 <label class="form-label" for="retention">Retentie (dagen)</label>
                 <input class="form-control" id="retention" name="retention" type="number" min="0" value="{$retention}" required>
-                <div class="form-text">0 betekent onbeperkte retentie. Oudere spots worden na een geslaagde retrieve stapsgewijs verwijderd.</div>
+                <div class="form-text">0 betekent onbeperkte retentie. Na een geslaagde retrieve worden alle oudere spots verwijderd, in kleine transactiebatches.</div>
               </div>
               <div class="mb-3">
                 <label class="form-label" for="retrieve_after">Spots ophalen vanaf</label>
