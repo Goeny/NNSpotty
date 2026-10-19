@@ -157,8 +157,40 @@ try {
     $spots->saveSpot($changedImage, 'free.pt', true);
     check($spots->image($spotId) === null && count($spots->comments($spotId)) === 3, 'Expliciete metadatarefresh verwijdert een verouderde covercache maar bewaart reacties');
     $spots->saveSpot(SpotnetParser::spot('spot-one@example.invalid', Fixtures::headers()), 'free.pt', true);
+    $settings['retention'] = 30;
+    $settings['retrieve_after'] = '2000-01-01';
+    $state->saveUsenetSettings($settings);
     $all = $service->run('all', null, true, $logger);
-    check($spots->countSpots(null) === 3 && $all['inserted'] === 1, '--all negeert retentie en scant de volledige groep');
+    check($spots->countSpots(null) === 2 && $all['inserted'] === 1
+        && count(array_filter($log, static fn (string $line): bool => str_contains($line, 'datumgrens=')
+            && !str_contains($line, 'datumgrens=geen'))) === 2,
+        '--all respecteert retentie en past de strengste begindatum toe');
+    $settings['retention'] = 0;
+    $settings['retrieve_after'] = '2099-01-01';
+    $state->saveUsenetSettings($settings);
+    $log = [];
+    $futureStartRun = $service->run('all', null, true, $logger);
+    check($futureStartRun['inserted'] === 0
+        && count(array_filter($log, static fn (string $line): bool => str_contains($line, 'datumgrens=2099-01-01 00:00:00'))) === 2,
+        'Handmatige begindatum geldt ook bij onbeperkte retentie');
+    $settings['retention'] = 30;
+    $settings['retrieve_after'] = '2000-01-01';
+    $state->saveUsenetSettings($settings);
+    $expiredSpot = SpotnetParser::spot('expired-retention@example.invalid', Fixtures::headers('expired-retention@example.invalid'));
+    $expiredSpot['posted_at'] = '2000-01-01 00:00:00';
+    $spots->saveSpot($expiredSpot, 'free.pt');
+    $spots->saveComment(SpotnetParser::comment('expired-retention.1.2.3@example.invalid',
+        Fixtures::comment('<expired-retention@example.invalid>')));
+    $state->addComment($expiredSpot['id'], 'local-user', 'Verloopt samen met de spot');
+    $spots->saveImage($expiredSpot['id'], 'image/png', Fixtures::image());
+    $log = [];
+    $cleanupRun = $service->run('all', null, true, $logger);
+    check($cleanupRun['status'] === 'completed' && $spots->getSpot($expiredSpot['id']) === null
+        && $spots->comments($expiredSpot['id']) === [] && $spots->image($expiredSpot['id']) === null,
+        'Geslaagde retrieve verwijdert verlopen spots en gekoppelde reacties en afbeeldingen');
+    check((int) $pdo->query("SELECT COUNT(*) FROM post_comments WHERE post_id = '" . $expiredSpot['id'] . "'")->fetchColumn() === 0
+        && str_contains($cleanupRun['message'], '1 spots ouder dan de retentie verwijderd'),
+        'Spotretentie ruimt ook lokale reacties op en meldt verwijderingen');
     $again = $service->run('since-last', null, true, $logger);
     check($again['inserted'] === 0, 'Na backfill gaat since-last verder vanaf het einde');
     check(count(array_filter($log, static fn (string $line): bool => str_contains($line, '914 overgeslagen'))) > 0, 'Corrupte spot XML wordt expliciet gerapporteerd');
@@ -172,7 +204,7 @@ try {
     check(count($spots->listCategoriesWithCounts()) === 1, 'Categorieaantallen uit echte spots');
     $caseSpot = SpotnetParser::spot('Spot-one@example.invalid', Fixtures::headers('Spot-one@example.invalid'));
     $spots->saveSpot($caseSpot, 'free.pt');
-    check($spots->countSpots(null) === 4, 'Message-IDs met verschillende hoofdletters blijven verschillende spots');
+    check($spots->countSpots(null) === 3, 'Message-IDs met verschillende hoofdletters blijven verschillende spots');
     $caseComment = SpotnetParser::comment('Comment@example.invalid', Fixtures::comment());
     $spots->saveComment($caseComment);
     check(count($spots->comments($spotId)) === 4, 'Reactie message-IDs zijn hoofdlettergevoelig');

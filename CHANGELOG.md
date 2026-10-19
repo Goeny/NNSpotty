@@ -5,6 +5,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Added
+- Volledige retrieve (`--full`/`--all`) respecteert retentie, met een optionele admin-begindatum. Geslaagde retrieves verwijderen maximaal 1000 verlopen spots per run en ruimen gekoppelde reacties op; retentie `0` houdt alles bij.
 - Browser-terug/-vooruit herstelt eerder bijgeladen spotlijsten en hun scrollpositie, met een eigen gebruikersgebonden positie per geschiedenisvermelding, desktop-/mobielondersteuning, zichtbaar herstel en opnieuw proberen bij ophaalfouten. Geen spot-HTML in browseropslag; ontbrekende batches worden opnieuw opgehaald met de bestaande filters.
 - Persoonlijke filterbadges met nieuw geimporteerde spots sinds het vorige browsebezoek, met vaste grens tijdens de huidige browsersessie; overzichttotalen blijven totaalwaarden. Eerste bezoek begint zonder historische nieuwmeldingen. Ook detail-sidebars tonen dezelfde tellers; zoeken/EN-filters/zichtbaarheid blijven gelden.
 - Migratie `20261018_0014_browse_visits` voor username-gebonden browseactiviteit, microseconde-importtijden en tijdindex; refresh/duplicaten tellen niet opnieuw als nieuw.
@@ -60,7 +61,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 - Spotsoverzicht en detailpagina tonen individuele spots, omschrijving, afbeelding en reacties; lokale reacties zijn CSRF-beveiligd en worden niet naar Usenet gepubliceerd.
 - Nieuwe niet-destructieve migratie `20261018_0006_spotnet`, aparte Spotnet-cursors en behoud van historische generieke data buiten het overzicht.
 - `db reindex-spots` geeft nu een expliciete instructie om echte Spotnet-inhoud opnieuw op te halen.
-- `--days` scant alle beschikbare headers voor een volledige datumfilter; `--all` negeert retentie; `--since-last` gebruikt de ingestelde artikellimiet zonder artikelranges over te slaan.
+- `--days`, `--all` en `--full` scannen vanaf de hoogste artikelnummers; datumgrenzen worden toegepast voordat volledige spots worden opgehaald. De scan bezoekt ook oudere ranges om recente spots met lagere artikelnummers niet te missen; `--since-last` gebruikt de ingestelde artikellimiet zonder artikelranges over te slaan.
 - Transportfouten falen expliciet; corrupte XML en verlopen artikelen worden gemeld in plaats van als lege succesvolle resultaten behandeld.
 - Vereiste PHP-extensies toegevoegd aan Composer en protocol-/integratietests toegevoegd met synthetische NNTP-fixtures.
 - Usenet-identiteit/inhoud wordt expliciet als onbevestigd getoond; handtekeningverificatie en geavanceerde opmaak zijn nog niet aanwezig.

@@ -108,7 +108,7 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 - Username-gebonden voorkeuren, los van centrale instellingen: **Default**, **Plex Dark**, **Plex Light**, laadbatch, kolommen, erotica, Newznab-key, eigen SABnzbd en TVDB-toestemming.
 - Erotica standaard globaal en persoonlijk verborgen; pas zichtbaar na beide toestemmingen. Globaal uit geldt ook voor admins. Dit beleid geldt voor zoeken, aantallen, facetten, details, afbeeldingen, reacties, API en lokale verzendhistorie; indexing verwijdert deze inhoud niet.
 - Admin met zeven deelbare submenu's: **Usenet**, **Inhoud en weergave**, **Newznab**, **SABnzbd**, **TVDB metadata**, **Moderatie en reacties**, **Auditlog**. Zonder JavaScript blijven de secties zichtbaar.
-- Usenet-host, poort, login, encryptie, retentie, groepsrollen en incrementele artikellimiet centraal beheren.
+- Usenet-host, poort, login, encryptie, retentie, optionele startdatum, groepsrollen en incrementele artikellimiet centraal beheren. `--full`/`--all` respecteert de ingestelde grenzen; geslaagde retrieves ruimen oude spots stapsgewijs op.
 - Reacties indexeren, reacties tonen/lokaal plaatsen en afbeeldingen ophalen/tonen afzonderlijk schakelen. Uitschakelen verwijdert geen data; afbeeldingen uit blokkeert ook cachehits en TVDB-afbeeldingen. Lokale TVDB-attributie blijft wel zichtbaar.
 - Spotter-whitelist/blacklist registreren en tonen, en lokale reacties toevoegen/bekijken in admin. **De spotterlijsten worden nog niet als retrieval-/zichtbaarheidsfilter afgedwongen; spotteridentiteiten zijn nog niet cryptografisch geverifieerd.**
 - Auditlog voor beheeracties, database-migraties/status/health/cleanup en publiek `/health` met applicatieversie/codenaam.
@@ -225,13 +225,13 @@ Dit importeert spots en ingeschakelde reacties van de laatste dertig dagen. De s
 
 **Let op:** een datumimport scant de volledige beschikbare headerhistorie om de datumfilter betrouwbaar toe te passen. Artikelnummer en datum zijn niet gegarandeerd gesorteerd. Hoogste artikelnummers worden bij `--days` eerst verwerkt, zodat recente spots doorgaans eerder zichtbaar zijn, maar ook een kleine dagenwaarde kan lang duren. De incrementele artikellimiet begrenst deze historische scan niet.
 
-### Alternatief: alle beschikbare historie
+### Alternatief: volledige retrieve binnen de ingestelde retentie
 
 ```bash
-php bin/console retrieve --all --verbose
+php bin/console retrieve --full --verbose
 ```
 
-Dit negeert de ingestelde retentie en verwerkt alle nog bij je provider beschikbare historie. Het herstelt geen artikelen die de provider niet meer aanbiedt en kan veel tijd/databasecapaciteit vragen. Je hoeft niet eerst `--days` en daarna `--all` te draaien.
+`--full` (alias: `--all`) scant alle beschikbare headers vanaf de hoogste artikelnummers, maar slaat niets op dat ouder is dan de ingestelde retentie of de optionele datum **Spots ophalen vanaf**. De meest recente van deze grenzen geldt. Retentie `0` schakelt de leeftijdsgrens uit; een ingestelde begindatum blijft wel gelden. De scan loopt ook door oudere ranges heen omdat artikelnummers geen betrouwbare datumindex zijn; oudere headers worden wel overgeslagen voordat de volledige spot wordt opgehaald. Je hoeft niet eerst `--days` en daarna `--full` te draaien.
 
 ### Nieuwe inhoud blijven ophalen
 
@@ -243,7 +243,7 @@ php bin/console retrieve --since-last --verbose
 
 Dit verwerkt vanaf de oudste nog niet verwerkte positie maximaal de ingestelde artikellimiet per groep. Herhaal bij een achterstand. Zonder eerder opgeslagen cursor begint deze modus bij het oudste beschikbare artikel, **niet** automatisch bij de nieuwste spots; gebruik daarom bij een schone installatie bij voorkeur eerst `--days`.
 
-Zonder modusoptie gebruikt `retrieve` ook `--since-last`. Hierbij geldt de adminretentie als datumfilter; `--days=N` gebruikt zijn eigen venster en `--all` geen datumgrens. Kies geen conflicterende modi in hetzelfde commando.
+Zonder modusoptie gebruikt `retrieve` ook `--since-last`. Retentie begrenst alle modi; `--days=N` kan die grens verder aanscherpen. De optionele adminbegindatum werkt eveneens als extra ondergrens. Retentie `0` bewaart alle leeftijden en schakelt automatische opruiming uit.
 
 Een cronvoorbeeld voor na de eerste import, onder de deploymentgebruiker, elke vijf minuten:
 
@@ -265,7 +265,8 @@ php bin/console retrieve --refresh-spots --days=7 --verbose
 
 - Ook deze datumruns scannen de volledige beschikbare headers van de geselecteerde groep.
 - `--comments-only` laat de spotcursor ongemoeid en respecteert de admininstelling voor reacties.
-- `--refresh-spots` verwerkt alleen spots en vereist `--days` of `--all`; normale runs slaan reeds opgeslagen spots over.
+- `--refresh-spots` verwerkt alleen spots en vereist `--days`, `--all` of `--full`; normale runs slaan reeds opgeslagen spots over.
+- Na iedere geslaagde retrieve verwijdert de retriever maximaal 1000 spots ouder dan de ingestelde retentie, inclusief gekoppelde reacties en lokale reacties. Herhaalde cronruns ruimen een bestaande achterstand geleidelijk op; bij retentie `0` wordt niets verwijderd. Dit is geen grote eenmalige purge.
 - Beide opties zijn niet combineerbaar.
 - `--verbose` toont ranges/datums en onder andere `te_oud`, `bestaand`, `geen_spot`, `ongeldig`, `verdwenen` en `opgeslagen`.
 

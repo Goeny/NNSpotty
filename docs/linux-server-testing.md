@@ -279,6 +279,7 @@ php bin/console user list
   - retentie (leeftijd artikelen)
   - groepen: `spots:free.pt,comments:free.usenet`
   - max artikelen per groep voor `--since-last`
+  - optionele begindatum **Spots ophalen vanaf** (de latere van deze datum en retentie geldt)
 
 ## Retrieve checks
 ```bash
@@ -286,11 +287,11 @@ php bin/console user list
 
 php bin/console retrieve --since-last
 php bin/console retrieve --days=30
-php bin/console retrieve --all
+php bin/console retrieve --full
 php bin/console retrieve --days=30 --verbose
 ```
 
-`--since-last` verwerkt vanaf de oudste nog niet verwerkte positie maximaal het ingestelde aantal artikelen per groep. Herhaal dit om achterstand in te lopen. `--days` scant vanaf de hoogste artikelranges terug en slaat recente spots direct op. Ook na oude of lege batches gaat de scan door, omdat artikelnummers niet betrouwbaar op datum gesorteerd zijn. `--days` en `--all` scannen alle beschikbare headers en kunnen lang duren; `--all` negeert retentie.
+`--since-last` verwerkt vanaf de oudste nog niet verwerkte positie maximaal het ingestelde aantal artikelen per groep. Herhaal dit om achterstand in te lopen. `--days`, `--all` en `--full` beginnen bij de hoogste artikelranges, zodat recente spots eerder zichtbaar zijn. Ze scannen ook oudere ranges, omdat artikelnummers niet betrouwbaar op datum gesorteerd zijn. Retentie en de optionele begindatum begrenzen wel wat wordt opgeslagen. Na iedere geslaagde retrieve verwijdert het systeem maximaal 1000 spots ouder dan de retentie, plus gekoppelde reacties. Retentie `0` schakelt deze verwijdering uit.
 
 Bij verbose output staat nu per batch het UTC-datumbereik en `te_oud`, `bestaand`, `geen_spot`, `ongeldig`, `verdwenen`, `opgeslagen` plus het totale aantal opgeslagen berichten. `te_oud=250` verklaart bijvoorbeeld waarom een batch niets opslaat. Ontbrekende optionele overview-velden zijn toegestaan. Een echt afgebroken regel wordt met range, regelnummer en veldaantallen gemeld en overgeslagen; de overige regels gaan door. Een transportfout blijft fataal.
 

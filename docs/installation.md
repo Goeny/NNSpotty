@@ -36,10 +36,11 @@
    - `http://localhost:8080/login`
    - `http://localhost:8080/admin` (admin login vereist)
    - `http://localhost:8080/preferences` (login vereist)
-6. Stel via `/admin` je Usenet/retrieve instellingen in (server, login, retentie, Spotnet-groepen, max artikelen per incrementele run).
+6. Stel via `/admin` je Usenet/retrieve instellingen in (server, login, retentie, optionele begindatum, Spotnet-groepen, max artikelen per incrementele run).
+   De meest recente grens van begindatum en retentie geldt. Retentie `0` betekent onbeperkt en schakelt ook het automatisch verwijderen van oude spots uit.
    Gebruik standaard `spots:free.pt,comments:free.usenet`; leeg gebruikt dezelfde defaults.
 7. Haal echte spots op met `php bin/console retrieve --days=30 --verbose` en open `/spots`.
-   Dit scant alle beschikbare headers om de datumfilter correct toe te passen en kan lang duren.
+   Dit scant alle beschikbare headers om de datumfilter correct toe te passen en kan lang duren. `--full`/`--all` respecteert dezelfde retentiegrens; na iedere geslaagde retrieve worden maximaal 1000 verlopen spots verwijderd.
 
 ## Git en dependencies
 - Een verse checkout bevat geen `vendor/` of `.env`. Installeer dependencies vanuit de gevolgde `composer.lock` met Composer; maak je eigen `.env` op basis van `.env.example`.

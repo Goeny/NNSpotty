@@ -162,7 +162,7 @@ function handleUserCommand(array $argv, UserRepository $users): void
 
 function handleRetrieveCommand(array $argv, RetrieveService $service): void
 {
-    $all = optionBool($argv, '--all', false);
+    $all = optionBool($argv, '--all', false) || optionBool($argv, '--full', false);
     $sinceLast = optionBool($argv, '--since-last', false);
     $days = optionInt($argv, '--days', null);
     $verbose = optionBool($argv, '--verbose', false);
@@ -243,5 +243,5 @@ function showHelp(): void
     fwrite(STDOUT, "  bin/console user delete <username>\n");
     fwrite(STDOUT, "  bin/console user password <username> <newPassword>\n");
     fwrite(STDOUT, "  bin/console user edit <username> [--admin=1|0]\n");
-    fwrite(STDOUT, "  bin/console retrieve [--all|--since-last|--days=30] [--comments-only|--refresh-spots] [--verbose]\n");
+    fwrite(STDOUT, "  bin/console retrieve [--all|--full|--since-last|--days=30] [--comments-only|--refresh-spots] [--verbose]\n");
 }

@@ -87,10 +87,27 @@ final class RetrieveService
             $runId = $this->startRun($mode, $days);
             $client = NntpClientFactory::connectFromSettings($settings);
             $format = $client->overviewFormat();
-            $effectiveDays = $mode === 'all' ? null : ($days ?? ($settings['retention'] > 0 ? $settings['retention'] : null));
-            $cutoff = $effectiveDays !== null
-                ? (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify('-' . $effectiveDays . ' days')
+            $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+            $retentionCutoff = $settings['retention'] > 0
+                ? $now->modify('-' . $settings['retention'] . ' days')
                 : null;
+            $cutoffs = [];
+            if ($retentionCutoff !== null) {
+                $cutoffs[] = $retentionCutoff;
+            }
+            if ($days !== null) {
+                $cutoffs[] = $now->modify('-' . $days . ' days');
+            }
+            $configuredStartDate = $this->configuredStartDate($settings['retrieve_after']);
+            if ($configuredStartDate !== null) {
+                $cutoffs[] = $configuredStartDate;
+            }
+            $cutoff = null;
+            foreach ($cutoffs as $candidate) {
+                if ($cutoff === null || $candidate > $cutoff) {
+                    $cutoff = $candidate;
+                }
+            }
             $repository = new SpotRepository($this->pdo);
             foreach ($groups as $groupName => $role) {
                 $group = $client->group($groupName);
@@ -98,12 +115,12 @@ final class RetrieveService
                 $last = (int) $group['last'];
                 $cursorKey = 'spotnet:' . $role . ':' . $groupName;
                 $cursor = $mode === 'since-last' ? $this->cursor($cursorKey) : null;
-                // A days window must scan the group: article numbers do not encode dates.
+                // Date-filtered backfills scan every range because article numbers do not encode dates.
                 $start = $cursor !== null ? max($first, $cursor + 1) : $first;
                 $end = $mode === 'since-last'
                     ? min($last, $start + $settings['max_articles_per_group'] - 1)
                     : $last;
-                $newestFirst = $mode === 'days';
+                $newestFirst = in_array($mode, ['days', 'all'], true);
                 if ($verbose) {
                     $log($role . ' ' . $groupName . ': ' . $start . '-' . $end
                         . ($newestFirst ? ' (hoogste artikelnummers eerst)' : ' (laagste artikelnummers eerst)')
@@ -209,8 +226,14 @@ final class RetrieveService
                 }
                 $processedGroups++;
             }
+            $expiredDeleted = $retentionCutoff !== null
+                ? $repository->deleteExpiredSpots($retentionCutoff->format('Y-m-d H:i:s'))
+                : 0;
             $message = 'Spotnet retrieve voltooid: ' . $inserted . ' nieuwe spots/reacties opgeslagen; '
                 . $refreshed . ' spots vernieuwd; ' . $skipped . ' berichten overgeslagen.';
+            if ($expiredDeleted > 0) {
+                $message .= ' ' . $expiredDeleted . ' spots ouder dan de retentie verwijderd.';
+            }
             $this->finishRun($runId, 'completed', $message);
             return ['mode' => $mode, 'days' => $days, 'status' => 'completed', 'message' => $message, 'inserted' => $inserted, 'refreshed' => $refreshed, 'groups' => $processedGroups];
         } catch (Throwable $exception) {
@@ -265,6 +288,20 @@ final class RetrieveService
              ON DUPLICATE KEY UPDATE last_article = GREATEST(last_article, VALUES(last_article)), updated_at = UTC_TIMESTAMP()'
         );
         $statement->execute(['group_name' => $group, 'last_article' => $last]);
+    }
+
+    private function configuredStartDate(?string $value): ?DateTimeImmutable
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value, new DateTimeZone('UTC'));
+        if ($date === false || $date->format('Y-m-d') !== $value) {
+            throw new UnexpectedValueException('De ingestelde retrieve-begindatum is ongeldig; sla de Usenet-instellingen opnieuw op.');
+        }
+
+        return $date;
     }
 
     private function lockName(): string

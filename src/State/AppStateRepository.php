@@ -15,6 +15,7 @@ final class AppStateRepository
     /**
      * @return array{
      *   retention: int,
+     *   retrieve_after: ?string,
      *   server: string,
      *   port: int,
      *   username: string,
@@ -32,6 +33,9 @@ final class AppStateRepository
 
         return [
             'retention' => (int) ($settings['retention'] ?? 3000),
+            'retrieve_after' => isset($settings['retrieve_after']) && $settings['retrieve_after'] !== ''
+                ? (string) $settings['retrieve_after']
+                : null,
             'server' => (string) ($settings['server'] ?? ''),
             'port' => (int) ($settings['port'] ?? 119),
             'username' => (string) ($settings['username'] ?? ''),
@@ -47,6 +51,7 @@ final class AppStateRepository
     /**
      * @param array{
      *   retention: int,
+     *   retrieve_after: ?string,
      *   server: string,
      *   port: int,
      *   username: string,

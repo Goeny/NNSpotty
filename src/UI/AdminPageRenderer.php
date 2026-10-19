@@ -9,6 +9,7 @@ final class AdminPageRenderer
     /**
      * @param array{
      *   retention: int,
+     *   retrieve_after: ?string,
      *   server: string,
      *   port: int,
      *   username: string,
@@ -26,6 +27,7 @@ final class AdminPageRenderer
     public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = [], array $spotContent = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true], bool $apiEnabled = false, string $sabSettings = '', string $metadataSettings = ''): string
     {
         $retention = (int) $settings['retention'];
+        $retrieveAfter = h($settings['retrieve_after'] ?? '');
         $server = h($settings['server']);
         $port = (int) $settings['port'];
         $username = h($settings['username']);
@@ -122,7 +124,7 @@ HTML;
         {$csrfField}
         {$contentOptions}
         <p class="form-text">Spots en hun omschrijving blijven de basis. Reacties indexeren uit: geen reactiegroepen ophalen of cursors verplaatsen. Weergave uit: ook bestaande en lokale reacties verborgen. Afbeeldingen worden alleen bij bekijken geladen en in de database gecachet; uit blokkeert ook gecachte afbeeldingen. Opgeslagen inhoud wordt niet verwijderd.</p>
-        <p class="form-text">Retentie en max artikelen per incrementele run staan onder Usenet instellingen. Na opnieuw inschakelen van reacties haalt --since-last de achterstand vanaf de bestaande cursor op; --days of --all kan beschikbare historie aanvullen. Aanvullende IMDB/TVDB-metadata is nog niet beschikbaar.</p>
+        <p class="form-text">Retentie, de optionele begindatum en max artikelen per incrementele run staan onder Usenet instellingen. Na opnieuw inschakelen van reacties haalt --since-last de achterstand vanaf de bestaande cursor op; --days, --all of --full kan beschikbare historie binnen de ingestelde grenzen aanvullen. Aanvullende IMDB/TVDB-metadata is nog niet beschikbaar.</p>
         <p class="form-text">Reacties bijwerken zonder eerst de spotgroep te scannen: <code>php bin/console retrieve --comments-only --days=7 --verbose</code>. Ook deze datumsessie scant alle beschikbare reactienummers en kan lang duren. Opgeslagen spotmetadata aanvullen: <code>php bin/console retrieve --refresh-spots --days=7 --verbose</code>.</p>
         <button class="btn btn-primary" type="submit">Inhoudsinstellingen opslaan</button>
       </form>
@@ -150,6 +152,12 @@ HTML;
               <div class="mb-3">
                 <label class="form-label" for="retention">Retentie (dagen)</label>
                 <input class="form-control" id="retention" name="retention" type="number" min="0" value="{$retention}" required>
+                <div class="form-text">0 betekent onbeperkte retentie. Oudere spots worden na een geslaagde retrieve stapsgewijs verwijderd.</div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="retrieve_after">Spots ophalen vanaf</label>
+                <input class="form-control" id="retrieve_after" name="retrieve_after" type="date" value="{$retrieveAfter}">
+                <div class="form-text">Optioneel. Alleen spots en reacties op of na deze datum ophalen. De meest recente grens van deze datum en de retentie geldt.</div>
               </div>
               <div class="mb-3">
                 <label class="form-label" for="server">Usenet server</label>
@@ -190,7 +198,7 @@ HTML;
                 <div class="col-12">
                   <label class="form-label" for="max_articles_per_group">Max artikelen per groep per incrementele run</label>
                   <input class="form-control" id="max_articles_per_group" name="max_articles_per_group" type="number" min="100" value="{$maxArticlesPerGroup}" required>
-                  <div class="form-text">Geldt voor --since-last. --all en --days scannen alle beschikbare headers voor een volledige backfill.</div>
+                  <div class="form-text">Geldt voor --since-last. --all/--full en --days scannen alle beschikbare headers voor een volledige backfill; retentie en begindatum begrenzen wat wordt opgeslagen.</div>
                 </div>
               </div>
               <button class="btn btn-primary" type="submit">Instellingen opslaan</button>

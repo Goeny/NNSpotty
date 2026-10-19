@@ -315,6 +315,7 @@ $router->post('/admin/settings', static function (Request $request) use ($state,
     $server = trim((string) ($request->input('server') ?? ''));
     $port = (int) ($request->input('port') ?? '0');
     $retention = (int) ($request->input('retention') ?? '-1');
+    $retrieveAfter = $request->inputScalar('retrieve_after');
     $encryption = strtolower((string) ($request->input('encryption') ?? 'none'));
     $groupPattern = trim((string) ($request->input('group_pattern') ?? ''));
     $explicitGroupsRaw = trim((string) ($request->input('explicit_groups') ?? ''));
@@ -331,12 +332,18 @@ $router->post('/admin/settings', static function (Request $request) use ($state,
         return Response::redirect('/admin?status=' . rawurlencode($exception->getMessage()));
     }
 
-    if ($server === '' || $port < 1 || $port > 65535 || $retention < 0 || !in_array($encryption, ['none', 'ssl', 'tls'], true) || $discoverMaxGroups < 0 || $maxArticlesPerGroup < 100) {
+    $validRetrieveAfter = $retrieveAfter === null
+        || (preg_match('/^\d{4}-\d{2}-\d{2}$/D', $retrieveAfter) === 1
+            && ($parsedRetrieveAfter = DateTimeImmutable::createFromFormat('!Y-m-d', $retrieveAfter)) !== false
+            && $parsedRetrieveAfter->format('Y-m-d') === $retrieveAfter);
+    if ($server === '' || $port < 1 || $port > 65535 || $retention < 0 || !$validRetrieveAfter
+        || !in_array($encryption, ['none', 'ssl', 'tls'], true) || $discoverMaxGroups < 0 || $maxArticlesPerGroup < 100) {
         return Response::redirect('/admin?status=' . rawurlencode('Ongeldige usenet instellingen.'));
     }
 
     $state->saveUsenetSettings([
         'retention' => $retention,
+        'retrieve_after' => $retrieveAfter,
         'server' => $server,
         'port' => $port,
         'username' => trim((string) ($request->input('username') ?? '')),
@@ -356,6 +363,7 @@ $router->post('/admin/settings', static function (Request $request) use ($state,
             targetId: 'default',
             details: [
                 'retention' => $retention,
+                'retrieve_after' => $retrieveAfter,
                 'server' => $server,
                 'port' => $port,
                 'encryption' => $encryption,

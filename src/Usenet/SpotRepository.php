@@ -86,6 +86,53 @@ final class SpotRepository
         $statement->execute($comment);
     }
 
+    public function deleteExpiredSpots(string $cutoff, int $limit = 1000): int
+    {
+        if ($limit < 1) {
+            throw new \InvalidArgumentException('De batchgrootte voor spotopruiming moet positief zijn.');
+        }
+
+        $select = $this->pdo->prepare(
+            'SELECT id FROM spotnet_spots
+             WHERE posted_at < :cutoff
+             ORDER BY posted_at ASC, id ASC
+             LIMIT ' . $limit
+        );
+        $select->execute(['cutoff' => $cutoff]);
+        $ids = $select->fetchAll(PDO::FETCH_COLUMN);
+        if ($ids === []) {
+            return 0;
+        }
+
+        $parameters = [];
+        $placeholders = [];
+        foreach ($ids as $index => $id) {
+            $key = 'spot_' . $index;
+            $placeholders[] = ':' . $key;
+            $parameters[$key] = $id;
+        }
+        $in = implode(', ', $placeholders);
+
+        $this->pdo->beginTransaction();
+        try {
+            foreach ([
+                ['spotnet_comments', 'spot_id'],
+                ['post_comments', 'post_id'],
+            ] as [$table, $column]) {
+                $deleteRelated = $this->pdo->prepare('DELETE FROM ' . $table . ' WHERE ' . $column . ' IN (' . $in . ')');
+                $deleteRelated->execute($parameters);
+            }
+            $deleteSpots = $this->pdo->prepare('DELETE FROM spotnet_spots WHERE id IN (' . $in . ')');
+            $deleteSpots->execute($parameters);
+            $deleted = $deleteSpots->rowCount();
+            $this->pdo->commit();
+            return $deleted;
+        } catch (\Throwable $exception) {
+            $this->pdo->rollBack();
+            throw $exception;
+        }
+    }
+
     /** @return list<array<string, mixed>> */
     public function listCategoriesWithCounts(bool $showErotica = true): array
     {

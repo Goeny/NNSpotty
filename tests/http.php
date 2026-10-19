@@ -214,12 +214,29 @@ try {
     check($admin['status'] === 200 && str_contains($admin['body'], 'comments:free.usenet') && !str_contains($admin['body'], 'alt.binaries.movies'), 'Admin toont de juiste Spotnet-configuratie');
     check(str_contains($admin['body'], 'id="retrieve_comments"') && str_contains($admin['body'], 'id="show_comments"')
         && str_contains($admin['body'], 'id="images_enabled"'), 'Admin biedt afzonderlijke schakelaars voor ophalen, reacties tonen en afbeeldingen');
+    check(str_contains($admin['body'], 'id="retrieve_after"') && str_contains($admin['body'], 'name="retrieve_after"'),
+        'Admin biedt een optionele kalenderdatum voor de retrievegrens');
     httpFixture($httpPort, '/admin/settings', $cookie, [
         '_csrf' => $token[1], 'server' => '127.0.0.1', 'port' => '119', 'retention' => '30',
-        'encryption' => 'none', 'explicit_groups' => 'movies:alt.binaries.movies',
+        'retrieve_after' => '2019-01-02', 'encryption' => 'none', 'explicit_groups' => 'movies:alt.binaries.movies',
         'discover_max_groups' => '0', 'max_articles_per_group' => '100',
     ]);
     check($state->getUsenetSettings()['explicit_groups'] === 'spots:free.pt,comments:free.usenet', 'Admin weigert algemene headergroepen');
+    $retrieveAfterBeforeInvalid = $state->getUsenetSettings()['retrieve_after'];
+    httpFixture($httpPort, '/admin/settings', $cookie, [
+        '_csrf' => $token[1], 'server' => '127.0.0.1', 'port' => '119', 'retention' => '30',
+        'retrieve_after' => '2025-02-30', 'encryption' => 'none', 'explicit_groups' => 'spots:free.pt,comments:free.usenet',
+        'discover_max_groups' => '0', 'max_articles_per_group' => '100',
+    ]);
+    check($state->getUsenetSettings()['retrieve_after'] === $retrieveAfterBeforeInvalid,
+        'Admin weigert ongeldige kalenderdatums zonder ze op te slaan');
+    $validSettingsResponse = httpFixture($httpPort, '/admin/settings', $cookie, [
+        '_csrf' => $token[1], 'server' => '127.0.0.1', 'port' => '119', 'retention' => '30',
+        'retrieve_after' => '2019-01-02', 'encryption' => 'none', 'explicit_groups' => 'spots:free.pt,comments:free.usenet',
+        'discover_max_groups' => '0', 'max_articles_per_group' => '100',
+    ]);
+    check($validSettingsResponse['status'] === 302 && $state->getUsenetSettings()['retrieve_after'] === '2019-01-02',
+        'Admin slaat een geldige retrieve-begindatum op');
     check(httpFixture($httpPort, '/preferences', $cookie)['status'] === 200, 'Bestaande preferences blijven werken');
     $defaults = $state->globalSpotColumns();
     $globalForm = ['_csrf' => $token[1], 'column_0_size' => '1'];

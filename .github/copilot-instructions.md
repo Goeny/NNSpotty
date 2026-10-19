@@ -54,7 +54,7 @@ NNSpotty is een volledig nieuwe webapplicatie (geen voortbouw op legacy Spotweb-
   - `bin/console user create|delete|edit|password|list`
 - Retrieve moet minimaal via console ondersteunen:
   - `bin/console retrieve --days=<n>`
-  - `bin/console retrieve --all`
+  - `bin/console retrieve --full` (retentie geldt; `--all` is een alias)
   - `bin/console retrieve --since-last`
 
 ## Werkwijze bij wijzigingen
