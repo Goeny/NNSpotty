@@ -223,7 +223,14 @@
 .lightbox-toolbar button { flex-shrink: 0; }
 .lightbox-body { display: grid; place-items: center; padding: 12px; overflow: auto; }
 .lightbox-image { max-width: 100%; max-height: calc(100dvh - 150px); width: auto; height: auto; object-fit: contain; }
+.music-hero { grid-template-columns: 220px minmax(0, 1fr); background: linear-gradient(135deg, var(--spot-panel), var(--spot-bg)); }
+.music-hero .spot-poster, .music-hero .spot-poster-image { width: 100%; height: auto; aspect-ratio: 1; object-fit: contain; }
+.music-hero .hero-poster > .cover-placeholder { width: 100%; height: auto; aspect-ratio: 1; }
+.music-artist-symbol { display: grid; place-items: center; aspect-ratio: 1; width: 100%; min-height: 0; overflow: hidden; border-radius: 50%; background: var(--spot-accent); color: #171717; font-size: clamp(2rem, 6vw, 5rem); line-height: 1; }
+.music-artist-name { font-size: 1.25rem; font-weight: 600; }
+.music-track { display: grid; grid-template-columns: 3rem minmax(0, 1fr) auto; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--spot-border); overflow-wrap: anywhere; }
 .preview .spot-hero { grid-template-columns: 110px minmax(0, 1fr); padding: 20px; gap: 16px; }
+.preview .music-hero .spot-poster, .preview .music-hero .spot-poster-image, .preview .music-hero .hero-poster > .cover-placeholder { height: auto; aspect-ratio: 1; }
 .preview .spot-poster, .preview .hero-poster > .cover-placeholder { width: 110px; height: 165px; }
 .preview .poster-enlarge .spot-poster-image { max-height: 165px; }
 .preview .spot-hero h2 { font-size: 1.3rem; }

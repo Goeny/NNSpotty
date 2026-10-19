@@ -135,7 +135,32 @@ Migratie `20261018_0014_browse_visits` moet toegepast zijn. Hervat verkeer/jobs 
 5. Controleer dat verborgen erotica ook niet via aantallen lekt; zoektekst en alle EN-filters moeten tellers beperken. Een refresh van bestaande spotmetadata mag de importtijd/nieuwstatus niet vernieuwen.
 6. Controleer login, overzicht, detail, admin en voorkeuren in Default/Plex Dark/Plex Light, op desktop en mobiel. Primaire knoppen, badges, filterchips en schakelaars zijn oranje/goud; hover/focus/disabled blijven leesbaar. Danger/success/info houden hun betekenis, overige layout/achtergronden veranderen niet.
 
-Geen nieuwe providerkoppelingen in deze update. MusicBrainz, IGDB/RAWG, AppStream en Open Library zijn roadmap-opties, vastgelegd in projectinstructies/second brain.
+MusicBrainz is inmiddels beschikbaar als optionele muziekprovider; zie de muziekchecks hieronder. IGDB/RAWG, AppStream en Open Library blijven roadmap-opties, vastgelegd in projectinstructies/second brain.
+
+## Muziekmetadata: MusicBrainz
+Wacht met upgraden tot je actieve retrieve klaar is of pauzeer je eigen job. Maak een databasebackup en voer op `nnspotty.hopseflop.nl` vanuit de bestaande deploymap uit:
+
+```bash
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+composer check-platform-reqs
+php bin/console db migrate
+php bin/console db status
+php tests/run.php
+curl -I https://nnspotty.hopseflop.nl/assets/metadata.js
+```
+
+Controleer APP_URL in je bestaande `.env`: publieke HTTP(S)-contact/project-URL zonder credentials/query/fragment. Geen API-key nodig. Werk CLI/FPM CA-certificaten bij indien HTTPS faalt; schakel TLS-controle niet uit. Test:
+1. Schakel in onder `/admin#music-metadata`, daarna voor jezelf onder `/preferences#music-metadata`. Beide staan standaard uit en werken onafhankelijk van TVDB.
+2. Open een herkenbare muziekspot, bijvoorbeeld artiest-album-jaar-FLAC. Controleer async metadata, MusicBrainz link en bronattributie; alleen overtuigende unieke naam/jaarcombinaties matchen automatisch. Geen match is geen foutieve albumkeuze.
+3. Zoek als admin via MusicBrainz link. Kies een specifieke uitgave voor tracklist/label/speelduur; vergelijk MBID, artiest, jaar en editie met MusicBrainz. Reset en blokkering gelden voor iedereen; een gewone gebruiker ziet geen matchbeheer.
+4. Controleer een artiest/discografie: artiestweergave met decoratief symbool, geen willekeurig album of verzonnen artiestfoto/biografie.
+5. Heropen dezelfde spot: databasecache; open kleine preview: uitsluitend cache, geen `/music-metadata` of server-side providerrequest. Zonder match/verlopen cache blijft de oorspronkelijke preview.
+6. Persoonlijke opt-out/globaal uit moeten ook cachehits blokkeren. Afbeeldingen uit laat tekst zien zonder Cover Art Archive-URL's. Ontbrekende hoes valt terug op placeholder.
+7. Controleer donker/licht en mobiel/desktop, vierkante hoezen, tracklist zonder horizontale paginaoverflow, attributie en bestaande NZB/SAB/reactieacties. Test TVDB opnieuw: eigen voorkeuren, film-/seriehero en matchpaneel blijven werken. Hard refresh om de gedeelde metadata.js bij te werken.
+8. Een 503/timeout/bezette limiet moet zichtbaar zijn in het paneel, met oorspronkelijke spot bruikbaar; geen snelle automatische retry. Na foutcache van vijf minuten opnieuw controleren. MusicBrainz-requeststarts zijn installatiebreed begrensd tot minimaal 1,1 seconde; beheer de gezamenlijke limiet bij meerdere installaties achter hetzelfde publieke IP.
+
+Uitgebreide tests gebruiken uitsluitend een afzonderlijke testserver via `NNSPOTTY_TEST_DSN`/`NNSPOTTY_TEST_USER`/`NNSPOTTY_TEST_PASSWORD` en `php tests/run.php --integration`; geen productiecredentials.
 
 ## TheTVDB metadata, posters en fanart
 Pauzeer webverkeer en retrieve-jobs en maak eerst een beveiligde databasebackup volgens de bestaande backup-procedure hieronder. Bestaande `.env` en lokale serverwijzigingen niet overschrijven. Voer in de bestaande deploymap uit:

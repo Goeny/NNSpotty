@@ -94,6 +94,8 @@ final class Migrator
         $auditLogsStatement->execute();
         $metadataStatement = $this->pdo->prepare('DELETE FROM tvdb_cache WHERE expires_at < UTC_TIMESTAMP()');
         $metadataStatement->execute();
+        $musicStatement = $this->pdo->prepare('DELETE FROM music_cache WHERE expires_at < UTC_TIMESTAMP()');
+        $musicStatement->execute();
 
         return [
             'post_comments_deleted' => $commentsStatement->rowCount(),
@@ -101,6 +103,7 @@ final class Migrator
             'login_attempts_deleted' => $loginAttemptsStatement->rowCount(),
             'audit_logs_deleted' => $auditLogsStatement->rowCount(),
             'tvdb_cache_deleted' => $metadataStatement->rowCount(),
+            'music_cache_deleted' => $musicStatement->rowCount(),
         ];
     }
 
@@ -427,6 +430,28 @@ final class Migrator
                     updated_at DATETIME NULL, attempted_at DATETIME NULL, last_error TEXT NULL, last_warning TEXT NULL
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
                 'INSERT IGNORE INTO spotter_list_settings (id) VALUES (1)',
+            ],
+            '20261019_0017_music_metadata' => [
+                'CREATE TABLE IF NOT EXISTS music_settings (
+                    id TINYINT PRIMARY KEY, enabled BOOLEAN NOT NULL DEFAULT 0,
+                    last_request_at DATETIME(6) NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'INSERT IGNORE INTO music_settings (id) VALUES (1)',
+                'CREATE TABLE IF NOT EXISTS music_preferences (
+                    username VARCHAR(191) PRIMARY KEY, enabled BOOLEAN NOT NULL DEFAULT 0,
+                    FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS music_cache (
+                    cache_key CHAR(64) CHARACTER SET ascii PRIMARY KEY,
+                    data_json MEDIUMTEXT NOT NULL, expires_at DATETIME NOT NULL,
+                    INDEX idx_music_expiry (expires_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS music_matches (
+                    spot_id CHAR(64) CHARACTER SET ascii PRIMARY KEY,
+                    input_hash CHAR(64) CHARACTER SET ascii NOT NULL,
+                    choice_json TEXT NULL, result_json MEDIUMTEXT NULL, expires_at DATETIME NULL,
+                    FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             ],
         ];
     }

@@ -96,7 +96,8 @@ HTML;
             $action .= ' <a class="btn btn-sm btn-primary" href="/spots/nzb?key=' . rawurlencode($spot['id']) . '">NZB</a>';
             $action .= ' <button class="btn btn-sm btn-warning" type="button" data-sab-send="' . h($spot['id']) . '">SABnzbd</button>';
         }
-        if ($metadataLink && !$preview) $action = \NnSpotty\Metadata\View::link() . $action;
+        if ($metadataLink && !$preview) $action = ($spot['category'] === 'Geluid'
+            ? \NnSpotty\Music\View::link() : \NnSpotty\Metadata\View::link()) . $action;
         $hero = '<section class="spot-hero">' . SpotPresentation::backdrop($spot, 'hero-backdrop', $imagesEnabled)
             . ($action !== '' ? '<div class="hero-actions" role="group" aria-label="Spotacties">' . $action . '</div>' : '')
             . '<div class="hero-poster">' . $image . '</div><div class="hero-copy"><p class="text-body-secondary mb-2">'
@@ -104,8 +105,12 @@ HTML;
             . ($classification['type'] === 'Films' || $classification['type'] === 'Series' ? SpotReleaseQuality::render($spot['title']) : '') . '</div></section>';
         $people = '';
         if ($metadata !== null) {
-            $hero = \NnSpotty\Metadata\View::hero($spot, $metadata, $action, $imagesEnabled, $preview);
-            $people = \NnSpotty\Metadata\View::people($metadata, $imagesEnabled);
+            if (($metadata['provider'] ?? '') === 'musicbrainz') {
+                $hero = \NnSpotty\Music\View::summary($spot, $metadata, $action, $imagesEnabled, $preview);
+            } else {
+                $hero = \NnSpotty\Metadata\View::hero($spot, $metadata, $action, $imagesEnabled, $preview);
+                $people = \NnSpotty\Metadata\View::people($metadata, $imagesEnabled);
+            }
         }
         $spotMetadata = '<div class="metadata-strip"><div><small>Spotter</small>' . h($spot['poster']) . \NnSpotty\Moderation\View::badge($spot)
             . '</div><div><small>Geplaatst (UTC)</small>' . h($spot['posted_at']) . '</div><div><small>Grootte</small>'

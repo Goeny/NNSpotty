@@ -3,6 +3,9 @@
     const panel = document.querySelector('[data-tvdb]');
     const content = document.querySelector('[data-tvdb-content]');
     if (!panel || !content) return;
+    const provider = panel.dataset.providerName || 'TVDB';
+    const endpoint = panel.dataset.endpoint || '/metadata';
+    const choiceId = panel.dataset.choiceId || 'tvdb_id';
     const originalHTML = content.innerHTML;
     const status = panel.querySelector('[data-tvdb-status]');
     const csrf = panel.querySelector('[name="_csrf"]').value;
@@ -63,11 +66,11 @@
             opener.removeAttribute('aria-label');
         }
         status.className = 'small text-body-secondary mb-2';
-        status.textContent = 'TVDB-aanvraag uitvoeren...';
+        status.textContent = `${provider}-aanvraag uitvoeren...`;
         const abort = new AbortController();
         const timeout = setTimeout(() => abort.abort(), 30000);
         try {
-            const response = await fetch('/metadata', {
+            const response = await fetch(endpoint, {
                 method: 'POST', credentials: 'same-origin', signal: abort.signal,
                 headers: {'Accept': 'application/json'},
                 body: new URLSearchParams({_csrf: csrf, id: panel.dataset.spot, action, ...values})
@@ -77,10 +80,10 @@
             if (!response.ok) {
                 if (typeof data.html === 'string' && data.state === 'error') replaceContent(data.html);
                 else if (response.status === 401 || response.status === 403) replaceContent(originalHTML);
-                throw new Error(data.error || data.message || `TVDB-aanvraag mislukt (HTTP ${response.status}).`);
+                throw new Error(data.error || data.message || `${provider}-aanvraag mislukt (HTTP ${response.status}).`);
             }
             if (action === 'search') {
-                if (!Array.isArray(data.candidates)) throw new Error('Ongeldige TVDB-resultaten.');
+                if (!Array.isArray(data.candidates)) throw new Error(`Ongeldige ${provider}-resultaten.`);
                 const list = panel.querySelector('[data-tvdb-candidates]');
                 list.replaceChildren();
                 for (const candidate of data.candidates) {
@@ -93,24 +96,24 @@
                     input.dataset.type = candidate.type;
                     input.required = true;
                     input.className = 'form-check-input me-2';
-                    label.append(input, document.createTextNode(`${candidate.name} (${candidate.year || 'jaar onbekend'}) — TVDB ${candidate.id}`));
+                    label.append(input, document.createTextNode(`${candidate.artist ? candidate.artist + ' — ' : ''}${candidate.name} (${candidate.year || 'jaar onbekend'})${candidate.note ? ' — ' + candidate.note : ''}${candidate.kind ? ' — ' + candidate.kind : ''} — ${provider} ${candidate.id}`));
                     list.append(label);
                 }
                 status.textContent = data.candidates.length ? 'Kies een resultaat en sla de gedeelde match op.' : 'Geen resultaten gevonden. Pas de zoekterm aan.';
             } else {
-                if (typeof data.html !== 'string' || typeof data.message !== 'string') throw new Error('Ongeldige TVDB-presentatie.');
+                if (typeof data.html !== 'string' || typeof data.message !== 'string') throw new Error(`Ongeldige ${provider}-presentatie.`);
                 replaceContent(data.html);
                 status.textContent = data.message;
             }
         } catch (error) {
             status.className = 'alert alert-warning mt-2';
             status.textContent = error.name === 'AbortError'
-                ? 'TVDB reageert te traag. De oorspronkelijke spot blijft beschikbaar. Probeer later opnieuw.'
+                ? `${provider} reageert te traag. De oorspronkelijke spot blijft beschikbaar. Probeer later opnieuw.`
                 : error.message;
             const opener = content.querySelector('[data-tvdb-open]');
             if (opener) {
                 opener.classList.add('text-warning');
-                opener.setAttribute('aria-label', 'TVDB link: ' + status.textContent);
+                opener.setAttribute('aria-label', provider + ' link: ' + status.textContent);
             }
         } finally {
             clearTimeout(timeout);
@@ -132,10 +135,10 @@
         const chosen = event.currentTarget.querySelector('[name="candidate"]:checked');
         if (!chosen) {
             status.className = 'alert alert-warning mt-2';
-            status.textContent = 'Zoek en selecteer eerst een TVDB-resultaat.';
+            status.textContent = `Zoek en selecteer eerst een ${provider}-resultaat.`;
             return;
         }
-        request('choose', {...Object.fromEntries(new FormData(event.currentTarget)), type: chosen.dataset.type, tvdb_id: chosen.value});
+        request('choose', {...Object.fromEntries(new FormData(event.currentTarget)), type: chosen.dataset.type, [choiceId]: chosen.value});
     });
     panel.querySelector('[data-tvdb-reset]')?.addEventListener('click', () => request('reset'));
     panel.querySelector('[data-tvdb-block]')?.addEventListener('click', () => request('block'));

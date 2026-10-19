@@ -222,6 +222,7 @@ $router->get('/admin', static function (Request $request) use ($state, $auth, $c
         apiEnabled: $state->apiEnabled(),
         sabSettings: \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('central'), $csrf->field(), true, true),
         metadataSettings: \NnSpotty\Metadata\View::settings(new \NnSpotty\Metadata\Repository($pdo), $csrf->field()),
+        musicSettings: \NnSpotty\Music\View::settings(new \NnSpotty\Music\Repository($pdo), $csrf->field()),
         spotterSettings: \NnSpotty\Moderation\View::settings(new \NnSpotty\Moderation\SpotterLists($pdo), $csrf->field())
     );
 
@@ -519,6 +520,7 @@ $router->get('/preferences', static function (Request $request) use ($state, $au
         newApiKey: is_array($newKey) && $newKey['username'] === $username ? $newKey['key'] : null,
         sabSettings: \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('user:' . $username), $csrf->field(), false, $currentUser['is_admin']),
         metadataSettings: \NnSpotty\Metadata\View::settings(new \NnSpotty\Metadata\Repository($pdo), $csrf->field(), $username)
+            . \NnSpotty\Music\View::settings(new \NnSpotty\Music\Repository($pdo), $csrf->field(), $username)
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store', 'Referrer-Policy' => 'no-referrer']);
@@ -536,6 +538,11 @@ $router->post('/metadata', static function (Request $request) use ($pdo, $state,
     $user = $auth->user();
     session_write_close();
     return (new \NnSpotty\Metadata\Controller($pdo, $state))->handle($request, $user, $csrf);
+});
+$router->post('/music-metadata', static function (Request $request) use ($pdo, $state, $auth, $csrf): Response {
+    $user = $auth->user();
+    session_write_close();
+    return (new \NnSpotty\Music\Controller($pdo, $state, \NnSpotty\Config\AppConfig::fromEnvironment()->url))->handle($request, $user, $csrf);
 });
 
 $router->post('/admin/newznab', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
@@ -692,7 +699,9 @@ $router->get('/spots/preview', static function (Request $request) use ($auth, $s
     $spot = $spots->getSpot($id, $state->canViewErotica($auth->user()['username']));
     $content = $state->spotContentSettings();
     if ($spot === null) return Response::privateJson(['error' => 'Spot niet gevonden.'], 404);
-    $metadata = (new \NnSpotty\Metadata\Repository($pdo))->previewMetadata($spot, $auth->user()['username']);
+    $metadata = $spot['category'] === 'Geluid'
+        ? (new \NnSpotty\Music\Repository($pdo))->previewMetadata($spot, $auth->user()['username'])
+        : (new \NnSpotty\Metadata\Repository($pdo))->previewMetadata($spot, $auth->user()['username']);
     return Response::privateJson(['html' => SpotDetailPageRenderer::summary(
         $spot, true, $content['images_enabled'], $content['show_comments'], $metadata
     )]);
@@ -734,8 +743,11 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
         showComments: $content['show_comments'],
         imagesEnabled: $content['images_enabled'],
         retrieveComments: $content['retrieve_comments'],
-        metadataControls: (new \NnSpotty\Metadata\Repository($pdo))->allowed($currentUser['username'])
-            ? \NnSpotty\Metadata\View::controls($spot, $currentUser['is_admin'], $csrfField) : '',
+        metadataControls: $spot['category'] === 'Geluid'
+            ? ((new \NnSpotty\Music\Repository($pdo))->allowed($currentUser['username'])
+                ? \NnSpotty\Music\View::controls($spot, $currentUser['is_admin'], $csrfField) : '')
+            : ((new \NnSpotty\Metadata\Repository($pdo))->allowed($currentUser['username'])
+                ? \NnSpotty\Metadata\View::controls($spot, $currentUser['is_admin'], $csrfField) : ''),
         facets: null
     );
 

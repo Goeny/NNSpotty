@@ -24,7 +24,7 @@ final class AdminPageRenderer
      * @param array<int, array{post_id: string, username: string, comment: string, created_at: string}> $comments
      * @param array<int, array{actor_username: string, action: string, target_type: string, target_id: string, details_json: string, ip_address: string, created_at: string}> $auditLogs
      */
-    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = [], array $spotContent = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true], bool $apiEnabled = false, string $sabSettings = '', string $metadataSettings = '', string $spotterSettings = ''): string
+    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = [], array $spotContent = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true], bool $apiEnabled = false, string $sabSettings = '', string $metadataSettings = '', string $spotterSettings = '', string $musicSettings = ''): string
     {
         $retention = (int) $settings['retention'];
         $retrieveAfter = h($settings['retrieve_after'] ?? '');
@@ -97,11 +97,13 @@ HTML;
       <a class="nav-link" href="#newznab">Newznab</a>
       <a class="nav-link" href="#downloads">SABnzbd</a>
       <a class="nav-link" href="#metadata">TVDB metadata</a>
+      <a class="nav-link" href="#music-metadata">Muziekmetadata</a>
       <a class="nav-link" href="#moderation">Moderatie en reacties</a>
       <a class="nav-link" href="#audit">Auditlog</a>
     </nav>
     <div data-admin-panel="downloads">{$sabSettings}</div>
     <div data-admin-panel="metadata">{$metadataSettings}</div>
+    <div data-admin-panel="music-metadata">{$musicSettings}</div>
     <div data-admin-panel="newznab">
     <section class="card my-4" id="newznab">
       <div class="card-header">Newznab API</div>
@@ -124,7 +126,7 @@ HTML;
         {$csrfField}
         {$contentOptions}
         <p class="form-text">Spots en hun omschrijving blijven de basis. Reacties indexeren uit: geen reactiegroepen ophalen of cursors verplaatsen. Weergave uit: ook bestaande en lokale reacties verborgen. Afbeeldingen worden alleen bij bekijken geladen en in de database gecachet; uit blokkeert ook gecachte afbeeldingen. Opgeslagen inhoud wordt niet verwijderd.</p>
-        <p class="form-text">Retentie, de optionele begindatum en max artikelen per incrementele run staan onder Usenet instellingen. Na opnieuw inschakelen van reacties haalt --since-last de achterstand vanaf de bestaande cursor op; --days, --all of --full kan beschikbare historie binnen de ingestelde grenzen aanvullen. Aanvullende IMDB/TVDB-metadata is nog niet beschikbaar.</p>
+        <p class="form-text">Retentie, de optionele begindatum en max artikelen per incrementele run staan onder Usenet instellingen. Na opnieuw inschakelen van reacties haalt --since-last de achterstand vanaf de bestaande cursor op; --days, --all of --full kan beschikbare historie binnen de ingestelde grenzen aanvullen. Aanvullende metadata configureer je onder TVDB metadata en Muziekmetadata.</p>
         <p class="form-text">Reacties bijwerken zonder eerst de spotgroep te scannen: <code>php bin/console retrieve --comments-only --days=7 --verbose</code>. Ook deze datumsessie stopt na drie opeenvolgende volledig oude batches. Recente berichten die dieper in de historie staan kunnen daardoor worden gemist. Opgeslagen spotmetadata aanvullen: <code>php bin/console retrieve --refresh-spots --days=7 --verbose</code>.</p>
         <button class="btn btn-primary" type="submit">Inhoudsinstellingen opslaan</button>
       </form>

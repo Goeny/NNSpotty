@@ -20,6 +20,7 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 - [Newznab en NZB downloaden](#newznab-en-nzb-downloaden)
 - [SABnzbd instellen](#sabnzbd-instellen)
 - [TheTVDB: films, series en afleveringen](#thetvdb-films-series-en-afleveringen)
+- [Muziekmetadata: MusicBrainz en Cover Art Archive](#muziekmetadata-musicbrainz-en-cover-art-archive)
 - [Console, onderhoud en updates](#console-onderhoud-en-updates)
 - [Spotter whitelist en blacklist](#spotter-whitelist-en-blacklist)
 - [Tests en controles](#tests-en-controles)
@@ -110,6 +111,13 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 - Compacte **TVDB link** linksboven in de hero opent een slide-in met status en admin-only zoeken, handmatig kiezen, resetten en blokkeren. Correcties gelden gedeeld voor alle gebruikers.
 - Nederlands met Engelse fallback of Engels, databasecache, aanvraagbudget en zichtbare foutfeedback met behoud van de oorspronkelijke spot.
 - Zichtbare **Metadata van TheTVDB** met lokaal donker/licht-logo en een directe link naar het juiste providerrecord.
+
+### Muziekmetadata
+
+- MusicBrainz voor artiesten en albumgroepen (albums/singles/EPs), met aparte globale en persoonlijke opt-in zonder API-key.
+- Conservatieve artiest-/album-/jaardiscovery, gedeeld adminzoek-/keuze-/reset-/blokkeerbeheer en tracklists voor expliciet gekozen uitgaven.
+- Vierkante Cover Art Archive-hoezen, eigen artiestweergave, MusicBrainz-attributie en cachehergebruik in kleine previews.
+- Persistente aanvraaglimiet, databasecache en zichtbare fouten; geen metadata-backfill tijdens retrieve.
 
 ### Gebruikers, beheer en weergave
 
@@ -354,6 +362,24 @@ Cache: providerrecords en geslaagde matches **zeven dagen**, zoeken/ontbrekende/
 
 De gebruiker geeft toestemming om de titel met TVDB te delen en artwork rechtstreeks in de browser te laden. Globaal afbeeldingen uit onderdrukt ook TVDB-posters/fanart/cast. De lokale bronvermelding **Metadata van TheTVDB** met donker/licht-logo blijft zichtbaar bij getoonde metadata en linkt naar het betreffende record, conform de [attributierichtlijn](https://www.thetvdb.com/api-information#attribution). Zonder TVDB-data geen attributie. Key/PIN/token staan herstelbaar in de database, niet in HTML/audits; bescherm backups.
 
+## Muziekmetadata: MusicBrainz en Cover Art Archive
+
+1. Zet onder `/admin#music-metadata` **Muziekmetadata globaal toestaan** aan. Geen API-key, databasedump of OAuth-registratie nodig voor deze publieke leesfunctie. Stel `APP_URL` in op de publieke project-/contact-URL van je installatie: deze staat in de verplichte herkenbare User-Agent. Gebruik geen geheimdragende URL.
+2. Iedere gebruiker, ook de admin, zet onder `/preferences#music-metadata` **Muziekmetadata voor mij ophalen en tonen** aan. Globaal en persoonlijk staan standaard uit. De muziekschakelaars staan los van TVDB; globaal uit bewaart persoonlijke voorkeuren.
+3. Open de volledige muziekspot. Metadata verschijnt asynchroon, zonder de oorspronkelijke omschrijving, titel, reacties of NZB/SAB-acties te vervangen. Een verse match wordt ook in de kleine preview hergebruikt, zonder providerrequests of cachevernieuwing vanuit het overzicht.
+
+Slim herkennen ondersteunt gangbare `Artiest - Album (jaar)`- en scene-/underscoretitels; technische suffixen zoals FLAC/MP3/bitdiepte worden verwijderd. Alleen een unieke exact genormaliseerde artiest-/albumtitelcombinatie wordt automatisch gekozen, met overeenkomend oorspronkelijk jaar indien aanwezig. Gelijke titels, andere artiesten en onduidelijke remaster-/deluxeclaims worden niet gegokt. De zoekresultaten zijn begrensd; geen garantie dat iedere titel gevonden wordt. Podcasts/luisterboeken krijgen geen muziekkoppeling.
+
+Albums, singles en EPs worden standaard op **albumgroepniveau** gekoppeld: titel, artiest, eerste uitgavedatum, type en beschikbare genres. Dit bewijst geen specifieke persing, remaster of bestanden. Een discografie of expliciete `Artiest: Naam` krijgt een eigen artiestweergave met beschikbare soort, land, begin-/einddatum en toelichting; geen volledige discografie, uitgebreide biografie of gegarandeerde artiestfoto. Albumhoezen zijn vierkant; artiesten krijgen een duidelijk decoratief muzieksymbool, geen verzonnen portret.
+
+**MusicBrainz link** opent het gedeelde status-/beheerpanel. Alleen admins kunnen zoeken, een albumgroep, specifieke uitgave of artiest koppelen, automatisch matchen herstellen of metadata blokkeren. Zoekresultaten tonen beschikbare artiest/jaar/toelichting en editiegegevens. Alleen een expliciet gekozen **specifieke uitgave** krijgt een beschikbare tracklist (maximaal 200 tracks), label, land en speelduur; ontbrekende speelduur wordt niet verzonnen. Wijzigingen gelden ook voor andere gebruikers en de preview.
+
+Metadata/providerrecords worden **zeven dagen** in MySQL/MariaDB gecachet; zoekacties en negatieve matches een dag, fouten vijf minuten. `db cleanup` verwijdert verlopen providercache, niet instellingen, het aanvraagtijdstip of handmatige keuzes. Geen massale metadata-import tijdens retrieve. Een persistente installatielimiet laat MusicBrainz-requeststarts minimaal 1,1 seconde uiteen liggen, ook over PHP-workers. Cache/spotlocks voorkomen dubbel werk; bezette limieten en providerfouten blijven zichtbaar. Bij meerdere installaties achter hetzelfde publieke IP moet je de gezamenlijke limiet zelf bewaken. HTTPS-certificaatcontrole blijft aan; vaste providerhost, geen server-side redirects/proxies, begrensde tijd/antwoordgrootte.
+
+De provider krijgt de zoekterm bij detail-discovery; `APP_URL` wordt meegestuurd als contactinformatie. Alleen afbeeldings-URL's worden opgeslagen: de browser haalt hoezen via [Cover Art Archive](https://coverartarchive.org/) en diens redirects naar Internet Archive op. Niet ieder album heeft een hoes; ontbrekende afbeeldingen tonen de gewone placeholder. **Afbeeldingen uit** onderdrukt ook externe muziekhoezen. Getoonde metadata linkt via **Metadata van MusicBrainz** naar de bron, met aparte Cover Art Archive-vermelding bij artwork.
+
+Bronnen/voorwaarden: [MusicBrainz API](https://musicbrainz.org/doc/MusicBrainz_API), [aanvraaglimieten](https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting), [datalicenties](https://musicbrainz.org/doc/About/Data_License), [Cover Art Archive API](https://musicbrainz.org/doc/Cover_Art_Archive/API). Publieke MusicBrainz-API gratis voor niet-commercieel gebruik; stem commercieel gebruik af met MetaBrainz. Kerndata is CC0; aanvullende data heeft eigen CC BY-NC-SA-voorwaarden. Artwork valt niet automatisch onder de datalicentie: respecteer de rechten en voorwaarden voor jouw gebruik.
+
 ## Console, onderhoud en updates
 
 ```bash
@@ -479,7 +505,8 @@ Een fixturetest bewijst geen providerbeschikbaarheid. Controleer met je eigen ac
 - Geen NZBGet-forwarding, afgeronde SABnzbd-historiesynchronisatie of SABnzbd-pauzeer/verwijderbediening.
 - Geen aparte IMDb-provider, klikbare cast-/crew-/studio-/netwerkontdekfilters of Newznab IMDb/TVDB-ID-zoeken. Externe IDs worden waar beschikbaar wel bewaard voor vervolgwerk.
 - Geen automatische filmkeuze voor onduidelijke collecties of niet-unieke titel-/jaarmatches.
-- Roadmap: metadata voor andere categorieen, bijvoorbeeld muziek via MusicBrainz, games via IGDB/RAWG, software via AppStream-catalogi en boeken via Open Library. Dit zijn nog geen geimplementeerde koppelingen of definitieve providerkeuzes; API-toegang, matching, licentie, attributie en limieten moeten per domein worden uitgewerkt.
+- Muziekmetadata kiest geen specifieke editie automatisch, biedt geen volledige discografie/biografie en geen artiestfoto's; tracklists horen bij een handmatig gekozen uitgave. Hoezen kunnen ontbreken en zijn geen inhoudsverificatie.
+- Roadmap: metadata voor games via IGDB/RAWG, software via AppStream-catalogi en boeken via Open Library. Dit zijn nog geen geimplementeerde koppelingen of definitieve providerkeuzes; API-toegang, matching, licentie, attributie en limieten moeten per domein worden uitgewerkt.
 - Geimporteerde inhoud blijft onbevestigd; erotica-classificatie gebruikt categoriecodes, geen inhoudsanalyse. Zorg zelf voor passende toegang, providerabonnementen en rechten op inhoud.
 
 ## Documentatie en bijdragen
@@ -524,7 +551,8 @@ Houd bij nieuwe of gewijzigde features ook deze README actueel: functionaliteit,
 | [Spotweb](https://github.com/spotweb/spotweb) | Functionele/protocolreferentie voor Spotnet, categorieen en oude emoticoncodes; NNSpotty gebruikt een nieuwe eigen implementatie, geen legacy Spotweb-codebasis |
 | [Plex](https://www.plex.tv/) | Visuele inspiratie voor thema/detailpresentatie; geen Plex-koppeling of playback |
 | [NZBGet](https://nzbget.com/) en [IMDb](https://www.imdb.com/) | Genoemd als vervolgdoel, niet als huidige werkende downloader-/metadataprovider |
-| [MusicBrainz](https://musicbrainz.org/), [IGDB](https://www.igdb.com/), [RAWG](https://rawg.io/), [AppStream](https://www.freedesktop.org/software/appstream/docs/), [Open Library](https://openlibrary.org/) | Roadmap-opties voor muziek-/game-/software-/boekmetadata; nog niet gebruikt als koppeling. AppStream is een standaard/catalogus-ecosysteem, geen universele zoek-API |
+| [MusicBrainz](https://musicbrainz.org/) en [Cover Art Archive](https://coverartarchive.org/) / [Internet Archive](https://archive.org/) | Optionele muziekmetadata en externe hoezen; publieke API zonder key, User-Agent met APP_URL, persistente aanvraaglimiet, databasecache en zichtbare bronvermelding. Eigen data-/artwork-/commerciele gebruiksvoorwaarden |
+| [IGDB](https://www.igdb.com/), [RAWG](https://rawg.io/), [AppStream](https://www.freedesktop.org/software/appstream/docs/), [Open Library](https://openlibrary.org/) | Roadmap-opties voor game-/software-/boekmetadata; nog niet gebruikt als koppeling. AppStream is een standaard/catalogus-ecosysteem, geen universele zoek-API |
 
 ### Hosting, ontwikkeling en validatie
 

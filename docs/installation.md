@@ -42,6 +42,9 @@
 7. Haal echte spots op met `php bin/console retrieve --days=30 --verbose` en open `/spots`.
    Dit begint bij de hoogste artikelnummers en stopt per groep na drie opeenvolgende niet-lege batches met uitsluitend geldige datums voor de datumgrens. Een recente/ongeldige regel of lege batch onderbreekt de reeks. `--full`/`--all` gebruikt dezelfde stopregel en retentiegrens. Artikelnummer en datum zijn niet gegarandeerd gesorteerd: recente berichten die dieper dan deze stop liggen kunnen worden gemist. Zonder datumgrens blijft de volledige scan behouden. Iedere geslaagde retrieve ruimt alle verlopen spots op in transactiebatches van maximaal 1000, zonder maximum per run.
 
+### Optionele muziekmetadata
+Na `db migrate` staan de MusicBrainz-functies standaard uit. Schakel globaal in via `/admin#music-metadata` en persoonlijk via `/preferences#music-metadata`. Geen API-key nodig; APP_URL moet je publieke contact/project-URL zijn en wordt meegestuurd in de User-Agent. Detail haalt gericht op, preview gebruikt alleen cache. Aanvraaglimiet, privacy, licenties en grenzen staan in de [README](../README.md#muziekmetadata-musicbrainz-en-cover-art-archive). Geen aparte databasedump, worker of retrieve-backfill nodig.
+
 ## Git en dependencies
 - Een verse checkout bevat geen `vendor/` of `.env`. Installeer dependencies vanuit de gevolgde `composer.lock` met Composer; maak je eigen `.env` op basis van `.env.example`.
 - Houd `composer.json` en `composer.lock` in Git. Commit geen authenticatiegegevens (`auth.json`), lokale environmentconfiguratie, logs, databasedumps of runtimebestanden.
