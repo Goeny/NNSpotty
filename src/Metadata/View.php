@@ -80,7 +80,7 @@ final class View
         return '<button class="btn btn-sm btn-link metadata-link" type="button" data-tvdb-open aria-controls="metadata-drawer" aria-haspopup="dialog">TVDB link</button>';
     }
 
-    public static function hero(array $spot, array $metadata, string $actions, bool $images): string
+    public static function hero(array $spot, array $metadata, string $actions, bool $images, bool $preview = false): string
     {
         $cover = $metadata['poster'];
         if ($metadata['type'] === 'episode' && $metadata['still'] !== '') $cover = $metadata['still'];
@@ -96,9 +96,11 @@ final class View
         } else {
             $backgroundSpot = $imageSpot;
         }
+        $heading = $preview ? 'h2' : 'h1';
+        $episodeHeading = $preview ? 'h3' : 'h2';
         $copy = '<p class="text-body-secondary mb-2">TheTVDB &middot; ' . h(['movie' => 'Film', 'series' => 'Serie', 'episode' => 'Aflevering'][$metadata['type']]) . '</p>'
-            . '<h1>' . h($metadata['title']) . '</h1>';
-        if ($metadata['episode_title'] !== '') $copy .= '<h2 class="h4">' . h($metadata['episode_title']) . '</h2>';
+            . '<' . $heading . '>' . h($metadata['title']) . '</' . $heading . '>';
+        if ($metadata['episode_title'] !== '') $copy .= '<' . $episodeHeading . ' class="h4">' . h($metadata['episode_title']) . '</' . $episodeHeading . '>';
         if ($metadata['season'] !== null && !$metadata['episode_missing']) $copy .= '<p>Seizoen ' . (int) $metadata['season'] . ($metadata['episode'] === null ? '' : ' &middot; Aflevering ' . (int) $metadata['episode']) . '</p>';
         $facts = array_filter([$metadata['date'], $metadata['runtime'] === null ? '' : $metadata['runtime'] . ' min', implode(', ', $metadata['genres'])]);
         $copy .= '<p class="metadata-facts">' . h(implode(' · ', $facts)) . '</p>';

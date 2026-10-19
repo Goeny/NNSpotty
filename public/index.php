@@ -676,7 +676,7 @@ $router->get('/spots/facets', static function (Request $request) use ($auth, $st
     }
 });
 
-$router->get('/spots/preview', static function (Request $request) use ($auth, $state, $spots): Response {
+$router->get('/spots/preview', static function (Request $request) use ($auth, $state, $spots, $pdo): Response {
     if (!$auth->isAuthenticated()) {
         return Response::privateJson(['error' => 'Login vereist.'], 401);
     }
@@ -691,8 +691,11 @@ $router->get('/spots/preview', static function (Request $request) use ($auth, $s
     }
     $spot = $spots->getSpot($id, $state->canViewErotica($auth->user()['username']));
     $content = $state->spotContentSettings();
-    return $spot === null ? Response::privateJson(['error' => 'Spot niet gevonden.'], 404)
-        : Response::privateJson(['html' => SpotDetailPageRenderer::summary($spot, true, $content['images_enabled'], $content['show_comments'])]);
+    if ($spot === null) return Response::privateJson(['error' => 'Spot niet gevonden.'], 404);
+    $metadata = (new \NnSpotty\Metadata\Repository($pdo))->previewMetadata($spot, $auth->user()['username']);
+    return Response::privateJson(['html' => SpotDetailPageRenderer::summary(
+        $spot, true, $content['images_enabled'], $content['show_comments'], $metadata
+    )]);
 });
 
 $router->get('/spots/view', static function (Request $request) use ($auth, $csrf, $spots, $state, $pdo): Response {

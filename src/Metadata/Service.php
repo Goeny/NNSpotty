@@ -19,6 +19,11 @@ final class Service
         return hash('sha256', json_encode([$spot['title'], $spot['category'], $spot['subcategories'], $language], JSON_THROW_ON_ERROR));
     }
 
+    public static function matchSignature(array $spot, string $language): string
+    {
+        return self::signature($spot, $language . ':release-v2');
+    }
+
     public function search(string $query, string $type): array
     {
         $query = trim($query);
@@ -52,7 +57,7 @@ final class Service
         $release = Release::parse($spot);
         if ($release === null) return ['state' => 'unsupported'];
         $language = $this->repo->settings()['language'];
-        $hash = self::signature($spot, $language . ':release-v2');
+        $hash = self::matchSignature($spot, $language);
         $old = $this->repo->match($spot['id']);
         if ($old !== null && $old['input_hash'] === $hash && $old['fresh'] && $old['result_json'] !== null) return $old['result_json'];
         if (!$this->repo->lock($spot['id'])) return ['state' => 'busy'];
@@ -103,7 +108,7 @@ final class Service
         if ($choice !== null) $choice['input'] = self::signature($spot, '');
         if (!$this->repo->lock($spot['id'])) throw new RuntimeException('De TVDB-match wordt al verwerkt. Probeer opnieuw.');
         try {
-            $this->repo->choose($spot['id'], self::signature($spot, $this->repo->settings()['language'] . ':release-v2'), $choice);
+            $this->repo->choose($spot['id'], self::matchSignature($spot, $this->repo->settings()['language']), $choice);
         } finally {
             $this->repo->unlock($spot['id']);
         }

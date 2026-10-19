@@ -362,6 +362,23 @@ php bin/console user list
   - max artikelen per groep voor `--since-last`
   - optionele begindatum **Spots ophalen vanaf** (de latere van deze datum en retentie geldt)
 
+## Gecachte TVDB-metadata in spotpreview
+Voer op `nnspotty.hopseflop.nl` vanuit de bestaande deploymap uit:
+
+```bash
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+php tests/run.php
+```
+
+Geen migratie of retrieve nodig. Test met globaal en persoonlijk ingeschakelde TVDB-metadata:
+1. Open de preview van een nog niet gekoppelde film/serie: oorspronkelijke spot, geen `/metadata`-aanvraag in DevTools.
+2. Open de volledige detailview en wacht op een geslaagde TVDB-match. Keer terug naar het overzicht en open de preview opnieuw: TVDB-titel, synopsis, artwork/cast en bronvermelding verschijnen, met behoud van oorspronkelijke titel/omschrijving en spotacties.
+3. De preview doet uitsluitend `/spots/preview`; geen nieuwe `/metadata`-aanvraag of server-side TVDB-lookup. Afbeeldingen kunnen wel rechtstreeks vanaf de TVDB-artworkserver laden.
+4. Persoonlijke opt-out, globale uitschakeling of een door admin geblokkeerde match geeft de oorspronkelijke preview. Globaal afbeeldingen uit houdt de tekstmetadata zichtbaar zonder externe artwork-URL's.
+5. Verlopen matches of gewijzigde taal/spotinvoer vallen terug op de oorspronkelijke preview, zonder automatisch te verversen. Open de volledige detailview voor nieuwe metadata.
+6. Controleer donkere/lichte thema's op mobiel/desktop, afleveringstill en de acties naar volledige spot, NZB en SABnzbd. Overzichtsregels en filters veranderen niet.
+
 ## Retrieve checks
 ```bash
 # na opslaan van instellingen in admin:

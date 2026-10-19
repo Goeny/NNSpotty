@@ -30,7 +30,43 @@ $spots->saveSpot($httpMetaSpot, 'free.pt');
 $httpMetaApi = new TvdbFixture();
 $httpMetaApi->searchResults = [TvdbFixture::candidate()];
 $httpMetadata = new \NnSpotty\Metadata\Service($tvdbRepo, $httpMetaApi);
+check(!str_contains(httpFixture($httpPort, '/spots/preview?key=' . $httpMetaSpot['id'], $readerCookie)['body'], 'metadata-hero')
+    && $tvdbRepo->match($httpMetaSpot['id']) === null, 'Preview zonder match blijft oorspronkelijk en start geen TVDB-lookup');
 check($httpMetadata->lookup($httpMetaSpot)['state'] === 'matched', 'HTTP-TVDB-fixture vooraf gecachet zonder extern netwerk');
+$previewPath = '/spots/preview?key=' . $httpMetaSpot['id'];
+$previewBefore = $tvdbRepo->match($httpMetaSpot['id']);
+$previewCacheBefore = $pdo->query('SELECT * FROM tvdb_cache ORDER BY cache_key')->fetchAll();
+$previewResponse = httpFixture($httpPort, $previewPath, $readerCookie);
+$previewHtml = json_decode($previewResponse['body'], true, 64, JSON_THROW_ON_ERROR)['html'];
+check($previewResponse['status'] === 200 && str_contains($previewHtml, 'metadata-hero')
+    && str_contains($previewHtml, 'Voorbeeldtitel') && str_contains($previewHtml, 'Cast &amp; Crew')
+    && str_contains($previewHtml, 'https://artworks.thetvdb.com') && str_contains($previewHtml, 'metadata-attribution')
+    && str_contains($previewHtml, 'Oorspronkelijke spottitel:') && str_contains($previewHtml, 'Volledige spot en reacties')
+    && str_contains($previewHtml, '<h2>Voorbeeldtitel</h2>') && !str_contains($previewHtml, '<h1>')
+    && !str_contains($previewHtml, 'data-tvdb-open') && !str_contains($previewHtml, 'data-tvdb-load')
+    && in_array('Cache-Control: private, no-store', $previewResponse['headers'], true),
+    'Preview hergebruikt gedeelde verse metadata en artwork met attributie, originele acties en zonder TVDB-ophaalcontrols');
+check($tvdbRepo->match($httpMetaSpot['id']) === $previewBefore
+    && $pdo->query('SELECT * FROM tvdb_cache ORDER BY cache_key')->fetchAll() === $previewCacheBefore,
+    'Previewcachehit schrijft geen match/providerdata, aanvraagbudget of vervaldatum');
+$previewMatch = $tvdbRepo->match($httpMetaSpot['id']);
+$pdo->prepare('UPDATE tvdb_matches SET expires_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 SECOND) WHERE spot_id = ?')->execute([$httpMetaSpot['id']]);
+check(!str_contains(httpFixture($httpPort, $previewPath, $readerCookie)['body'], 'metadata-hero')
+    && !$tvdbRepo->match($httpMetaSpot['id'])['fresh'], 'Verlopen previewcache valt terug zonder netwerkvernieuwing');
+foreach (['unmatched', 'ambiguous', 'blocked', 'error', 'busy'] as $previewState) {
+    $tvdbRepo->result($httpMetaSpot['id'], $previewMatch['input_hash'], ['state' => $previewState], 300);
+    check(!str_contains(httpFixture($httpPort, $previewPath, $readerCookie)['body'], 'metadata-hero'),
+        'Preview toont geen metadata voor cachestatus ' . $previewState);
+}
+$tvdbRepo->result($httpMetaSpot['id'], 'outdated-input', $previewMatch['result_json'], 604800);
+check(!str_contains(httpFixture($httpPort, $previewPath, $readerCookie)['body'], 'metadata-hero'),
+    'Preview toont geen match voor gewijzigde spotinvoer of parser');
+$tvdbRepo->result($httpMetaSpot['id'], $previewMatch['input_hash'], $previewMatch['result_json'], 604800);
+$tvdbRepo->saveSettings(true, '', '', 'eng');
+check(!str_contains(httpFixture($httpPort, $previewPath, $readerCookie)['body'], 'metadata-hero'),
+    'Preview toont geen metadata na taalwijziging');
+$tvdbRepo->saveSettings(true, '', '', 'nld');
+$tvdbRepo->result($httpMetaSpot['id'], $previewMatch['input_hash'], $previewMatch['result_json'], 604800);
 $page = httpFixture($httpPort, '/spots/view?key=' . $httpMetaSpot['id'], $cookie);
 $readerPage = httpFixture($httpPort, '/spots/view?key=' . $httpMetaSpot['id'], $readerCookie);
 check(str_contains($page['body'], 'data-tvdb-choice') && str_contains($readerPage['body'], 'data-tvdb')
@@ -58,6 +94,8 @@ check($chosen['status'] === 200 && $tvdbRepo->match($httpMetaSpot['id'])['result
 $tvdbPost(['action' => 'block', 'id' => $httpMetaSpot['id']]);
 $blocked = json_decode($tvdbPost(['action' => 'load', 'id' => $httpMetaSpot['id']], true)['body'], true);
 check($blocked['state'] === 'blocked' && !str_contains($blocked['html'], 'metadata-hero'), 'Gedeelde blokkering trekt metadata voor andere gebruikers in');
+check(!str_contains(httpFixture($httpPort, $previewPath, $readerCookie)['body'], 'metadata-hero'),
+    'Gedeelde blokkering trekt ook previewmetadata in');
 check(str_contains($blocked['html'], 'data-tvdb-open') && !str_contains($blocked['html'], 'metadata-attribution'),
     'Ook na blokkering blijft matchpaneel bereikbaar zonder onterechte attributie');
 check($tvdbPost(['action' => 'reset', 'id' => $httpMetaSpot['id']])['status'] === 200
@@ -71,19 +109,29 @@ $httpMetaSpot['id'] = hash('sha256', 'http-meta-adult');
 $httpMetaSpot['message_id'] = 'http-meta-adult@example.invalid';
 $spots->saveSpot($httpMetaSpot, 'free.pt');
 check($tvdbPost(['action' => 'load', 'id' => $httpMetaSpot['id']], true)['status'] === 404, 'TVDB-route respecteert verborgen spots en erotica-beleid');
+check(httpFixture($httpPort, '/spots/preview?key=' . $httpMetaSpot['id'], $readerCookie)['status'] === 404,
+    'Previewmetadata omzeilt erotica-zichtbaarheid niet');
 $contentBeforeMetadata = $state->spotContentSettings();
 $state->saveSpotContentSettings(['images_enabled' => false, 'show_comments' => true, 'retrieve_comments' => true]);
 $normalMetadataId = hash('sha256', 'http-meta@example.invalid');
 $disabledArt = json_decode($tvdbPost(['action' => 'load', 'id' => $normalMetadataId], true)['body'], true);
 check(!str_contains($disabledArt['html'], 'https://artworks.thetvdb.com') && !str_contains($disabledArt['html'], 'hero-backdrop'),
     'HTTP-metadata omzeilt globale afbeeldingsblokkade niet');
+$previewWithoutArt = httpFixture($httpPort, $previewPath, $readerCookie)['body'];
+check(str_contains($previewWithoutArt, 'metadata-hero') && !str_contains($previewWithoutArt, 'https://artworks.thetvdb.com')
+    && !str_contains($previewWithoutArt, 'hero-backdrop'), 'Preview toont gecachte metadata zonder artwork bij afbeeldingsblokkade');
 $state->saveSpotContentSettings($contentBeforeMetadata);
 $tvdbPost(['action' => 'preference'], true);
 check($tvdbPost(['action' => 'load', 'id' => $normalMetadataId], true)['status'] === 403
     && !str_contains(httpFixture($httpPort, '/spots/view?key=' . $normalMetadataId, $readerCookie)['body'], 'data-tvdb data-spot'),
     'Persoonlijke opt-out blokkeert endpoint en automatische detailverrijking ook bij cachehits');
+check(!str_contains(httpFixture($httpPort, $previewPath, $readerCookie)['body'], 'metadata-hero')
+    && str_contains(httpFixture($httpPort, $previewPath, $cookie)['body'], 'metadata-hero'),
+    'Preview respecteert persoonlijke opt-out terwijl andere toegestane gebruiker dezelfde cache mag zien');
 $tvdbPost(['action' => 'settings', 'language' => 'nld']);
 check($tvdbPost(['action' => 'load', 'id' => $normalMetadataId])['status'] === 403, 'Globale uitschakeling blokkeert ook admin en gecachte metadata');
+check(!str_contains(httpFixture($httpPort, $previewPath, $cookie)['body'], 'metadata-hero'),
+    'Globale uitschakeling blokkeert ook gecachte previewmetadata voor admin');
 $audit = $pdo->query("SELECT details_json FROM admin_audit_logs WHERE action LIKE 'tvdb.%'")->fetchAll();
 check(count($audit) >= 6 && !str_contains(json_encode($audit, JSON_THROW_ON_ERROR), 'fixture-http-tvdb-key'), 'TVDB-beheer en matchcorrecties geaudit zonder geheimen');
 $pdo->prepare('DELETE FROM spotnet_spots WHERE id IN (?, ?)')->execute([$normalMetadataId, $httpMetaSpot['id']]);

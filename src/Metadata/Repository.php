@@ -105,6 +105,17 @@ final class Repository
         return $row;
     }
 
+    public function previewMetadata(array $spot, string $username): ?array
+    {
+        $settings = $this->settings();
+        if (!$settings['enabled'] || !$this->preference($username)) return null;
+        $match = $this->match($spot['id']);
+        if ($match === null || !$match['fresh'] || ($match['choice_json']['blocked'] ?? false)
+            || $match['input_hash'] !== Service::matchSignature($spot, $settings['language'])
+            || ($match['result_json']['state'] ?? null) !== 'matched') return null;
+        return $match['result_json']['metadata'];
+    }
+
     public function result(string $id, string $hash, array $result, int $seconds): void
     {
         $query = $this->pdo->prepare('INSERT INTO tvdb_matches (spot_id, input_hash, result_json, expires_at)

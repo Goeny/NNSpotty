@@ -121,6 +121,11 @@ check($episodeResult['state'] === 'matched' && $episodeResult['metadata']['type'
     && $episodeResult['metadata']['season'] === 3 && $episodeResult['metadata']['episode'] === 2
     && $episodeResult['metadata']['episode_title'] === 'Fixture Episode' && $episodeResult['metadata']['overview'] === 'Episode summary',
     'Exacte serie plus officieel seizoen/aflevering levert juiste aflevering en synopsis');
+$episodePreview = \NnSpotty\UI\SpotDetailPageRenderer::summary($seriesSpot, true, metadata: $episodeResult['metadata']);
+check(str_contains($episodePreview, '<h2>Voorbeeldtitel</h2>') && str_contains($episodePreview, '<h3 class="h4">Fixture Episode</h3>')
+    && str_contains($episodePreview, 'episode-hero') && str_contains($episodePreview, 'episodes/still.jpg')
+    && str_contains($episodePreview, 'https://thetvdb.com/dereferrer/episodes/100') && !str_contains($episodePreview, '<h1>'),
+    'Afleveringpreview gebruikt compacte headingstructuur, afleveringstill en juiste bronvermelding');
 $seriesSpot['title'] = 'Fixture.Show.2017.S03E02E03.1080p';
 $pack = $metadata->lookup($seriesSpot);
 check($pack['metadata']['type'] === 'series' && $pack['metadata']['episode'] === null, 'Multi-episodepakket wordt niet als losse aflevering gepresenteerd');

@@ -104,7 +104,7 @@ HTML;
             . ($classification['type'] === 'Films' || $classification['type'] === 'Series' ? SpotReleaseQuality::render($spot['title']) : '') . '</div></section>';
         $people = '';
         if ($metadata !== null) {
-            $hero = \NnSpotty\Metadata\View::hero($spot, $metadata, $action, $imagesEnabled);
+            $hero = \NnSpotty\Metadata\View::hero($spot, $metadata, $action, $imagesEnabled, $preview);
             $people = \NnSpotty\Metadata\View::people($metadata, $imagesEnabled);
         }
         $spotMetadata = '<div class="metadata-strip"><div><small>Spotter</small>' . h($spot['poster']) . \NnSpotty\Moderation\View::badge($spot)
