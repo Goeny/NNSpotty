@@ -176,6 +176,30 @@ php tests/run.php
 
 Open eerder niet gevonden spots opnieuw in de volledige detailweergave: oude automatische/negatieve caches worden opnieuw beoordeeld. Controleer dat bestaande handmatige koppelingen en blokkeringen juist behouden blijven, ook als het oude matchresultaat nog vers was. Kleine previews lezen uitsluitend de nieuwe verse resultaatcache; ze starten geen discovery.
 
+## Artiest-fanart via fanart.tv
+
+Voer op `nnspotty.hopseflop.nl` vanuit de bestaande deploymap uit, na een beveiligde databasebackup en tijdens je onderhoudsmoment:
+
+```bash
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+php bin/console db migrate
+php bin/console db status
+php tests/run.php
+curl -I https://nnspotty.hopseflop.nl/assets/spotty.css
+```
+
+Migratie `20261019_0018_music_fanart` voegt globale en persoonlijke fanartschakelaars (default-off) en server-side keyopslag toe. Geen retrieve, backfill of cacheflush nodig; bestaande handmatige muziekkeuzes/blokkeringen blijven geldig. Herlaad CSS zonder oude cache.
+
+1. Zet eerst muziekmetadata globaal/persoonlijk aan zoals hierboven. Onder `/admin#music-metadata` vul je bij Artiest-fanart de fanart.tv-API-key in en schakel je globaal in. Zet onder `/preferences#music-metadata` ook je persoonlijke fanartschakelaar aan. Plak de key niet in commando's, screenshots, logs of tickets.
+2. Open een gematcht album van een artiest met fanart. Controleer vierkante albumhoes, brede artiestachtergrond, leesbare tekst in donker/licht en op mobiel/desktop, plus **Artiest-fanart: fanart.tv**-bronlink. Controleer dezelfde artiest via een discografiespot en een handmatig gekozen specifieke uitgave.
+3. Open de kleine preview na detail: achtergrond hergebruikt bestaande cache. Een verse preview zonder fanartcache haalt niets op. Geen nieuwe fanart-/MusicBrainz-serveraanvraag bij scrollen of preview; browser mag wel de gecachte externe artwork-URL laden.
+4. Test een artiest zonder fanart: gewone achtergrond zonder foutieve andere artiest. Various Artists en credits met meerdere artiesten krijgen geen willekeurige artiestfanart.
+5. Zet persoonlijke fanart uit: alleen achtergrond/bronlink weg, MusicBrainz en albumhoes blijven. Andere gebruiker met toestemming behoudt fanart. Test ook globale fanart uit, persoonlijke/globale muziek uit en **Afbeeldingen uit**; opt-outs blokkeren ook cachehits en starten geen fanartrequest.
+6. Leeg API-keyveld opslaan behoudt de bestaande key en toont hem nooit terug. Test key wissen met globale fanart uit. Beveilig database en backups zoals bestaande TVDB-/downloadergeheimen.
+7. Een onjuiste key/providerfout geeft bij de eerstvolgende niet-gecachete artiest een zichtbare waarschuwing, met bruikbare muziekmetadata. Foutcache duurt vijf minuten, geen automatische retries. Herstel de key; andere key gebruikt niet dezelfde foutcache. TLS nooit uitschakelen. Server moet HTTPS naar `webservice.fanart.tv` kunnen; browser laadt alleen `assets.fanart.tv` voor deze achtergronden.
+8. Check actuele [API-voorwaarden](https://fanart.tv/api-info/) en artworkrechten voor jouw gebruik. De ontwikkeltests gebruiken synthetische providerdata; geauthenticeerde acceptatie met je eigen key voer je hier uit.
+
 ## TheTVDB metadata, posters en fanart
 Pauzeer webverkeer en retrieve-jobs en maak eerst een beveiligde databasebackup volgens de bestaande backup-procedure hieronder. Bestaande `.env` en lokale serverwijzigingen niet overschrijven. Voer in de bestaande deploymap uit:
 

@@ -181,7 +181,11 @@ final class Service
         foreach ($data['label-info'] ?? [] as $label) if (is_string($label['label']['name'] ?? null)) $labels[] = self::text($label['label']['name']);
         $cover = $type === 'artist' ? '' : 'https://coverartarchive.org/' . $type . '/' . $id . '/front-500';
         if ($type === 'release' && !($data['cover-art-archive']['front'] ?? false)) $cover = '';
+        $credit = $data['artist-credit'] ?? [];
+        $artistId = $type === 'artist' ? $id : (count($credit) === 1 ? ($credit[0]['artist']['id'] ?? '') : '');
+        if (!is_string($artistId) || !Release::mbid($artistId) || $artistId === '89ad4ac3-39f7-470e-963a-56509c546377') $artistId = '';
         return ['provider' => 'musicbrainz', 'type' => $type, 'id' => $id,
+            'artist_id' => $artistId,
             'title' => self::text($data[$type === 'artist' ? 'name' : 'title']),
             'artist' => $type === 'artist' ? '' : self::credit($data['artist-credit'] ?? []),
             'date' => self::text($data['first-release-date'] ?? $data['date'] ?? $data['life-span']['begin'] ?? ''),

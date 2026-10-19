@@ -20,7 +20,7 @@ final class Release
 
     public static function matchSignature(array $spot): string
     {
-        return hash('sha256', self::signature($spot) . ':discovery-v2');
+        return hash('sha256', self::signature($spot) . ':discovery-v2:artist-id-v1');
     }
 
     public static function parse(array $spot): ?array

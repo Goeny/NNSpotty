@@ -95,3 +95,30 @@ check(MusicRelease::select($liveMusic, [$studioCandidate, $liveCandidate]) === $
 $duplicateLive = array_replace($liveCandidate, ['id' => $otherMusic['id']]);
 check(MusicRelease::select($liveMusic, [$liveCandidate, $duplicateLive]) === null,
     'Ook livekandidaten vereisen unieke identiteit');
+$fanartUrl = 'https://assets.fanart.tv/fanart/music/11111111-1111-4111-8111-111111111111/artistbackground/fixture.jpg';
+check(\NnSpotty\Music\Fanart::imageUrl(str_replace('https:', 'http:', $fanartUrl)) === $fanartUrl,
+    'Fanart-afbeeldingen worden uitsluitend via HTTPS gepubliceerd');
+foreach (['https://assets.fanart.tv.evil.invalid/fanart/a.jpg', 'https://user:secret@assets.fanart.tv/fanart/a.jpg',
+    'https://assets.fanart.tv/fanart/../secret.jpg', 'javascript:alert(1)', $fanartUrl . '?api_key=secret', 'https://example.invalid/a.jpg', null] as $invalidArt) {
+    check(\NnSpotty\Music\Fanart::imageUrl($invalidArt) === '', 'Fanart-afbeeldingsbron weigert externe hosts, geheimen en onveilige URLs');
+}
+$fanartArtist = '11111111-1111-4111-8111-111111111111';
+check(\NnSpotty\Music\Fanart::select(['mbid_id' => $fanartArtist, 'artistbackground' => [
+    ['url' => str_replace('fixture.jpg', 'low.jpg', $fanartUrl), 'likes' => '2'],
+    ['url' => $fanartUrl, 'likes' => '12'],
+]], $fanartArtist) === $fanartUrl, 'Artiestachtergrond met de meeste stemmen wordt deterministisch geselecteerd');
+check(\NnSpotty\Music\Fanart::select(['mbid_id' => $fanartArtist], $fanartArtist) === '',
+    'Geldige artiest zonder achtergronden is geen providerfout');
+foreach ([
+    ['mbid_id' => '22222222-2222-4222-8222-222222222222'],
+    ['mbid_id' => $fanartArtist, 'artistbackground' => 'invalid'],
+    ['mbid_id' => $fanartArtist, 'artistbackground' => [['url' => 'https://evil.invalid/a.jpg']]],
+    ['mbid_id' => $fanartArtist, 'artistbackground' => [['url' => $fanartUrl, 'likes' => '-1']]],
+] as $invalidFanart) {
+    try {
+        \NnSpotty\Music\Fanart::select($invalidFanart, $fanartArtist);
+        throw new LogicException('Ongeldig fanart-providerrecord ten onrechte geaccepteerd.');
+    } catch (RuntimeException) {
+        check(true, 'Afwijkende artiestidentiteit of ongeldige fanartdata geeft expliciete fout');
+    }
+}

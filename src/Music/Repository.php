@@ -41,6 +41,44 @@ final class Repository
         return $this->enabled() && $this->preference($username);
     }
 
+    public function fanartSettings(): array
+    {
+        $row = $this->pdo->query('SELECT fanart_enabled AS enabled, fanart_key AS api_key FROM music_settings WHERE id = 1')->fetch();
+        if ($row === false) throw new RuntimeException('Fanart-instellingen ontbreken. Voer db migrate uit.');
+        return ['enabled' => (bool) $row['enabled'], 'api_key' => $row['api_key']];
+    }
+
+    public function saveFanartSettings(bool $enabled, string $key, bool $clear = false): void
+    {
+        $key = trim($key);
+        if ($key !== '' && preg_match('/^[a-zA-Z0-9]{16,128}$/D', $key) !== 1) {
+            throw new \InvalidArgumentException('Ongeldige fanart.tv-API-key; gebruik 16 tot 128 letters/cijfers.');
+        }
+        $key = $clear ? '' : ($key === '' ? $this->fanartSettings()['api_key'] : $key);
+        if ($enabled && $key === '') throw new \InvalidArgumentException('Vul een fanart.tv-API-key in voordat je fanart inschakelt.');
+        $this->pdo->prepare('UPDATE music_settings SET fanart_enabled = ?, fanart_key = ? WHERE id = 1')
+            ->execute([(int) $enabled, $key]);
+    }
+
+    public function fanartPreference(string $username): bool
+    {
+        $query = $this->pdo->prepare('SELECT fanart_enabled FROM music_preferences WHERE username = ?');
+        $query->execute([$username]);
+        return (bool) $query->fetchColumn();
+    }
+
+    public function saveFanartPreference(string $username, bool $enabled): void
+    {
+        $this->pdo->prepare('INSERT INTO music_preferences (username, fanart_enabled) VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE fanart_enabled = VALUES(fanart_enabled)')->execute([$username, (int) $enabled]);
+    }
+
+    public function fanartAllowed(string $username): bool
+    {
+        $settings = $this->fanartSettings();
+        return $this->allowed($username) && $settings['enabled'] && $settings['api_key'] !== '' && $this->fanartPreference($username);
+    }
+
     public function cached(string $key): ?array
     {
         $query = $this->pdo->prepare('SELECT data_json FROM music_cache WHERE cache_key = ? AND expires_at > UTC_TIMESTAMP()');
@@ -83,14 +121,16 @@ final class Repository
             ->execute([$spot['id'], Release::signature($spot), $choice === null ? null : json_encode($choice, JSON_THROW_ON_ERROR)]);
     }
 
-    public function previewMetadata(array $spot, string $username): ?array
+    public function previewMetadata(array $spot, string $username, bool $images = true): ?array
     {
         if (!$this->allowed($username) || Release::parse($spot) === null) return null;
         $row = $this->match($spot['id']);
-        return $row !== null && $row['fresh'] && $row['input_hash'] === Release::matchSignature($spot)
+        $metadata = $row !== null && $row['fresh'] && $row['input_hash'] === Release::matchSignature($spot)
             && !(($row['choice_json']['input'] ?? '') === Release::signature($spot) && ($row['choice_json']['blocked'] ?? false))
             && ($row['result_json']['state'] ?? '') === 'matched'
             ? $row['result_json']['metadata'] : null;
+        return $metadata !== null && $images && $this->fanartAllowed($username)
+            ? (new Fanart($this))->enrich($metadata) : $metadata;
     }
 
     public function lock(string $key): bool

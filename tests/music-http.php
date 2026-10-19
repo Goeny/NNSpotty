@@ -11,7 +11,7 @@ $anonymousMusicCookie = '';
 check(httpFixture($httpPort, '/music-metadata', $anonymousMusicCookie, ['action' => 'load'])['status'] === 401
     && httpFixture($httpPort, '/music-metadata', $cookie, ['action' => 'load'])['status'] === 403,
     'Muziekmetadata vereist login en CSRF');
-foreach (['settings', 'search', 'choose', 'reset', 'block'] as $musicAction) {
+foreach (['settings', 'fanart-settings', 'search', 'choose', 'reset', 'block'] as $musicAction) {
     check($musicPost(['action' => $musicAction], true)['status'] === 403, 'Muziek-adminactie afgeschermd: ' . $musicAction);
 }
 check(str_contains(httpFixture($httpPort, '/admin', $cookie)['body'], 'data-admin-panel="music-metadata"')
@@ -70,6 +70,51 @@ $musicNoArt = httpFixture($httpPort, $musicPreviewPath, $readerCookie)['body'];
 check(str_contains($musicNoArt, 'music-hero') && !str_contains($musicNoArt, 'https://coverartarchive.org'),
     'HTTP-muziekpreview respecteert afbeeldingsblokkade');
 $state->saveSpotContentSettings($musicContentBefore);
+$httpFanartKey = str_repeat('httpfixturefanart', 2);
+check($musicPost(['action' => 'fanart-settings', 'enabled' => '1', 'api_key' => $httpFanartKey])['status'] === 302,
+    'Admin slaat fanartkey en globale toestemming op via bestaande CSRF-route');
+$musicPost(['action' => 'fanart-preference', 'enabled' => '1', 'username' => 'http-reader']);
+check($musicHttpRepo->fanartPreference('http-tester') && !$musicHttpRepo->fanartPreference('http-reader'),
+    'Fanartvoorkeur gebruikt sessieusername, niet vervalst formulierveld');
+$musicPost(['action' => 'fanart-preference', 'enabled' => '1'], true);
+$httpFanartCacheKey = \NnSpotty\Music\Fanart::cacheKey(MusicFixture::ARTIST, $httpFanartKey);
+$httpFanartUrl = 'https://assets.fanart.tv/fanart/music/fixture/artistbackground/http-fixture.jpg';
+$musicHttpRepo->cache($httpFanartCacheKey, ['url' => $httpFanartUrl, 'error' => false], 604800);
+$httpFanartMatch = $musicHttpRepo->match($httpMusicSpot['id']);
+$httpFanartCache = $pdo->query('SELECT * FROM music_cache ORDER BY cache_key')->fetchAll();
+$httpFanartLoad = json_decode($musicPost(['action' => 'load', 'id' => $httpMusicSpot['id']], true)['body'], true);
+check(str_contains($httpFanartLoad['html'], $httpFanartUrl) && str_contains($httpFanartLoad['html'], 'Artiest-fanart: fanart.tv')
+    && str_contains(httpFixture($httpPort, $musicPreviewPath, $readerCookie)['body'], $httpFanartUrl)
+    && $httpFanartMatch === $musicHttpRepo->match($httpMusicSpot['id'])
+    && $httpFanartCache === $pdo->query('SELECT * FROM music_cache ORDER BY cache_key')->fetchAll(),
+    'Echte HTTP-detail en preview gebruiken dezelfde fanartcache zonder muziekcache of expiry te muteren');
+$httpAdminFanart = httpFixture($httpPort, '/admin', $cookie)['body'];
+check(str_contains($httpAdminFanart, 'name="api_key"') && !str_contains($httpAdminFanart, $httpFanartKey)
+    && !str_contains(httpFixture($httpPort, '/preferences', $readerCookie)['body'], $httpFanartKey)
+    && !str_contains($httpFanartLoad['html'], $httpFanartKey), 'Fanartkey lekt niet naar admin, gebruiker of detail-HTML');
+$musicPost(['action' => 'fanart-settings', 'enabled' => ['1'], 'api_key' => 'invalid']);
+check($musicHttpRepo->fanartSettings()['api_key'] === $httpFanartKey, 'Ongeldige fanartinstelling wijzigt bestaand geheim niet');
+$musicPost(['action' => 'fanart-preference'], true);
+check(!str_contains(httpFixture($httpPort, $musicPreviewPath, $readerCookie)['body'], $httpFanartUrl)
+    && str_contains(httpFixture($httpPort, $musicPreviewPath, $cookie)['body'], $httpFanartUrl),
+    'Persoonlijke fanart-opt-out verbergt artwork alleen voor die gebruiker');
+$musicPost(['action' => 'fanart-preference', 'enabled' => '1'], true);
+$state->saveSpotContentSettings(['images_enabled' => false, 'show_comments' => true, 'retrieve_comments' => true]);
+$httpNoFanart = json_decode($musicPost(['action' => 'load', 'id' => $httpMusicSpot['id']], true)['body'], true);
+check(!str_contains($httpNoFanart['html'], $httpFanartUrl)
+    && !str_contains(httpFixture($httpPort, $musicPreviewPath, $readerCookie)['body'], $httpFanartUrl),
+    'Globale afbeeldingen uit onderdrukt fanart in echte HTTP-detail en preview');
+$state->saveSpotContentSettings($musicContentBefore);
+$musicHttpRepo->cache($httpFanartCacheKey, ['url' => '', 'error' => true], 300);
+$httpFanartError = json_decode($musicPost(['action' => 'load', 'id' => $httpMusicSpot['id']], true)['body'], true);
+check($httpFanartError['state'] === 'matched' && str_contains($httpFanartError['html'], 'alert alert-warning')
+    && str_contains($httpFanartError['message'], 'vijf minuten'), 'HTTP-fanartfout blijft expliciete waarschuwing bij bruikbare muziekmetadata');
+$musicPost(['action' => 'fanart-settings', 'clear_key' => '1']);
+check($musicHttpRepo->fanartSettings() === ['enabled' => false, 'api_key' => '']
+    && !str_contains(httpFixture($httpPort, $musicPreviewPath, $readerCookie)['body'], 'Artiest-fanart: fanart.tv'),
+    'Admin kan fanart uitschakelen en key wissen zonder muziekmetadata te verliezen');
+$musicHttpRepo->saveFanartPreference('http-tester', false);
+$musicHttpRepo->saveFanartPreference('http-reader', false);
 $musicPost(['action' => 'preference'], true);
 check($musicPost(['action' => 'load', 'id' => $httpMusicSpot['id']], true)['status'] === 403
     && !str_contains(httpFixture($httpPort, $musicPreviewPath, $readerCookie)['body'], 'music-hero')

@@ -13,7 +13,7 @@ final class View
         $personal = $username !== null;
         $enabled = $personal ? $repo->preference($username) : $repo->enabled();
         $html = '<section class="card my-4" id="music-metadata"><div class="card-header">Muziekmetadata: MusicBrainz</div><div class="card-body">'
-            . '<p>Artiesten, albums, singles/EPs en specifieke uitgaven met beschikbare tracklists. Geen API-key nodig. Bij openen van muziekdetails wordt de zoekterm gedeeld met MusicBrainz; hoezen laden via Cover Art Archive/Internet Archive. Geen gegarandeerde biografie of artiestfoto.</p>'
+            . '<p>Artiesten, albums, singles/EPs en specifieke uitgaven met beschikbare tracklists. Voor MusicBrainz geen API-key nodig. Bij openen van muziekdetails wordt de zoekterm gedeeld met MusicBrainz; hoezen laden via Cover Art Archive/Internet Archive. Optionele artiestachtergronden via fanart.tv stel je hieronder apart in.</p>'
             . '<p>' . ($repo->enabled() ? 'Muziekmetadata is globaal ingeschakeld.' : 'Muziekmetadata is globaal uitgeschakeld; persoonlijke keuzes blijven bewaard.') . '</p>'
             . '<form method="post" action="/music-metadata">' . $csrf . '<input type="hidden" name="action" value="' . ($personal ? 'preference' : 'settings') . '">'
             . '<div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="enabled" id="music-' . ($personal ? 'personal' : 'global')
@@ -22,6 +22,20 @@ final class View
             . '<button class="btn btn-primary mt-3" type="submit">' . ($personal ? 'Muziekmetadatavoorkeur opslaan' : 'Muziekmetadata-instellingen opslaan') . '</button></form>';
         if (!$personal) $html .= '<p class="form-text mt-3">Iedere gebruiker, ook admins, schakelt persoonlijk in onder Voorkeuren. APP_URL wordt als publieke contact-URL meegestuurd in de User-Agent; gebruik geen URL met geheimen. Maximaal een MusicBrainz-aanvraag per 1,1 seconde voor deze installatie. Data zeven dagen, zoekacties/negatieve matches een dag, fouten vijf minuten in de database. Geen massale retrieve-backfill.</p>'
             . '<p class="form-text">Automatisch alleen een unieke exacte artiest-/albumtitelmatch; afzonderlijk slotjaar moet overeenkomen, bronjaar vooraan of bij LP/vinyl/CDRIP niet. Live-/concertdetails worden niet aan een studioversie gekoppeld. Albumgroep is geen specifieke remaster/persing. Kies voor een exacte tracklist handmatig een uitgave. Alleen admins zoeken/corrigeren/blokkeren gedeelde matches. Controleer API-, data- en artworkvoorwaarden bij commercieel gebruik.</p>';
+        $fanart = $repo->fanartSettings();
+        $fanartEnabled = $personal ? $repo->fanartPreference($username) : $fanart['enabled'];
+        $html .= '<hr><h3 class="h5">Artiest-fanart: fanart.tv</h3>'
+            . '<p>Optionele artiestachtergronden via de MusicBrainz-artiest-ID. Bij openen van muziekdetails wordt deze ID met fanart.tv gedeeld; afbeeldingen laden rechtstreeks van assets.fanart.tv. Beide muziekschakelaars en beide fanart-schakelaars moeten aan staan. Afbeeldingen uit blokkeert ophalen en tonen. Geen garantie dat iedere artiest artwork heeft; geen willekeurige artiest bij compilaties of meerdere artiesten.</p>'
+            . '<form method="post" action="/music-metadata">' . $csrf . '<input type="hidden" name="action" value="' . ($personal ? 'fanart-preference' : 'fanart-settings') . '">'
+            . '<div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="enabled" value="1" id="fanart-' . ($personal ? 'personal' : 'global') . '"'
+            . ($fanartEnabled ? ' checked' : '') . '><label class="form-check-label" for="fanart-' . ($personal ? 'personal' : 'global') . '">'
+            . ($personal ? 'Artiest-fanart voor mij ophalen en tonen' : 'Artiest-fanart globaal toestaan') . '</label></div>';
+        if (!$personal) $html .= '<label class="form-label mt-3" for="fanart-key">Fanart.tv API-key</label>'
+            . '<input class="form-control" type="password" id="fanart-key" name="api_key" autocomplete="new-password" maxlength="128">'
+            . '<p class="form-text">Leeg laten behoudt de bestaande key; ' . ($fanart['api_key'] === '' ? 'nog niet ingesteld' : 'opgeslagen') . '. De key wordt alleen server-side gebruikt en niet teruggetoond.</p>'
+            . '<div class="form-check"><input class="form-check-input" type="checkbox" name="clear_key" value="1" id="fanart-clear"><label class="form-check-label" for="fanart-clear">Opgeslagen key wissen (schakel fanart ook uit)</label></div>';
+        $html .= '<button class="btn btn-primary mt-3">Fanartinstelling opslaan</button></form>'
+            . '<p class="form-text mt-3">Artwork-URLs zeven dagen, ontbrekend artwork een dag en fouten vijf minuten in de database. Preview gebruikt uitsluitend cache. Beschikbare achtergrond met de meeste stemmen; geen afbeeldingsbestanden lokaal opgeslagen. Bronvermelding bij de afbeelding. Controleer de <a href="https://fanart.tv/api-info/" target="_blank" rel="noopener noreferrer">fanart.tv-voorwaarden</a> en de rechten op artwork.</p>';
         return $html . '</div></section>';
     }
 
@@ -58,7 +72,7 @@ final class View
 
     public static function message(array $result): string
     {
-        return match ($result['state']) {
+        $message = match ($result['state']) {
             'matched' => ($result['manual'] ? 'Handmatig gekoppeld.' : 'Unieke muziekmatch gevonden.') . ' Controleer bij albumgroepen de specifieke editie indien nodig.',
             'blocked' => 'Een admin heeft muziekmetadata voor deze spot uitgeschakeld.',
             'ambiguous' => 'Geen overtuigende unieke artiest/albumcombinatie. De oorspronkelijke spot blijft zichtbaar; een admin kan handmatig koppelen.',
@@ -67,6 +81,7 @@ final class View
             'unsupported' => 'Geen ondersteunde muziekspot.',
             default => 'MusicBrainz kon niet worden opgehaald. Probeer over vijf minuten opnieuw; de oorspronkelijke spot blijft beschikbaar.',
         };
+        return $message . (isset($result['metadata']['fanart_warning']) ? ' ' . $result['metadata']['fanart_warning'] : '');
     }
 
     public static function summary(array $spot, array $metadata, string $actions, bool $images, bool $preview): string
@@ -81,7 +96,10 @@ final class View
         $cover = $artist ? '<div class="music-artist-symbol" aria-hidden="true">&#9835;</div>' : SpotPresentation::image($coverSpot, false, $images);
         $kind = $artist ? 'Artiest' : ($metadata['type'] === 'release' ? 'Specifieke uitgave' : 'Albumgroep');
         $facts = array_filter([$metadata['kind'], $metadata['date'], $metadata['country'], implode(', ', $metadata['genres'])]);
+        $fanart = $images ? Fanart::imageUrl($metadata['fanart'] ?? null) : '';
+        $background = $fanart === '' ? '' : SpotPresentation::backdrop(['image_segments' => [], 'image_url' => $fanart], 'hero-backdrop', $images);
         $html = '<section class="spot-hero music-hero' . ($artist ? ' music-artist-hero' : '') . '">'
+            . $background
             . '<div class="hero-actions" role="group" aria-label="Spotacties">' . $actions . '</div>'
             . '<div class="hero-poster">' . $cover . '</div><div class="hero-copy">'
             . '<p class="text-body-secondary mb-2">MusicBrainz &middot; ' . h($kind) . '</p><' . $heading . '>' . h($metadata['title']) . '</' . $heading . '>'
@@ -90,13 +108,16 @@ final class View
             . ($metadata['end'] === '' ? '' : '<p>Einddatum: ' . h($metadata['end']) . '</p>')
             . ($metadata['note'] === '' ? '' : '<p>' . h($metadata['note']) . '</p>')
             . ($metadata['labels'] === [] ? '' : '<p>Label: ' . h(implode(', ', $metadata['labels'])) . '</p>')
-            . '<p class="small text-body-secondary">' . ($artist ? 'Artiestgegevens; geen volledige discografie, biografie of artiestfoto beschikbaar via deze weergave.'
+            . '<p class="small text-body-secondary">' . ($artist ? 'Artiestgegevens; geen volledige discografie of biografie. Eventuele artiestachtergrond komt van fanart.tv, niet van MusicBrainz.'
                 : ($metadata['type'] === 'release-group' ? 'Algemene albumgroep; geen bevestiging van een specifieke editie, remaster of tracklist.'
                     : 'Tracklist hoort bij deze geselecteerde uitgave; mediabestanden zijn niet gecontroleerd.')) . '</p>'
             . '<a class="metadata-attribution small" href="https://musicbrainz.org/' . h($metadata['type']) . '/' . h($metadata['id'])
             . '" target="_blank" rel="noopener noreferrer">Metadata van MusicBrainz</a>'
             . (!$artist && $images && $metadata['cover'] !== '' ? '<span class="small"> &middot; <a href="https://coverartarchive.org/" target="_blank" rel="noopener noreferrer">Hoezen: Cover Art Archive</a></span>' : '')
-            . '</div></section><p class="small text-body-secondary metadata-release">Oorspronkelijke spottitel: <strong>' . h($spot['title']) . '</strong></p>';
+            . ($fanart === '' ? '' : '<span class="small"> &middot; <a href="https://fanart.tv/artist/' . h($metadata['artist_id']) . '/" target="_blank" rel="noopener noreferrer">Artiest-fanart: fanart.tv</a></span>')
+            . '</div></section>'
+            . ($images && isset($metadata['fanart_warning']) ? '<div class="alert alert-warning" role="status">' . h($metadata['fanart_warning']) . '</div>' : '')
+            . '<p class="small text-body-secondary metadata-release">Oorspronkelijke spottitel: <strong>' . h($spot['title']) . '</strong></p>';
         if ($metadata['tracks'] !== []) {
             $html .= '<section class="card mb-3 music-tracks"><div class="card-header">Tracklist (' . (int) $metadata['track_count'] . ')</div><div class="card-body">';
             if ($metadata['duration'] !== null) $html .= '<p>Speelduur: ' . self::duration($metadata['duration']) . '</p>';

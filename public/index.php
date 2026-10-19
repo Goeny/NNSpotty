@@ -700,7 +700,7 @@ $router->get('/spots/preview', static function (Request $request) use ($auth, $s
     $content = $state->spotContentSettings();
     if ($spot === null) return Response::privateJson(['error' => 'Spot niet gevonden.'], 404);
     $metadata = $spot['category'] === 'Geluid'
-        ? (new \NnSpotty\Music\Repository($pdo))->previewMetadata($spot, $auth->user()['username'])
+        ? (new \NnSpotty\Music\Repository($pdo))->previewMetadata($spot, $auth->user()['username'], $content['images_enabled'])
         : (new \NnSpotty\Metadata\Repository($pdo))->previewMetadata($spot, $auth->user()['username']);
     return Response::privateJson(['html' => SpotDetailPageRenderer::summary(
         $spot, true, $content['images_enabled'], $content['show_comments'], $metadata

@@ -12,6 +12,8 @@ final class MusicFixture implements \NnSpotty\Music\Gateway
     public bool $ambiguous = false;
     public bool $unknownLength = false;
     public int $trackCount = 2;
+    public bool $multipleArtists = false;
+    public bool $variousArtists = false;
 
     public function get(string $type, ?string $id, array $query = []): ?array
     {
@@ -19,6 +21,8 @@ final class MusicFixture implements \NnSpotty\Music\Gateway
         if ($this->fail) throw new RuntimeException('Synthetic MusicBrainz outage');
         $artist = ['id' => self::ARTIST, 'name' => 'Fixture Artist', 'sort-name' => 'Artist, Fixture'];
         $credit = [['name' => 'Fixture Artist', 'artist' => $artist, 'joinphrase' => '']];
+        if ($this->multipleArtists) $credit[] = ['name' => 'Other Artist', 'artist' => ['id' => self::RELEASE], 'joinphrase' => ''];
+        if ($this->variousArtists) $credit = [['name' => 'Various Artists', 'artist' => ['id' => '89ad4ac3-39f7-470e-963a-56509c546377']]];
         $group = ['id' => self::GROUP, 'title' => 'Fixture Album', 'primary-type' => 'Album',
             'first-release-date' => '2020-03-01', 'artist-credit' => $credit, 'genres' => [['name' => 'Rock']],
             'disambiguation' => 'Fixture <script>unsafe</script>'];

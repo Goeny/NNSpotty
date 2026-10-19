@@ -187,7 +187,7 @@
 [data-bs-theme="light"] .tvdb-logo-dark { display: none; }
 [data-bs-theme="light"] .tvdb-logo-light { display: inline; }
 .metadata-drawer:not([open]) { display: none; }
-.metadata-hero .hero-backdrop { filter: none; object-fit: cover; transform: none; }
+.metadata-hero .hero-backdrop, .music-hero .hero-backdrop { filter: none; object-fit: cover; transform: none; }
 .metadata-hero::after { background: linear-gradient(90deg, rgba(11,17,25,.48), rgba(11,17,25,.88)); }
 [data-bs-theme="light"] .metadata-hero::after { background: linear-gradient(90deg, rgba(255,255,255,.5), rgba(255,255,255,.94)); }
 .metadata-overview { line-height: 1.7; white-space: normal; overflow-wrap: anywhere; }

@@ -45,6 +45,8 @@
 ### Optionele muziekmetadata
 Na `db migrate` staan de MusicBrainz-functies standaard uit. Schakel globaal in via `/admin#music-metadata` en persoonlijk via `/preferences#music-metadata`. Geen API-key nodig; APP_URL moet je publieke contact/project-URL zijn en wordt meegestuurd in de User-Agent. Detail haalt gericht op, preview gebruikt alleen cache. Aanvraaglimiet, privacy, licenties en grenzen staan in de [README](../README.md#muziekmetadata-musicbrainz-en-cover-art-archive). Geen aparte databasedump, worker of retrieve-backfill nodig.
 
+Optionele artiestachtergronden gebruiken wel een aparte fanart.tv-API-key. Migratie `20261019_0018_music_fanart` voegt de instellingen toe. Vul onder `/admin#music-metadata` bij Artiest-fanart de key in, schakel globaal in en zet persoonlijk onder `/preferences#music-metadata` fanart aan. Beide muziekschakelaars blijven nodig. Leeg keyveld bewaart de bestaande key; uitzetten plus key wissen verwijdert deze. Geen geheim in `.env` of browser nodig: key staat server-side in de database, dus beveilig databasebackups. Sta uitgaand HTTPS naar `webservice.fanart.tv` en browserafbeeldingen van `assets.fanart.tv` toe. Herlaad `/assets/spotty.css` zonder oude cache. Zie [werking, cache en voorwaarden](../README.md#optionele-artiestachtergronden-via-fanarttv) en [Linux-acceptatie](./linux-server-testing.md#artiest-fanart-via-fanarttv).
+
 ## Git en dependencies
 - Een verse checkout bevat geen `vendor/` of `.env`. Installeer dependencies vanuit de gevolgde `composer.lock` met Composer; maak je eigen `.env` op basis van `.env.example`.
 - Houd `composer.json` en `composer.lock` in Git. Commit geen authenticatiegegevens (`auth.json`), lokale environmentconfiguratie, logs, databasedumps of runtimebestanden.

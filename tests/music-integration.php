@@ -22,6 +22,7 @@ $musicService = new \NnSpotty\Music\Service($musicRepo, $musicApi);
 check($musicRepo->previewMetadata($musicDbSpot, 'music-reader') === null, 'Muziekpreview zonder cache haalt niets op');
 $musicResult = $musicService->lookup($musicDbSpot);
 check($musicResult['state'] === 'matched' && $musicResult['metadata']['type'] === 'release-group'
+    && $musicResult['metadata']['artist_id'] === MusicFixture::ARTIST
     && $musicResult['metadata']['artist'] === 'Fixture Artist' && $musicResult['metadata']['tracks'] === [],
     'Uniek album wordt albumgroep, niet willekeurige editie/tracklist');
 $musicCalls = count($musicApi->calls);
@@ -177,6 +178,7 @@ foreach (['https://example.invalid/?secret=hidden', "https://example.invalid/\r\
     }
 }
 $musicRepo->enable(false);
+require __DIR__ . '/fanart-integration.php';
 $musicRepo->cache('expired-cleanup', ['test' => true], -1);
 $musicRepo->cache('fresh-cleanup', ['test' => true], 86400);
 $musicLastRequest = $pdo->query('SELECT last_request_at FROM music_settings WHERE id = 1')->fetchColumn();

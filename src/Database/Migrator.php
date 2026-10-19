@@ -453,6 +453,12 @@ final class Migrator
                     FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             ],
+            '20261019_0018_music_fanart' => [
+                'ALTER TABLE music_settings
+                    ADD COLUMN IF NOT EXISTS fanart_enabled BOOLEAN NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS fanart_key VARCHAR(255) NOT NULL DEFAULT \'\'',
+                'ALTER TABLE music_preferences ADD COLUMN IF NOT EXISTS fanart_enabled BOOLEAN NOT NULL DEFAULT 0',
+            ],
         ];
     }
 }
