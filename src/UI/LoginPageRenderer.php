@@ -15,7 +15,7 @@ final class LoginPageRenderer
 
         return <<<HTML
 <!doctype html>
-<html lang="nl">
+<html lang="nl" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">

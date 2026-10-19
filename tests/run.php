@@ -282,6 +282,8 @@ try {
         \NnSpotty\UI\LoginPageRenderer::render(null, ''),
         SpotLayout::render('Branding', 'reader', false, '', ''),
     ];
+    check(str_contains($brandingPages[0], '<html lang="nl" data-bs-theme="dark">'),
+        'Loginpagina gebruikt altijd het donkere Bootstrap-thema');
     foreach ($brandingPages as $brandingPage) {
         check(str_contains($brandingPage, 'rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon-32.png"')
             && str_contains($brandingPage, 'rel="apple-touch-icon" sizes="180x180"'),

@@ -553,6 +553,8 @@ curl -I https://nnspotty.hopseflop.nl/admin
 curl -I https://nnspotty.hopseflop.nl/preferences
 ```
 
+De loginpagina hoort in de HTML `<html lang="nl" data-bs-theme="dark">` te bevatten en toont ook zonder gebruikersvoorkeur een donkere Bootstrap-weergave. Ingelogde pagina's blijven de persoonlijke Default/Plex Dark/Plex Light-keuze volgen.
+
 Let op: zonder login geven `/admin` en `/preferences` een redirect naar `/login`.
 POST-acties zijn CSRF-beveiligd; functionele POST-tests doe je het best via browser (of met cookie + CSRF token parsing).
 

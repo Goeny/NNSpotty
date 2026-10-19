@@ -102,7 +102,7 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 
 ### Gebruikers, beheer en weergave
 
-- Sessie-login/logout met gehashte wachtwoorden, adminrechten, CSRF-beschermde mutaties en login-rate-limiting: blokkering na vijf mislukte pogingen binnen vijftien minuten.
+- Sessie-login/logout met gehashte wachtwoorden, adminrechten, CSRF-beschermde mutaties en login-rate-limiting: blokkering na vijf mislukte pogingen binnen vijftien minuten. De loginpagina gebruikt altijd het donkere thema; ingelogde gebruikers kiezen Default, Plex Dark of Plex Light.
 - Consolebeheer voor gebruikers aanmaken, verwijderen, adminrol wijzigen, wachtwoord wijzigen en gebruikers tonen.
 - Username-gebonden voorkeuren, los van centrale instellingen: **Default**, **Plex Dark**, **Plex Light**, laadbatch, kolommen, erotica, Newznab-key, eigen SABnzbd en TVDB-toestemming.
 - Erotica standaard globaal en persoonlijk verborgen; pas zichtbaar na beide toestemmingen. Globaal uit geldt ook voor admins. Dit beleid geldt voor zoeken, aantallen, facetten, details, afbeeldingen, reacties, API en lokale verzendhistorie; indexing verwijdert deze inhoud niet.
