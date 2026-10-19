@@ -107,12 +107,19 @@ HTML;
             $hero = \NnSpotty\Metadata\View::hero($spot, $metadata, $action, $imagesEnabled);
             $people = \NnSpotty\Metadata\View::people($metadata, $imagesEnabled);
         }
-        $spotMetadata = '<div class="metadata-strip"><div><small>Spotter</small>' . h($spot['poster'])
+        $spotMetadata = '<div class="metadata-strip"><div><small>Spotter</small>' . h($spot['poster']) . \NnSpotty\Moderation\View::badge($spot)
             . '</div><div><small>Geplaatst (UTC)</small>' . h($spot['posted_at']) . '</div><div><small>Grootte</small>'
             . SpotPresentation::size((int) $spot['size']) . '</div></div>';
         $description = '<section class="card mb-3"><div class="card-header d-flex justify-content-between gap-2"><span>Omschrijving</span>' . $website
             . '</div><div class="card-body spot-description">' . SpotDescription::render($spot['description']) . '</div></section>';
         $technical = '<dt>Hoofdcategorie</dt><dd>' . h($spot['category']) . '</dd>';
+        $signature = ($spot['signature_state'] ?? 'missing') === 'verified'
+            ? 'Message-ID-handtekening gecontroleerd; inhoud niet gecontroleerd'
+            : 'Identiteit niet bevestigd (handtekening ontbreekt, is ongeldig of wordt niet ondersteund)';
+        $technical .= '<dt>Spotteridentiteit</dt><dd>' . h($signature) . '</dd>';
+        if (($spot['signature_state'] ?? '') === 'verified' && isset($spot['spotter_key'])) {
+            $technical .= '<dt>Sleutelfingerprint (SHA256)</dt><dd class="text-break"><code>' . h($spot['spotter_key']) . '</code></dd>';
+        }
         foreach ($details as $name => $values) {
             $technical .= '<dt>' . h($name) . '</dt><dd>' . h(implode(', ', $values)) . '</dd>';
         }

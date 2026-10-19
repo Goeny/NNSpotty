@@ -119,7 +119,7 @@ HTML;
                     . h($spot['title']) . '</a><div class="spot-subtitle">' . h($subtitle) . '</div>',
                 'format' => $format !== '' ? '<span class="format-badge">' . h($format) . '</span>' : '&mdash;',
                 'genre' => h($genre),
-                'poster' => h($spot['poster']),
+                'poster' => h($spot['poster']) . \NnSpotty\Moderation\View::badge($spot),
                 'posted_at' => h(substr($spot['posted_at'], 0, 16)),
                 'size' => SpotPresentation::size((int) $spot['size']),
             ];

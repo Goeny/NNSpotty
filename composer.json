@@ -9,6 +9,7 @@
     "ext-curl": "*",
     "ext-dom": "*",
     "ext-iconv": "*",
+    "ext-openssl": "*",
     "ext-pdo_mysql": "*",
     "ext-simplexml": "*",
     "ext-zlib": "*",

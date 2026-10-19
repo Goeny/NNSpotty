@@ -231,6 +231,34 @@ try {
     check($response['status'] === 302 && count($spots->comments($spotId)) === $before + 1, 'Lokale reactie plaatsen via echte HTTP-route');
     $admin = httpFixture($httpPort, '/admin', $cookie);
     check($admin['status'] === 200 && str_contains($admin['body'], 'comments:free.usenet') && !str_contains($admin['body'], 'alt.binaries.movies'), 'Admin toont de juiste Spotnet-configuratie');
+    check(str_contains($admin['body'], 'spotter-lists-enabled') && str_contains($admin['body'], 'Lijsten nu bijwerken')
+        && str_contains($admin['body'], 'Oude naamlijsten: alleen registratie'),
+        'Admin onderscheidt werkelijke sleutelmoderatie van oude inactieve naamlijsten');
+    $httpSpotters = new \NnSpotty\Moderation\SpotterLists($pdo);
+    httpFixture($httpPort, '/admin/spotter-lists', $cookie, ['action' => 'settings', 'enabled' => '1']);
+    check(!$httpSpotters->settings()['enabled'], 'Sleutelmoderatie wijzigen vereist CSRF');
+    httpFixture($httpPort, '/admin/spotter-lists', $cookie, ['_csrf' => $token[1], 'action' => 'settings', 'enabled' => '1']);
+    check((bool) $httpSpotters->settings()['enabled'], 'Admin kan sleutelmoderatie expliciet inschakelen');
+    $invalidSpotterSettings = httpFixture($httpPort, '/admin/spotter-lists', $cookie,
+        ['_csrf' => $token[1], 'action' => 'settings', 'enabled' => ['1']]);
+    check($invalidSpotterSettings['status'] === 302 && $httpSpotters->settings()['enabled'],
+        'Ongeldige sleutelinstelling wijzigt de opgeslagen keuze niet');
+    httpFixture($httpPort, '/admin/spotter-lists', $cookie, ['_csrf' => $token[1], 'action' => 'settings']);
+    check(!$httpSpotters->settings()['enabled'], 'Admin kan sleutelmoderatie uitschakelen zonder database-inhoud te verwijderen');
+    foreach (['status', 'enable', 'disable'] as $spotterCommand) {
+        $spotterCli = proc_open([PHP_BINARY, __DIR__ . '/../bin/console', 'spotters', $spotterCommand],
+            [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']], $spotterCliPipes, dirname(__DIR__), $environment);
+        if (!is_resource($spotterCli)) throw new RuntimeException('Spotterlijst-CLI kon niet starten.');
+        fclose($spotterCliPipes[0]);
+        $spotterOutput = stream_get_contents($spotterCliPipes[1]);
+        $spotterError = stream_get_contents($spotterCliPipes[2]);
+        fclose($spotterCliPipes[1]);
+        fclose($spotterCliPipes[2]);
+        check(proc_close($spotterCli) === 0 && $spotterError === ''
+            && str_contains($spotterOutput, '"updated_at"')
+            && (bool) $httpSpotters->settings()['enabled'] === ($spotterCommand === 'enable'),
+            'Werkelijke console ondersteunt spotters ' . $spotterCommand . ' met opgeslagen status');
+    }
     check(str_contains($admin['body'], 'id="retrieve_comments"') && str_contains($admin['body'], 'id="show_comments"')
         && str_contains($admin['body'], 'id="images_enabled"'), 'Admin biedt afzonderlijke schakelaars voor ophalen, reacties tonen en afbeeldingen');
     check(str_contains($admin['body'], 'id="retrieve_after"') && str_contains($admin['body'], 'name="retrieve_after"'),
@@ -382,6 +410,11 @@ try {
     $readerLogin = httpFixture($httpPort, '/login', $readerCookie);
     preg_match('/name="_csrf" value="([^"]+)"/', $readerLogin['body'], $readerToken);
     httpFixture($httpPort, '/login', $readerCookie, ['_csrf' => $readerToken[1], 'username' => 'http-reader', 'password' => $password]);
+    foreach (['sync', 'settings'] as $spotterAction) {
+        check(httpFixture($httpPort, '/admin/spotter-lists', $readerCookie,
+            ['_csrf' => $readerToken[1], 'action' => $spotterAction, 'enabled' => '1'])['status'] === 403
+            && !$httpSpotters->settings()['enabled'], 'Gewone gebruiker kan geen spotterlijsten activeren of synchroniseren');
+    }
     $readerPage = httpFixture($httpPort, '/spots', $readerCookie);
     check(count(array_filter($readerPage['headers'], static fn (string $header): bool => str_starts_with($header, 'Server-Timing:'))) === 0,
         'Server-Timing wordt niet aan gewone gebruikers getoond');

@@ -221,7 +221,8 @@ $router->get('/admin', static function (Request $request) use ($state, $auth, $c
         spotContent: $state->spotContentSettings(),
         apiEnabled: $state->apiEnabled(),
         sabSettings: \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('central'), $csrf->field(), true, true),
-        metadataSettings: \NnSpotty\Metadata\View::settings(new \NnSpotty\Metadata\Repository($pdo), $csrf->field())
+        metadataSettings: \NnSpotty\Metadata\View::settings(new \NnSpotty\Metadata\Repository($pdo), $csrf->field()),
+        spotterSettings: \NnSpotty\Moderation\View::settings(new \NnSpotty\Moderation\SpotterLists($pdo), $csrf->field())
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
@@ -383,6 +384,39 @@ $router->post('/admin/settings', static function (Request $request) use ($state,
     }
 
     return Response::redirect('/admin?status=' . rawurlencode('Usenet instellingen opgeslagen.'));
+});
+
+$router->post('/admin/spotter-lists', static function (Request $request) use ($pdo, $auth, $csrf, $auditLogs): Response {
+    if (!$auth->isAdmin()) return new Response(403, 'Admin login vereist.');
+    if (!$csrf->verify($request->input('_csrf'))) {
+        return Response::redirect('/admin?status=' . rawurlencode('Ongeldige CSRF token.') . '#moderation');
+    }
+    $actor = $auth->user()['username'];
+    session_write_close();
+    try {
+        $lists = new \NnSpotty\Moderation\SpotterLists($pdo);
+        $action = $request->inputScalar('action');
+        if ($action === 'sync') {
+            $lists->sync(true);
+            $details = ['counts' => $lists->totals()];
+            $message = 'Spotlist whitelist en blacklist bijgewerkt.';
+        } elseif ($action === 'settings') {
+            $enabled = $request->inputScalar('enabled');
+            if ($enabled !== null && $enabled !== '1') throw new InvalidArgumentException('Ongeldige spotterlijstinstelling.');
+            $lists->enable($enabled === '1');
+            $details = ['enabled' => $enabled === '1'];
+            $message = 'Spotterlijstinstellingen opgeslagen.';
+        } else {
+            throw new InvalidArgumentException('Onbekende spotterlijstactie.');
+        }
+        $auditLogs->log($actor, 'admin.spotter_lists.' . $action, 'settings', 'spotter_lists', $details, $request->clientIp());
+    } catch (InvalidArgumentException $exception) {
+        $message = $exception->getMessage();
+    } catch (Throwable $exception) {
+        error_log('Spotterlijsten: ' . $exception->getMessage());
+        $message = 'Spotterlijstactie mislukt. Controleer de synchronisatiestatus en serverlog.';
+    }
+    return Response::redirect('/admin?status=' . rawurlencode($message) . '#moderation');
 });
 
 $router->post('/admin/spotters', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {

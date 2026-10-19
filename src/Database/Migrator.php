@@ -412,6 +412,22 @@ final class Migrator
                     ADD INDEX IF NOT EXISTS idx_spotnet_visible_date (is_erotica, posted_at, id),
                     ADD INDEX IF NOT EXISTS idx_spotnet_type_date (browse_type, posted_at, id)',
             ],
+            '20261019_0016_spotter_keys' => [
+                'ALTER TABLE spotnet_spots
+                    ADD COLUMN IF NOT EXISTS spotter_key CHAR(64) CHARACTER SET ascii NULL,
+                    ADD COLUMN IF NOT EXISTS signature_state VARCHAR(16) NOT NULL DEFAULT \'missing\'',
+                'CREATE TABLE IF NOT EXISTS spotter_keys (
+                    list_type VARCHAR(16) NOT NULL,
+                    key_hash CHAR(64) CHARACTER SET ascii NOT NULL,
+                    display_name VARCHAR(191) NOT NULL,
+                    PRIMARY KEY (key_hash, list_type)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS spotter_list_settings (
+                    id TINYINT PRIMARY KEY, enabled TINYINT NOT NULL DEFAULT 0,
+                    updated_at DATETIME NULL, attempted_at DATETIME NULL, last_error TEXT NULL, last_warning TEXT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'INSERT IGNORE INTO spotter_list_settings (id) VALUES (1)',
+            ],
         ];
     }
 }

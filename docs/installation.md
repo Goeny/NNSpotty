@@ -3,7 +3,7 @@
 ## Vereisten
 - PHP 8.2 of hoger
 - Composer 2.x
-- MySQL/MariaDB en PHP-extensies `pdo_mysql`, `SimpleXML`, `dom`, `iconv`, `zlib`, `curl`
+- MySQL/MariaDB en PHP-extensies `pdo_mysql`, `SimpleXML`, `dom`, `iconv`, `zlib`, `curl`, `openssl`
 
 ## Stappen
 1. Installeer dependencies:

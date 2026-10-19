@@ -48,6 +48,21 @@ try {
         case 'retrieve':
             handleRetrieveCommand($argv, new RetrieveService($pdo, $state));
             break;
+        case 'spotters':
+            $lists = new \NnSpotty\Moderation\SpotterLists($pdo);
+            $action = $argv[2] ?? 'status';
+            if ($action === 'sync') {
+                $lists->sync(true);
+                fwrite(STDOUT, "Spotlist whitelist en blacklist bijgewerkt.\n");
+            } elseif ($action === 'enable' || $action === 'disable') {
+                $lists->enable($action === 'enable');
+                fwrite(STDOUT, 'Sleutelmoderatie ' . ($action === 'enable' ? 'ingeschakeld' : 'uitgeschakeld') . ".\n");
+            } elseif ($action !== 'status') {
+                throw new InvalidArgumentException('Gebruik: bin/console spotters status|sync|enable|disable');
+            }
+            fwrite(STDOUT, json_encode(['settings' => $lists->settings(), 'counts' => $lists->totals()],
+                JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . PHP_EOL);
+            break;
         default:
             throw new RuntimeException('Onbekend commando: ' . $command);
     }
@@ -244,4 +259,5 @@ function showHelp(): void
     fwrite(STDOUT, "  bin/console user password <username> <newPassword>\n");
     fwrite(STDOUT, "  bin/console user edit <username> [--admin=1|0]\n");
     fwrite(STDOUT, "  bin/console retrieve [--all|--full|--since-last|--days=30] [--comments-only|--refresh-spots] [--verbose]\n");
+    fwrite(STDOUT, "  bin/console spotters status|sync|enable|disable\n");
 }

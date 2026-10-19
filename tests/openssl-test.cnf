@@ -1,0 +1,4 @@
+[req]
+distinguished_name = test_name
+[test_name]
+CN = NNSpotty synthetic fixture

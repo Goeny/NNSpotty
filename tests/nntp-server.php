@@ -13,6 +13,13 @@ flush();
 $fail = in_array('--fail', $argv, true);
 $failLower = in_array('--fail-lower', $argv, true);
 $slowImage = in_array('--slow-image', $argv, true);
+$signingKey = null;
+foreach ($argv as $argument) {
+    if (str_starts_with($argument, '--sign-spots=')) {
+        $signingKey = openssl_pkey_get_private(file_get_contents(substr($argument, strlen('--sign-spots='))));
+        if ($signingKey === false) throw new RuntimeException('Ongeldige synthetische NNTP-sleutel.');
+    }
+}
 
 function multiline($socket, string $status, string $data): void
 {
@@ -70,6 +77,9 @@ while ($socket = stream_socket_accept($server, 60)) {
                     'old@example.invalid' => str_replace(gmdate('r'), 'Thu, 01 Jan 2009 12:00:00 +0000', Fixtures::headers($id)),
                     default => Fixtures::headers($id),
                 };
+                if ($signingKey !== null && in_array($id, ['spot-one@example.invalid', 'old@example.invalid'], true)) {
+                    $headers = Fixtures::signedHeaders($id, $signingKey);
+                }
                 multiline($socket, '221 Header follows', $headers);
             }
         } elseif (preg_match('/^ARTICLE <([^>]+)>$/', $command, $matches)) {

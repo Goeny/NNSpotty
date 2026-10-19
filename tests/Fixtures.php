@@ -4,6 +4,25 @@ declare(strict_types=1);
 
 final class Fixtures
 {
+    public static function signingKey(): OpenSSLAsymmetricKey
+    {
+        $key = openssl_pkey_new(['private_key_bits' => 1024, 'private_key_type' => OPENSSL_KEYTYPE_RSA,
+            'config' => __DIR__ . '/openssl-test.cnf']);
+        if ($key === false) throw new RuntimeException('Synthetische RSA-testkey kon niet worden aangemaakt.');
+        return $key;
+    }
+
+    public static function signedHeaders(string $id, OpenSSLAsymmetricKey $key): string
+    {
+        $details = openssl_pkey_get_details($key);
+        if (!openssl_sign('<' . $id . '>', $signature, $key, OPENSSL_ALGO_SHA1)) {
+            throw new RuntimeException('Ondertekenen van testfixture mislukt.');
+        }
+        return self::headers($id) . "\r\nX-User-Key: <RSAKeyValue><Modulus>" . base64_encode($details['rsa']['n'])
+            . '</Modulus><Exponent>' . base64_encode($details['rsa']['e']) . "</Exponent></RSAKeyValue>\r\nX-User-Signature: "
+            . strtr(rtrim(base64_encode($signature), '='), ['/' => '-s', '+' => '-p']);
+    }
+
     public static function xml(string $title = 'Een individuele testspot', string $category = '1'): string
     {
         return '<Spotnet><Posting><Key>7</Key><Title>' . $title . '</Title>'

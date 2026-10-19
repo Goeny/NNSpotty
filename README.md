@@ -21,6 +21,7 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 - [SABnzbd instellen](#sabnzbd-instellen)
 - [TheTVDB: films, series en afleveringen](#thetvdb-films-series-en-afleveringen)
 - [Console, onderhoud en updates](#console-onderhoud-en-updates)
+- [Spotter whitelist en blacklist](#spotter-whitelist-en-blacklist)
 - [Tests en controles](#tests-en-controles)
 - [Beperkingen en vervolgwerk](#beperkingen-en-vervolgwerk)
 - [Documentatie en bijdragen](#documentatie-en-bijdragen)
@@ -120,7 +121,7 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 - Admin met zeven deelbare submenu's: **Usenet**, **Inhoud en weergave**, **Newznab**, **SABnzbd**, **TVDB metadata**, **Moderatie en reacties**, **Auditlog**. Zonder JavaScript blijven de secties zichtbaar.
 - Usenet-host, poort, login, encryptie, retentie, optionele startdatum, groepsrollen en incrementele artikellimiet centraal beheren. `--full`/`--all` respecteert de ingestelde grenzen; geslaagde retrieves ruimen alle verlopen spots op.
 - Reacties indexeren, reacties tonen/lokaal plaatsen en afbeeldingen ophalen/tonen afzonderlijk schakelen. Uitschakelen verwijdert geen data; afbeeldingen uit blokkeert ook cachehits en TVDB-afbeeldingen. Lokale TVDB-attributie blijft wel zichtbaar.
-- Spotter-whitelist/blacklist registreren en tonen, en lokale reacties toevoegen/bekijken in admin. **De spotterlijsten worden nog niet als retrieval-/zichtbaarheidsfilter afgedwongen; spotteridentiteiten zijn nog niet cryptografisch geverifieerd.**
+- Sleutelgebaseerde Spotlist-whitelist/blacklist synchroniseren, nieuwe blacklisted spots overslaan en whitelist-badges tonen. Oude handmatige naamlijsten blijven alleen registratie; namen bepalen geen identiteit. Lokale reacties toevoegen/bekijken in admin.
 - Auditlog voor beheeracties, database-migraties/status/health/cleanup en publiek `/health` met applicatieversie/codenaam.
 - Modulaire domeinlagen voor indexing, metadata, UI, Newznab en downloader; eigen PHP-/JavaScriptcode, zonder frontend-buildstap.
 
@@ -129,7 +130,7 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 ### 1. Benodigdheden
 
 - Linux-server met Git, **PHP 8.2+** voor zowel CLI als webserver en **Composer 2.x**.
-- PHP-extensies `curl`, `dom`, `iconv`, `pdo_mysql`, `SimpleXML` en `zlib`; daarnaast OpenSSL voor versleutelde NNTP-streams en werkende TLS/CA-certificaten voor HTTPS.
+- PHP-extensies `curl`, `dom`, `iconv`, `openssl`, `pdo_mysql`, `SimpleXML` en `zlib`; werkende TLS/CA-certificaten voor HTTPS en versleutelde NNTP-streams.
 - MySQL of MariaDB, met een eigen database en databasegebruiker.
 - Apache of Nginx met PHP-FPM voor productie. De PHP-developmentserver is alleen voor lokaal testen.
 - Een Usenet-abonnement/provider die de Spotnet-groepen aanbiedt. Beschikbare historie hangt af van de provider.
@@ -403,6 +404,38 @@ Hervat verkeer/jobs na geslaagde controles en herlaad met Ctrl+F5. Niet iedere p
 
 Bij upgrade vanaf de oude generieke headerindex: migreer, controleer de Spotnet-groepsrollen en haal echte spots op met `retrieve --days=30 --verbose`. Oude headers blijven bewaard maar worden niet als spots getoond; `db reindex-spots` is vervallen. Categorie-/commentmigraties herstellen bestaande data waar mogelijk; `--refresh-spots` kan ontbrekende bronmetadata aanvullen.
 
+## Spotter whitelist en blacklist
+
+Onder **Beheerpanel > Moderatie** kun je de [Spotlist-whitelist](https://spotlist.store/spotnet/whitelist.xml) en [blacklist](https://spotlist.store/spotnet/blacklist.xml) synchroniseren en sleutelmoderatie inschakelen. Standaard staat dit uit: installatie/migratie doet geen externe requests. Beide URL's staan vast; geen willekeurige externe/internal URL-invoer. De console biedt dezelfde bediening:
+
+```bash
+php bin/console spotters sync
+php bin/console spotters enable
+php bin/console spotters status
+# Tijdelijk uitschakelen, met behoud van lijsten en opgeslagen identiteit:
+php bin/console spotters disable
+```
+
+Voor een schone installatie: migreer, synchroniseer en activeer **voor** de eerste `retrieve --all`/`--full` of `--days=<n>`. De gewone retrieve blijft retentie en de optionele begindatum respecteren. Haal deze update niet binnen terwijl een oude retrieve nog draait; stop die gecontroleerd of wacht tot hij klaar is. Het opnieuw leegmaken van je spotdatabase is een aparte beheerhandeling: deze feature verwijdert geen bestaande spots.
+
+### Beoordeling en badges
+
+- De parser controleert de RSA/SHA1-handtekening over `<message-ID>` uit `X-User-Signature` met de publieke `X-User-Key`. Spotnet `-s`/`-p`-encoding en ontbrekende base64padding worden ondersteund. Alleen exponent 65537 wordt geaccepteerd, omdat de externe lijsten uitsluitend moduli publiceren; een andere exponent met dezelfde modulus mag geen identiteit opleveren.
+- Een SHA256-fingerprint van de canonieke RSA-modulus koppelt de identiteit aan de lijsten, **niet de spotternaam** of een korte botsingsgevoelige gebruikers-ID. De eerste import bewaart de fingerprint en verificatiestatus in de database.
+- Een gecontroleerde sleutel op de blacklist wordt tijdens retrieve **niet opgeslagen**, ook als hij tevens op de whitelist staat. De NNTP-header is hiervoor wel nodig; dit bespaart dus niet alle headerverkeer. Verbose batchlogs bevatten `blacklist` en `onbevestigd`; de runmelding vermeldt het aantal wegens blacklist overgeslagen berichten.
+- Een gecontroleerde sleutel op de whitelist krijgt een **Whitelist**-badge bij de spotter in overzicht (als de spotterkolom zichtbaar is), preview en volledige detail, ook na TVDB-verrijking. Niet op de whitelist staan is geen reden om een spot te weigeren.
+- Ontbrekende, ongeldige of niet-ondersteunde handtekeningen blijven behouden, zonder whitelist-badge en zonder blokkade op alleen een naam. Oude XML-signature-only varianten en afwijkende exponenten blijven onbevestigd. Dit is compatibiliteitsgedrag, geen garantie dat spam volledig wordt tegengehouden.
+- De badge betekent uitsluitend dat een message-ID met de betreffende sleutel is ondertekend en die sleutel op de gekozen externe whitelist staat. Het is **geen inhoudscontrole, antivirusuitslag of bewijs van de echte persoon**; de inhoud/XML is met deze controle niet cryptografisch gevalideerd.
+- Bestaande spots worden niet automatisch verwijderd, verborgen of via NNTP opnieuw gecontroleerd. Bij een latere lijstwijziging verandert de badge van reeds gecontroleerde spots mee (eventueel **Blacklist**); overslaan geldt voor volgende te importeren spots. Een lopende retrieve gebruikt zijn startsnapshot. Reacties worden niet op spottersleutels gemodereerd. Oude naamregistraties blijven apart en hebben geen effect op badges of filtering.
+
+### Synchronisatie en fouten
+
+Bij ingeschakelde moderatie controleert elke normale spot-retrieve of de laatste succesvolle synchronisatie ouder is dan 24 uur; gerichte `--comments-only`-runs doen dit niet. Handmatig synchroniseren kan altijd, ook als filtering uit staat. De applicatiedatabase bewaart de sleutels, namen, laatste poging/succes, fout en waarschuwing. Downloads gebruiken HTTPS met certificaatcontrole, geen redirects, een maximale omvang van 4 MiB per feed, maximaal 20.000 vermeldingen en begrensde connectie-/requesttimeouts.
+
+Beide feeds worden eerst opgehaald/gevalideerd en daarna **samen transactioneel** vervangen. Ontbrekende/lege/onbruikbare feeds of een transportfout laten beide vorige lijsten intact. Ongeldige sleutelvermeldingen in een verder bruikbare feed worden overgeslagen met een opgeslagen waarschuwing in admin, console en retrieve-log; een feed zonder geldige sleutels wordt geweigerd. Dubbele moduli worden samengevoegd, verschillende sleutels met dezelfde naam blijven verschillend.
+
+Als dagelijks vernieuwen mislukt, gebruikt retrieve de laatst succesvolle lijsten met een expliciete waarschuwing. Als nog nooit een geldige synchronisatie is gelukt, **faalt een retrieve met ingeschakelde moderatie**, zodat er niet stilzwijgend zonder blacklist wordt geimporteerd. Een databasefout blijft een fout. Bij cURL-code 60: herstel de CA-configuratie van zowel CLI-PHP als PHP-FPM (`curl.cainfo`/systeemcertificaten); TLS-controle niet uitschakelen. Deze lijsten worden niet tijdens paginaweergave of per spot extern opgehaald.
+
 ## Tests en controles
 
 ```bash
@@ -436,8 +469,7 @@ Een fixturetest bewijst geen providerbeschikbaarheid. Controleer met je eigen ac
 ## Beperkingen en vervolgwerk
 
 - Nog geen installatiewizard, ingebouwde scheduler/jobqueue of begin-/einddatumkalender voor historische retrieve; gebruik voorlopig console/cron en retentie in dagen.
-- Geen cryptografische Spotnet-handtekeningverificatie of geverifieerde spotteridentiteit; geregistreerde whitelist/blacklist is nog geen afgedwongen moderatiefilter.
-- Externe Spotnet-whitelist-/blacklistimport en badges blijven vervolgwerk. De [Spotlist-whitelist](https://spotlist.store/spotnet/whitelist.xml) en [blacklist](https://spotlist.store/spotnet/blacklist.xml) bevatten publieke sleutels met namen; alleen namen vergelijken is geen betrouwbare identificatie. Op verzoek gaat browseperformance eerst; er worden nu geen externe lijsten gedownload of blacklisted spots overgeslagen.
+- Spottercontrole ondersteunt RSA/SHA1 over message-ID met exponent 65537, geen volledige header-/XML-/commenthandtekeningverificatie of echte-persoonsidentificatie. Ontbrekende/ongeldige handtekeningen blijven toegestaan. De externe Spotlist-inhoud is een moderatiebron, geen garantie voor betrouwbare of veilige inhoud.
 - Niet alle exotische Spotnet-tags/legacy-XML, dagelijkse/absolute afleveringscodes of multi-episodevarianten worden volledig ondersteund.
 - Geen Usenet-publicatie van lokale reacties, playback, reviews of verzonnen verificatie-/beoordelingsbadges.
 - Geen NZBGet-forwarding, afgeronde SABnzbd-historiesynchronisatie of SABnzbd-pauzeer/verwijderbediening.
@@ -471,6 +503,7 @@ Houd bij nieuwe of gewijzigde features ook deze README actueel: functionaliteit,
 | [php-nntp / rvdv/nntp](https://github.com/robinvdvleuten/php-nntp) | NNTP-client van Robin van der Vleuten, via Composer; vastgezet op v1.0.0, MIT |
 | [Composer](https://getcomposer.org/) | Dependencybeheer en PSR-4-autoloading; lockfile voor reproduceerbare installatie |
 | [MySQL](https://www.mysql.com/) / [MariaDB](https://mariadb.org/) | Applicatiedatabase, indexen, instellingen, historie en caches |
+| [Spotlist](https://spotlist.store/) | Optionele externe Spotnet-whitelist/blacklist met publieke RSA-moduli; namen zijn labels, geen geverifieerde echte identiteit |
 | [Bootstrap 5.3.7](https://getbootstrap.com/) via [jsDelivr](https://www.jsdelivr.com/) | CSS/componentstyling; interacties via eigen JavaScript en native browserdialogen, geen vereiste Bootstrap-JavaScriptbundle |
 | [libcurl / cURL](https://curl.se/) | Via PHP-cURL voor TVDB/SABnzbd; CLI-curl voor serverchecks |
 

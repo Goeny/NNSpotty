@@ -8,6 +8,48 @@ cp .env.example .env
 # vul daarna .env met jouw basis app + DB gegevens
 ```
 
+## Spotlist whitelist en blacklist
+
+Wacht eerst tot de huidige retrieve klaar is of stop hem gecontroleerd. Niet upgraden/migreren midden in een run. Maak een beveiligde databasebackup en pauzeer webverkeer/cron tijdens de schemawijziging. Deze update verwijdert geen spots en reset geen retrieve-cursors; een eventuele schone start is een aparte, door jou beheerde handeling.
+
+Voer in de bestaande projectmap op `nnspotty.hopseflop.nl` uit:
+
+```bash
+git status --short
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+composer check-platform-reqs
+php bin/console db migrate
+php bin/console db status
+php bin/console db health
+php tests/run.php
+php bin/console spotters sync
+php bin/console spotters enable
+php bin/console spotters status
+curl -fsS https://nnspotty.hopseflop.nl/health
+```
+
+Controleer migratie `20261019_0016_spotter_keys` en de OpenSSL-platformvereiste voor zowel CLI als PHP-FPM. Synchroniseren moet geldige aantallen en een laatste update tonen; ongeldige bronvermeldingen worden expliciet als waarschuwing getoond, niet als lege geslaagde import. Na een echte synchronisatiefout niet blind opnieuw de schone retrieve starten. Herstel HTTPS/CA/netwerk; schakel TLS-verificatie niet uit.
+
+Voor de afgesproken schone spotinstallatie moeten spotdata **en bijbehorende spot-/commentcursors** coherent leeg zijn voordat je opnieuw begint. Er wordt hier bewust geen destructief leegmaakcommando gegeven. Stel in admin eerst retentie/begindatum/groepen goed in. Start pas na geslaagde sync/activatie:
+
+```bash
+php bin/console retrieve --all --verbose
+# Dagelijks croncommando blijft:
+php bin/console retrieve --since-last --verbose
+```
+
+Acceptatie:
+
+1. Admin > Moderatie toont laatste succesvolle update, sleutelcounts, fouten/waarschuwingen, aan/uit en **Lijsten nu bijwerken**. Een gewone gebruiker mag niet opslaan/synchroniseren; POST vereist CSRF. Oude naamlijsten zijn herkenbaar niet-actief.
+2. Verbose retrieve toont per batch `blacklist` en `onbevestigd`; voltooiingsmelding bevat blacklist-skipcount. Alleen geldige message-ID-handtekeningen met bekende blacklistsleutel worden geweigerd. Onbekende/ongeldige identiteiten blijven bestaan, ook als hun naam gelijk is aan een naam op de blacklist. Blacklist wint van whitelist.
+3. Controleer een spot van een bekende whitelistsleutel in lijst (spotterkolom aan), preview en detail, ook na TVDB-refresh en in donker/licht/mobiel. Badge verklaart sleutel/message-ID-lijststatus, niet de inhoud. Zonder bevestigde identiteit nooit whitelistbadge.
+4. Een volgende retrieve binnen 24 uur haalt niet opnieuw lijsten op; na 24 uur wel. `--comments-only` doet geen lijstsynchronisatie. Handmatig sync blijft altijd mogelijk. Een lopende retrieve gebruikt zijn startsnapshot.
+5. Bij een externe updatefout blijven beide vorige snapshots intact en wordt de fout in admin/console en runlog gemeld. Zonder ooit geslaagde snapshot faalt een actieve spot-retrieve. Een bron met enkele ongeldige sleutels geeft een zichtbare waarschuwing; een volledig onbruikbare/lege feed wordt geweigerd.
+6. `php bin/console spotters disable` stopt filtering/badges zonder spots of lijsten te wissen; `enable` herstelt ze. Een later geblackliste, al opgeslagen spot wordt niet verwijderd/verborgen maar krijgt een blacklistbadge. Bestaande onbevestigde spots worden niet automatisch via NNTP herbeoordeeld.
+
+De database-/NNTP-/HTTP-regressies draaien met `php tests/run.php --integration` op uitsluitend een aparte testdatabase met de `NNSPOTTY_TEST_*`-variabelen uit de README. De test genereert tijdelijke RSA-sleutels en synthetische feeds; geen echte Usenetcredentials of productiegegevens nodig.
+
 ## Browseperformance en sessielocks
 
 Voer uit in de bestaande deploymap op `nnspotty.hopseflop.nl`. Bewaar `.env`, maak eerst een beveiligde databasebackup volgens de procedure hieronder en pauzeer webverkeer/retrieve-jobs tijdens de migratie. Nieuwe indexen op een grote spottabel kosten tijd en extra schijfruimte; laat de migratie uitlopen.
@@ -374,7 +416,7 @@ Controleer ingelogd in de browser:
 - Plaats een lokale reactie; deze verschijnt met bron `NNSpotty`, niet als Usenet-reactie.
 - Controleer een afbeelding na herladen: deze wordt uit de databasecache geserveerd.
 - Zonder login is `/spots/image?key=...` afgeschermd.
-- Usenet-inhoud blijft expliciet onbevestigd zolang handtekeningverificatie niet is geimplementeerd.
+- Alleen ondersteunde message-ID-handtekeningen worden gecontroleerd voor sleutelmoderatie. XML, overige headers, reacties en inhoud blijven onbevestigd; een whitelistbadge is geen inhoudsgarantie.
 
 De nieuwe tabellen zijn `spotnet_spots`, `spotnet_comments` en `spotnet_images`. Oude `usenet_posts`/`spot_releases` blijven bewaard en worden niet meer getoond. Gebruik geen `db reindex-spots` meer.
 

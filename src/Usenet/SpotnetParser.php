@@ -139,6 +139,7 @@ final class SpotnetParser
             'image_segments' => self::segments($posting->Image),
             'nzb_segments' => self::segments($posting->NZB),
             'xml' => $xmlText,
+            ...\NnSpotty\Moderation\SpotterIdentity::fromHeaders($headers, self::messageId($messageId)),
         ];
     }
 

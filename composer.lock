@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "0658ff182c2020d7752ad451bcefb48f",
+    "content-hash": "1548ae23bd3532db426fa5f7200c4f92",
     "packages": [
         {
             "name": "rvdv/nntp",
@@ -71,10 +71,11 @@
         "ext-curl": "*",
         "ext-dom": "*",
         "ext-iconv": "*",
+        "ext-openssl": "*",
         "ext-pdo_mysql": "*",
         "ext-simplexml": "*",
         "ext-zlib": "*"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.9.0"
+    "plugin-api-version": "2.6.0"
 }

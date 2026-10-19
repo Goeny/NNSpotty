@@ -43,19 +43,22 @@ final class SpotRepository
             $statement = $this->pdo->prepare(
                 'INSERT INTO spotnet_spots
                     (id, message_id, group_name, title, description, poster, newsreader, category, subcategories, size,
-                     posted_at, website, tag, image_url, image_segments, nzb_segments, full_xml, browse_type, is_erotica, created_at)
+                     posted_at, website, tag, image_url, image_segments, nzb_segments, full_xml, browse_type, is_erotica, spotter_key, signature_state, created_at)
                  VALUES
                     (:id, :message_id, :group_name, :title, :description, :poster, :newsreader, :category, :subcategories, :size,
-                     :posted_at, :website, :tag, :image_url, :image_segments, :nzb_segments, :full_xml, :browse_type, :is_erotica, UTC_TIMESTAMP(6))
+                     :posted_at, :website, :tag, :image_url, :image_segments, :nzb_segments, :full_xml, :browse_type, :is_erotica, :spotter_key, :signature_state, UTC_TIMESTAMP(6))
                  ON DUPLICATE KEY UPDATE ' . ($refresh ? 'title = VALUES(title), description = VALUES(description),
                     poster = VALUES(poster), newsreader = VALUES(newsreader), category = VALUES(category),
                     subcategories = VALUES(subcategories), size = VALUES(size), posted_at = VALUES(posted_at),
                     website = VALUES(website), tag = VALUES(tag), image_url = VALUES(image_url),
                     image_segments = VALUES(image_segments), nzb_segments = VALUES(nzb_segments),
-                    full_xml = VALUES(full_xml), browse_type = VALUES(browse_type), is_erotica = VALUES(is_erotica)'
+                    full_xml = VALUES(full_xml), browse_type = VALUES(browse_type), is_erotica = VALUES(is_erotica),
+                    spotter_key = VALUES(spotter_key), signature_state = VALUES(signature_state)'
                     : 'id = VALUES(id)')
             );
             $parameters = $spot;
+            $parameters['spotter_key'] ??= null;
+            $parameters['signature_state'] ??= 'missing';
             $parameters['group_name'] = $group;
             $parameters['full_xml'] = $parameters['xml'];
             $parameters['browse_type'] = $classification['type'];
@@ -158,7 +161,7 @@ final class SpotRepository
             $parameters['same_date'] = $after['date'];
             $parameters['before_id'] = $after['id'];
         }
-        $columns = 's.id, title, category, browse_type, subcategories, poster, size, posted_at, image_url, image_segments';
+        $columns = 's.id, title, category, browse_type, subcategories, poster, size, posted_at, image_url, image_segments, spotter_key, signature_state';
         $fetch = function (string $sql) use ($parameters, $limit, $offset): array {
             $statement = $this->pdo->prepare($sql);
             foreach ($parameters as $key => $value) {
@@ -167,7 +170,7 @@ final class SpotRepository
             $statement->bindValue(':limit', max(1, $limit), PDO::PARAM_INT);
             $statement->bindValue(':offset', max(0, $offset), PDO::PARAM_INT);
             $statement->execute();
-            return array_map($this->decode(...), $statement->fetchAll());
+            return $this->withSpotterStatus(array_map($this->decode(...), $statement->fetchAll()));
         };
         if ($search !== '') {
             $ordered = 'SELECT ' . $columns . ' FROM spotnet_spots s' . $where
@@ -228,7 +231,7 @@ final class SpotRepository
         $statement = $this->pdo->prepare('SELECT * FROM spotnet_spots WHERE id = :id' . ($showErotica ? '' : ' AND is_erotica = 0'));
         $statement->execute(['id' => $id]);
         $row = $statement->fetch();
-        return is_array($row) ? $this->decode($row) : null;
+        return is_array($row) ? $this->withSpotterStatus([$this->decode($row)])[0] : null;
     }
 
     /** @return list<array<string, mixed>> */
@@ -375,5 +378,25 @@ final class SpotRepository
             }
         }
         return $row;
+    }
+
+    private function withSpotterStatus(array $rows): array
+    {
+        $keys = array_values(array_unique(array_filter(array_column($rows, 'spotter_key'))));
+        $statuses = [];
+        if ($keys !== []) {
+            $query = $this->pdo->prepare("SELECT key_hash, MAX(list_type = 'blacklist') AS blocked
+                FROM spotter_keys WHERE key_hash IN (" . implode(',', array_fill(0, count($keys), '?')) . ")
+                AND EXISTS (SELECT 1 FROM spotter_list_settings WHERE id = 1 AND enabled = 1) GROUP BY key_hash");
+            $query->execute($keys);
+            foreach ($query->fetchAll() as $entry) {
+                $statuses[$entry['key_hash']] = $entry['blocked'] ? 'blacklist' : 'whitelist';
+            }
+        }
+        foreach ($rows as &$row) {
+            $row['spotter_status'] = ($row['signature_state'] ?? 'missing') === 'verified'
+                ? ($statuses[$row['spotter_key']] ?? 'unlisted') : 'unverified';
+        }
+        return $rows;
     }
 }

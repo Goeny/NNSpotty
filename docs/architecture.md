@@ -6,6 +6,18 @@
 - MySQL/MariaDB is de primaire datastore.
 - `.env` bevat app-/databaseconfiguratie; operationele Usenet-instellingen worden in admin beheerd.
 
+## Spotteridentiteit en sleutelmoderatie
+
+`Moderation/SpotterIdentity` controleert `X-User-Key` (RSAKeyValue/Modulus/Exponent) en Spotnet-base64 `X-User-Signature` met OpenSSL RSA PKCS#1/SHA1 over het canonieke `<message-ID>`. Alleen exponent 65537 is toegestaan: Spotlist publiceert moduli zonder exponent, dus een aanvaller mag een modulus niet met een willekeurige exponent laten matchen. Een canonieke modulus zonder leidende nul krijgt een SHA256-fingerprint, niet een korte CRC-gebaseerde ID. Onbekend/ongeldig blijft opgeslagen als `missing`/`invalid`, zonder fingerprint of lijstclaim. Dit verifieert geen XML-inhoud of echte persoon; legacy XML-signature-only en reacties vallen buiten scope.
+
+Migratie 0016 voegt fingerprint/verificatiestatus aan spots toe, een sleuteltabel met `(key_hash,list_type)`-primary key en singleton synchronisatiestatus. `SpotterLists` synchroniseert beide vaste HTTPS-bronnen onder een databasegebonden advisory lock en vervangt alleen een volledig bruikbaar paar transactioneel. Ongeldige keyvermeldingen in een gemengde feed worden zichtbaar gerapporteerd; volledig onbruikbare/lege bronnen vervangen niets. Laatste succes/poging/fout/waarschuwing staan in de database. De HTTP-client heeft TLS-verificatie, geen redirects/proxy, 3 s connectie-/10 s requesttimeout en 4 MiB responsegrens.
+
+Na expliciet activeren laadt retrieve bij runstart een lijstmap (blacklist wint), met synchronisatie bij ouder dan 24 uur. Na ongeldige externe update blijft de laatste snapshot met een runwaarschuwing bruikbaar; zonder eerdere snapshot faalt de run. Databasefouten worden niet als extern probleem genegeerd. Controle gebeurt na HEAD/parsing, voor opslag; blacklist-skip verschuift incrementele cursors normaal voorbij beoordeelde artikelen. Geen extra externe requests per artikel. Comments-only synchroniseert niet. Een lopende run houdt zijn startsnapshot.
+
+`SpotRepository` verrijkt alleen de geselecteerde lijstrows/detail met actuele sleutelstatus, met maximaal een extra geïndexeerde lookup voor de fingerprints in die batch, geen volledige spotscan of externe paginarequests. `Moderation/View` levert dezelfde badge in lijst, preview, detail en metadatarefresh. Uitschakelen verbergt badges en stopt filtering/sync zonder identiteitsdata te wissen. Eerder opgeslagen spots blijven bestaan; een later geblackliste sleutel krijgt alleen een actuele blacklistbadge. Oude naamregistraties zijn expliciet niet-actieve administratie. Adminwijzigingen vereisen rol/CSRF, geven de sessie vrij voor HTTP-I/O en worden geaudit; console biedt status/sync/enable/disable.
+
+Protocolreferentie: [Spotweb signing](https://github.com/spotweb/spotweb/blob/develop/lib/services/Signing/Services_Signing_Base.php) en [Spotnet base64](https://github.com/spotweb/spotweb/blob/develop/lib/services/Format/Services_Format_Util.php). Eigen kleine implementatie op basis van protocol/DER-standaarden, geen overgenomen legacy-signingcode of nieuwe cryptobibliotheek.
+
 ## Browseperformance en requestconcurrency
 
 Gewone lijstqueries begrenzen eerst de IDs op datum/ID-keyset en selecteren vervolgens uitsluitend lijstvelden. Bekende hoofdgroepen/types gebruiken enkelvoudige categorie-/typepredicates. Migratie `20261019_0015_browse_performance` indexeert `(is_erotica, posted_at, id)`.

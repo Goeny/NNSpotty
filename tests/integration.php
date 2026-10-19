@@ -35,6 +35,7 @@ try {
     $migrator->migrate();
     $migrator->migrate();
     check(count(array_filter($migrator->status(), static fn (array $row): bool => !$row['executed'])) === 0, 'Alle migraties werken en zijn herhaalbaar');
+    require __DIR__ . '/moderation-integration.php';
     $state = new AppStateRepository($pdo);
     $settings = $state->getUsenetSettings();
     $settings['server'] = '127.0.0.1';

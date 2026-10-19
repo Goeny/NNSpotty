@@ -16,7 +16,8 @@ final class RetrieveService
 {
     public function __construct(
         private readonly PDO $pdo,
-        private readonly AppStateRepository $state
+        private readonly AppStateRepository $state,
+        private readonly ?\Closure $fetchSpotterLists = null
     ) {
     }
 
@@ -85,6 +86,28 @@ final class RetrieveService
         $skipped = 0;
         try {
             $runId = $this->startRun($mode, $days);
+            $moderation = new \NnSpotty\Moderation\SpotterLists($this->pdo);
+            $moderationSettings = $moderation->settings();
+            $spotterKeys = [];
+            $moderationWarning = '';
+            if ($moderationSettings['enabled'] && !$commentsOnly) {
+                try {
+                    if ($moderation->sync(fetch: $this->fetchSpotterLists)) $log('Spotlist whitelist en blacklist bijgewerkt.');
+                } catch (\RuntimeException $exception) {
+                    if ($exception instanceof \PDOException) throw $exception;
+                    if ($moderation->settings()['updated_at'] === null) {
+                        throw new \RuntimeException('Spotterlijsten ontbreken; synchroniseer ze voor de eerste retrieve. '
+                            . $exception->getMessage(), 0, $exception);
+                    }
+                    $moderationWarning = ' Spotlist-update mislukt; laatst opgeslagen lijsten gebruikt: ' . $exception->getMessage();
+                    $log('WAARSCHUWING:' . $moderationWarning);
+                }
+                $spotterKeys = $moderation->entries();
+                if ($moderation->settings()['last_warning'] !== null) {
+                    $log('WAARSCHUWING Spotlist: ' . $moderation->settings()['last_warning']);
+                }
+            }
+            $blacklisted = 0;
             $client = NntpClientFactory::connectFromSettings($settings);
             $format = $client->overviewFormat();
             $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
@@ -137,7 +160,7 @@ final class RetrieveService
                     if (!is_array($rows)) {
                         throw new \RuntimeException('NNTP XOVER retourneerde geen overzicht.');
                     }
-                    $counts = ['te_oud' => 0, 'bestaand' => 0, 'geen_spot' => 0, 'ongeldig' => 0, 'verdwenen' => 0, 'opgeslagen' => 0, 'vernieuwd' => 0];
+                    $counts = ['te_oud' => 0, 'bestaand' => 0, 'geen_spot' => 0, 'ongeldig' => 0, 'verdwenen' => 0, 'opgeslagen' => 0, 'vernieuwd' => 0, 'blacklist' => 0, 'onbevestigd' => 0];
                     $oldestDate = null;
                     $newestDate = null;
                     foreach ($rows as $row) {
@@ -177,6 +200,13 @@ final class RetrieveService
                                 if ($spot === null) {
                                     $skipped++;
                                     $counts['geen_spot']++;
+                                    continue;
+                                }
+                                if ($spot['signature_state'] !== 'verified') $counts['onbevestigd']++;
+                                if ($spot['spotter_key'] !== null && ($spotterKeys[$spot['spotter_key']] ?? null) === 'blacklist') {
+                                    $skipped++;
+                                    $blacklisted++;
+                                    $counts['blacklist']++;
                                     continue;
                                 }
                                 $repository->saveSpot($spot, $groupName, $refreshSpots);
@@ -234,7 +264,8 @@ final class RetrieveService
                 } while ($deleted > 0);
             }
             $message = 'Spotnet retrieve voltooid: ' . $inserted . ' nieuwe spots/reacties opgeslagen; '
-                . $refreshed . ' spots vernieuwd; ' . $skipped . ' berichten overgeslagen.';
+                . $refreshed . ' spots vernieuwd; ' . $skipped . ' berichten overgeslagen; '
+                . $blacklisted . ' wegens blacklist.' . $moderationWarning;
             if ($expiredDeleted > 0) {
                 $message .= ' ' . $expiredDeleted . ' spots ouder dan de retentie verwijderd.';
             }

@@ -5,6 +5,8 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Added
+- Optionele sleutelgebaseerde Spotlist-whitelist/blacklist: gecontroleerde RSA/SHA1-message-ID-identiteit, SHA256-modulusfingerprints, blacklistvoorrang en overslaan van nieuwe gecontroleerde blacklisted spots; onbekende/ongeldige identiteiten blijven behouden. Whitelistbadge in overzicht/preview/detail, zonder inhoudsclaim.
+- Migratie `20261019_0016_spotter_keys`, atomische database-snapshots met dagelijks vernieuwen tijdens spot-retrieve, admin/console `spotters status|sync|enable|disable`, expliciete synchronisatiefouten/ongeldige-keywaarschuwingen en behoud van vorige lijsten. OpenSSL is een expliciete PHP-platformvereiste. Bestaande spots/naamlijsten worden niet automatisch verwijderd of gemodereerd.
 - Browseperformance: sessielocks vrijgegeven voor lees-/providerrequests, asynchrone exacte nieuwtellers met fout/retry, ID-first lijstqueries en een geordende zoekpoging met database-tijdbudget en volledige sequentiele fallback. Letterlijke deeltekstsemantiek, filters en keysets blijven behouden.
 - Migratie `20261019_0015_browse_performance` voor zichtbaarheid-/type-datumindexen, optionele admin-only `APP_TIMING`-diagnose, synthetische 300k/1,3M-benchmark en echte gelijktijdige HTTP/NNTP-sessieregressie.
 - Volledige retrieve (`--full`/`--all`) respecteert retentie, met een optionele admin-begindatum. Geslaagde retrieves verwijderen alle verlopen spots en gekoppelde reacties in transactiebatches van 1000, zonder maximum per run; retentie `0` houdt alles bij.

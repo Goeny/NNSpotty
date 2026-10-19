@@ -24,7 +24,7 @@ final class AdminPageRenderer
      * @param array<int, array{post_id: string, username: string, comment: string, created_at: string}> $comments
      * @param array<int, array{actor_username: string, action: string, target_type: string, target_id: string, details_json: string, ip_address: string, created_at: string}> $auditLogs
      */
-    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = [], array $spotContent = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true], bool $apiEnabled = false, string $sabSettings = '', string $metadataSettings = ''): string
+    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = [], array $spotContent = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true], bool $apiEnabled = false, string $sabSettings = '', string $metadataSettings = '', string $spotterSettings = ''): string
     {
         $retention = (int) $settings['retention'];
         $retrieveAfter = h($settings['retrieve_after'] ?? '');
@@ -210,9 +210,12 @@ HTML;
     </div>
     <div data-admin-panel="moderation" id="moderation" class="my-4">
       <div>
+        {$spotterSettings}
         <div class="card mb-4">
           <div class="card-header fw-semibold">Spotter whitelist/blacklist</div>
           <div class="card-body">
+            <p class="small text-body-secondary">Oude naamlijsten: alleen registratie, geen badge of blokkade.
+            Gebruik de sleutelgebaseerde Spotlist-instellingen hierboven voor werkelijke moderatie.</p>
             <form method="post" action="/admin/spotters" class="row g-2 mb-3">
               {$csrfField}
               <div class="col-md-6">
