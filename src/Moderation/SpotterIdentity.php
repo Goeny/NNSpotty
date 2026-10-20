@@ -36,7 +36,13 @@ final class SpotterIdentity
                 . "-----END RSA PUBLIC KEY-----\n";
             $key = openssl_pkey_get_public($pem);
             if ($key === false) return $invalid;
-            if (openssl_verify('<' . $messageId . '>', $signature, $key, OPENSSL_ALGO_SHA1) !== 1) {
+            $verification = openssl_verify('<' . $messageId . '>', $signature, $key, OPENSSL_ALGO_SHA1);
+            if ($verification === -1 || $verification === false) {
+                throw new \RuntimeException('Spotnet RSA/SHA1-verificatie kon niet worden uitgevoerd door OpenSSL. '
+                    . 'Controleer de OpenSSL-providerconfiguratie en het cryptografiebeleid van deze PHP-runtime; '
+                    . 'de handtekening is niet als ongeldig beoordeeld.');
+            }
+            if ($verification !== 1) {
                 return $invalid;
             }
             return ['spotter_key' => hash('sha256', $modulus), 'signature_state' => 'verified'];

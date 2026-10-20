@@ -80,6 +80,40 @@ curl -fsS https://nnspotty.hopseflop.nl/health
 
 Controleer migratie `20261019_0016_spotter_keys` en de OpenSSL-platformvereiste voor zowel CLI als PHP-FPM. Synchroniseren moet geldige aantallen en een laatste update tonen; ongeldige bronvermeldingen worden expliciet als waarschuwing getoond, niet als lege geslaagde import. Na een echte synchronisatiefout niet blind opnieuw de schone retrieve starten. Herstel HTTPS/CA/netwerk; schakel TLS-verificatie niet uit.
 
+### OpenSSL-diagnostiek
+
+Bij `invalid digest` tijdens RSA/SHA1-testondertekening of Spotnet-verificatie: ondertekenen en verifieren afzonderlijk controleren. Een bekende geldige handtekening moet verificatieresultaat `1` geven; `0` betekent ongeldig en `-1`/`false` een uitvoeringsfout. NNSpotty stopt een retrieve bij die uitvoeringsfout, zonder de onvoltooide batchcursor te verhogen. Een eerder onterecht als invalid opgeslagen identiteit wordt hierdoor niet automatisch hersteld.
+
+Veilige alleen-lezen diagnostiek vanuit de projectmap:
+
+```bash
+php -v
+php --ini
+php --ri openssl
+php -r 'foreach (["OPENSSL_CONF", "OPENSSL_MODULES"] as $name) { $value = getenv($name); echo $name, "=", $value === false ? "(niet ingesteld)" : $value, PHP_EOL; }'
+if command -v openssl >/dev/null 2>&1; then
+    openssl version -a
+    openssl list -providers
+fi
+if command -v update-crypto-policies >/dev/null 2>&1; then
+    update-crypto-policies --show
+fi
+```
+
+De `openssl`-CLI kan een andere bibliotheek/configuratie gebruiken dan PHP. Laat de hoster de actieve providers, distributie-/FIPS-policy en RSA/SHA1-ondersteuning beoordelen voor zowel de cron/CLI-runtime als PHP-FPM. Geen publieke phpinfo-pagina plaatsen, systeembreed beleid verlagen of verificatie omzeilen. De diagnostiek toont versies, configuratiepaden en provider-/beleidsnamen, geen applicatiecredentials.
+
+Na herstel door de beheerder:
+
+```bash
+git pull --ff-only origin main
+php tests/run.php
+php -l src/Moderation/SpotterIdentity.php
+```
+
+De suite blijft op een blokkerende runtime expliciet falen; geen overgeslagen cryptografietests of geslaagde fallback. Een onderbroken historische retrieve met dezelfde eerder gebruikte full/days/all-modus hervatten, niet blind naar since-last wisselen. Eventuele hercontrole van al opgeslagen spots is een afzonderlijke refresh-beslissing; geen databasegegevens/cursors wissen.
+
+### Schone Spotlist-installatie en retrieve
+
 Voor de afgesproken schone spotinstallatie moeten spotdata **en bijbehorende spot-/commentcursors** coherent leeg zijn voordat je opnieuw begint. Er wordt hier bewust geen destructief leegmaakcommando gegeven. Stel in admin eerst retentie/begindatum/groepen goed in. Start pas na geslaagde sync/activatie:
 
 ```bash

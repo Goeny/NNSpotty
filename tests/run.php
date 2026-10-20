@@ -51,6 +51,7 @@ set_error_handler(static function (int $severity, string $message, string $file,
 });
 
 try {
+    require __DIR__ . '/openssl-unit.php';
     require __DIR__ . '/moderation.php';
     check(SpotnetParser::groups('') === ['free.pt' => 'spots', 'free.usenet' => 'comments'], 'Correcte Spotnet standaardgroepen');
     check(array_values(SpotnetParser::groups('comments:free.usenet,spots:free.pt')) === ['spots', 'comments'], 'Spots worden voor reacties verwerkt');

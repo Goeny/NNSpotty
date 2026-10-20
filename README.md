@@ -505,6 +505,8 @@ Als dagelijks vernieuwen mislukt, gebruikt retrieve de laatst succesvolle lijste
 
 ## Tests en controles
 
+Spotnet-sleutelcontrole vereist dat de actieve PHP/OpenSSL-runtime RSA/SHA1-handtekeningen kan **verifieren**; de synthetische tests moeten ze ook kunnen **ondertekenen**. Sommige serverbeleidsregels blokkeren dit met `invalid digest`. Een OpenSSL-verificatiefout (`-1`/`false`) wordt expliciet als runtimefout gemeld, niet als ongeldige handtekening (`0`). Een retrieve stopt dan met status `failed` en schuift de cursor niet voorbij de betrokken batch; eerder opgeslagen batches/spots blijven behouden. Dit geldt ook wanneer Spotlist-moderatie uit staat, omdat spotteridentiteit onafhankelijk wordt gecontroleerd. Geen automatische fallback, testskip of verlaging van systeembeleid. Laat de hoster het beleid voor CLI en PHP-FPM beoordelen; zie [OpenSSL-diagnostiek](./docs/linux-server-testing.md#openssl-diagnostiek).
+
 ```bash
 # Zonder echte Usenet-/TVDB-/SABnzbd-verbinding of database:
 php tests/run.php
