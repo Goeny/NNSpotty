@@ -464,7 +464,7 @@ $router->post('/admin/spotters', static function (Request $request) use ($state,
     return Response::redirect('/admin?status=' . rawurlencode('Spotter toegevoegd aan ' . $listType . '.') . '#moderation');
 });
 
-$router->post('/admin/comments', static function (Request $request) use ($state, $auth, $csrf, $auditLogs, $spots): Response {
+$router->post('/admin/comments', static function (Request $request) use ($state, $auth, $csrf): Response {
     if (!$auth->isAuthenticated()) {
         return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
     }
@@ -475,33 +475,8 @@ $router->post('/admin/comments', static function (Request $request) use ($state,
         return Response::redirect('/admin?status=' . rawurlencode('Ongeldige CSRF token.'));
     }
 
-    $postId = trim((string) ($request->input('post_id') ?? ''));
-    $currentUser = $auth->user();
-    if ($currentUser === null) {
-        return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
-    }
-    $comment = trim((string) ($request->input('comment') ?? ''));
-    if ($spots->getSpot($postId, $state->canViewErotica($currentUser['username'])) === null) {
-        return Response::notFound();
-    }
-
-    if ($postId === '' || $comment === '') {
-        return Response::redirect('/admin?status=' . rawurlencode('Comment kon niet worden opgeslagen: onvolledige invoer.'));
-    }
-
-    $state->addComment($postId, $currentUser['username'], $comment);
-    $auditLogs->log(
-        actorUsername: $currentUser['username'],
-        action: 'post.comment.added',
-        targetType: 'post',
-        targetId: $postId,
-        details: [
-            'comment_length' => strlen($comment),
-        ],
-        ipAddress: $request->clientIp()
-    );
-
-    return Response::redirect('/admin?status=' . rawurlencode('Comment opgeslagen.') . '#moderation');
+    return new Response(410, 'Lokale reactieplaatsing is vervallen. Publiceer via de detailpagina van de spot op Usenet.',
+        ['Content-Type' => 'text/plain; charset=utf-8']);
 });
 
 $router->get('/preferences', static function (Request $request) use ($state, $auth, $csrf, $pdo): Response {
@@ -854,7 +829,7 @@ $router->get('/spots/nzb', static function (Request $request) use ($auth, $spots
     }
 });
 
-$router->post('/spots/comment', static function (Request $request) use ($auth, $csrf, $spots, $state): Response {
+$router->post('/spots/comment', static function (Request $request) use ($auth, $csrf, $spots, $state, $pdo): Response {
     if (!$auth->isAuthenticated()) {
         return Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
     }
@@ -862,23 +837,54 @@ $router->post('/spots/comment', static function (Request $request) use ($auth, $
         return new Response(403, 'Reacties zijn door de beheerder uitgeschakeld.');
     }
     $id = (string) ($request->input('spot_id') ?? '');
-    if ($spots->getSpot($id, $state->canViewErotica($auth->user()['username'])) === null) {
+    $spot = $spots->getSpot($id, $state->canViewErotica($auth->user()['username']));
+    if ($spot === null) {
         return Response::notFound();
     }
     $location = '/spots/view?key=' . rawurlencode($id);
     if (!$csrf->verify($request->input('_csrf'))) {
         return Response::redirect($location . '&status=' . rawurlencode('Ongeldige CSRF token.'));
     }
-    $body = trim((string) ($request->input('comment') ?? ''));
-    if ($body === '' || strlen($body) > 10000 || preg_match('//u', $body) !== 1) {
-        return Response::redirect($location . '&status=' . rawurlencode('Een reactie moet geldige tekst bevatten en maximaal 10000 bytes lang zijn.'));
-    }
     $user = $auth->user();
     if ($user === null) {
         return Response::redirect('/login');
     }
-    $state->addComment($id, $user['username'], $body);
-    return Response::redirect($location . '&status=' . rawurlencode('Reactie lokaal geplaatst; niet naar Usenet verstuurd.'));
+    $csrfField = $csrf->field();
+    $preferences = $state->getPreferences($user['username']);
+    session_write_close();
+    $body = '';
+    $publicationId = null;
+    try {
+        $body = $request->inputScalar('comment') ?? '';
+        $publicationId = $request->inputScalar('publication_id');
+        if ($request->inputScalar('publish_consent') !== '1') {
+            throw new InvalidArgumentException('Bevestig dat je de reactie openbaar op Usenet wilt publiceren.');
+        }
+        (new \NnSpotty\Comments\Publisher($pdo, $state))->publish($user['username'], $spot, $body, $publicationId ?? '');
+        return Response::redirect($location . '&status=' . rawurlencode('Reactie door de Usenet-provider geaccepteerd. Verspreiding naar andere readers kan even duren.') . '#comments');
+    } catch (\NnSpotty\Comments\PublicationException | InvalidArgumentException $exception) {
+        $message = $exception->getMessage();
+        $status = $exception instanceof InvalidArgumentException ? 422 : 502;
+    } catch (\Throwable $exception) {
+        error_log('Usenet-reactiepublicatie mislukt: ' . $exception->getMessage());
+        $message = 'Publiceren kon niet worden afgerond door een serverfout. Controleer de serverlog en de publicatiestatus voordat je opnieuw probeert.';
+        $status = 500;
+    }
+    $content = $state->spotContentSettings();
+    $spot = (new \NnSpotty\Favorites\Repository($pdo))->annotate([$spot], $user['username'])[0];
+    $html = SpotDetailPageRenderer::render(
+        $user['username'], $user['is_admin'], $spot, $spots->comments($id), $csrfField,
+        $message, theme: $preferences['theme'], showErotica: $state->canViewErotica($user['username']),
+        showComments: $content['show_comments'], imagesEnabled: $content['images_enabled'], retrieveComments: $content['retrieve_comments'],
+        metadataControls: $spot['category'] === 'Geluid'
+            ? ((new \NnSpotty\Music\Repository($pdo))->allowed($user['username']) ? \NnSpotty\Music\View::controls($spot, $user['is_admin'], $csrfField) : '')
+            : ((new \NnSpotty\Metadata\Repository($pdo))->allowed($user['username']) ? \NnSpotty\Metadata\View::controls($spot, $user['is_admin'], $csrfField) : ''),
+        facets: null,
+        commentDraft: strlen($body) <= 10000 && preg_match('//u', $body) === 1 ? $body : '',
+        commentRequestId: $publicationId !== null && preg_match('/^[a-f0-9]{64}$/D', $publicationId) ? $publicationId : null,
+        commentError: true
+    );
+    return new Response($status, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
 });
 
 $router->post('/preferences', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {

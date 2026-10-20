@@ -23,6 +23,7 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 - [Muziekmetadata: MusicBrainz en Cover Art Archive](#muziekmetadata-musicbrainz-en-cover-art-archive)
 - [Console, onderhoud en updates](#console-onderhoud-en-updates)
 - [Spotter whitelist en blacklist](#spotter-whitelist-en-blacklist)
+- [Reacties publiceren op Usenet](#reacties-publiceren-op-usenet)
 - [Tests en controles](#tests-en-controles)
 - [Beperkingen en vervolgwerk](#beperkingen-en-vervolgwerk)
 - [Documentatie en bijdragen](#documentatie-en-bijdragen)
@@ -91,8 +92,9 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 
 - Veilige HTML-/Spotnet-opmaak in omschrijvingen en geimporteerde reacties: onder andere `[br]`, vet, cursief, onderstrepen, doorhalen, quotes, codeblokken, links en lijsten.
 - Kleur-, font-, grootte- en uitlijningstags behouden de tekst zonder externe stijlen uit te voeren. Scripts, embeds, eventhandlers en remote CSS worden niet uitgevoerd; afbeeldingen in omschrijvingen/reacties worden niet geladen.
-- Usenet-reacties uit `free.usenet`, gekoppeld aan de oorspronkelijke spot. De gecodeerde reactie-ID gaat voor een eventueel foutief `References`-veld; bestaande oudere koppelingen worden via migratie hersteld.
-- Reacties tonen auteur, datum en bron. Lokale reacties plaatsen vanuit de detailpagina; deze blijven in NNSpotty en worden **niet op Usenet gepubliceerd**.
+- Usenet-reacties uit `free.usenet`, gekoppeld aan de oorspronkelijke spot. Een volledige `References` die exact overeenkomt met de reactie-ID-structuur bewaart ook spot-IDs met punten; anders gaat de gecodeerde reactie-ID voor een eventueel foutief `References`-veld. Bestaande oudere koppelingen worden via migratie hersteld.
+- Reacties tonen auteur, datum en bron. **Nieuwe reacties worden altijd op Usenet gepubliceerd**, via het formulier onder de volledige spot; geen lokale plaatsingsoptie of terugval. Bestaande lokale reacties blijven leesbaar. Het oude lokale adminformulier is vervallen; `/admin/comments` accepteert geen nieuwe reacties meer.
+- Bij het tekstveld staan 28 klikbare emoticonknoppen (dubbele aliassen weggelaten). Ze voegen compatibele `[img=...]-codes` op de cursorpositie in of vervangen de geselecteerde tekst. Knoppen werken met toetsenbord; geen externe afbeeldingen. Zonder JavaScript kun je codes zelf typen en het formulier gewoon verzenden.
 - Alle 30 bekende Spotweb-emoticoncodes uit de reactieknoppen worden hoofdletterongevoelig herkend, met moderne statische emoji's/tekstbadges in plaats van animated GIF's.
 - Onder andere `[img=buigen]`, `[img=klappen]`, `[img=respekt]`, alias `[img=respect]` en `[img=knipoog]`/`[img=wink]`. Codeblokken blijven letterlijk; onbekende codes en afbeelding-URLs laden geen beelden.
 - Lokale reacties blijven geescapete tekst met emoticonondersteuning. Emoticons werken ook bij uitgeschakelde postafbeeldingen.
@@ -503,6 +505,22 @@ Beide feeds worden eerst opgehaald/gevalideerd en daarna **samen transactioneel*
 
 Als dagelijks vernieuwen mislukt, gebruikt retrieve de laatst succesvolle lijsten met een expliciete waarschuwing. Als nog nooit een geldige synchronisatie is gelukt, **faalt een retrieve met ingeschakelde moderatie**, zodat er niet stilzwijgend zonder blacklist wordt geimporteerd. Een databasefout blijft een fout. Bij cURL-code 60: herstel de CA-configuratie van zowel CLI-PHP als PHP-FPM (`curl.cainfo`/systeemcertificaten); TLS-controle niet uitschakelen. Deze lijsten worden niet tijdens paginaweergave of per spot extern opgehaald.
 
+### Reacties publiceren op Usenet
+
+1. Bestaande installaties: voer `php bin/console db migrate` uit voor migratie **`20261020_0020_comment_publication`**.
+2. Stel onder **Beheerpanel > Usenet** een verbinding in waarmee je provider **NNTP POST toestaat**, en precies een reactiegroep, normaal `comments:free.usenet` naast `spots:free.pt`. De bestaande verbinding wordt gebruikt; geen aparte postserver/credentials in deze versie.
+3. **Reacties weergeven en op Usenet publiceren toestaan** moet aan staan. Reacties *indexeren* staat daar los van: publiceren werkt ook als periodiek ophalen uit staat. RSA-sleutelaanmaak, RSA/SHA1-ondertekening en verificatie moeten in de actieve PHP-runtime werken. De bekende serverblokkade met `invalid digest` geeft een zichtbare configuratiemelding, zonder Usenet-request of lokale reactie als fallback. NNSpotty wijzigt geen serverbeleid.
+4. Open een zichtbare spot, schrijf een reactie, voeg eventueel emoticons toe en bevestig dat je openbaar wilt publiceren. **Op Usenet publiceren** verstuurt onder je ingelogde gebruikersnaam; er wordt geen e-mailadres uit een gebruikersprofiel gedeeld. De From-header gebruikt een synthetisch adres. De publieke waarschuwing geldt ook zonder JavaScript. NNSpotty kan een eenmaal gepubliceerde reactie niet intrekken.
+5. Na NNTP-status **240** staat de reactie meteen in de lokale **Usenet-cache** met bron Usenet. Een latere retrieve met hetzelfde message-ID maakt geen duplicaat. Acceptatie door je provider garandeert niet dat iedere andere provider/reader de reactie al heeft; controleer echte interoperabiliteit in Spotnet/Spotweb.
+
+Protocol: spotverwijzing in `References` en een reactie-message-ID met rating `0` (geen door de gebruiker opgegeven beoordeling) en 16-bit SHA1-proof-of-work; persoonlijke RSA/SHA1-handtekening over message-ID, exacte body en From, plus serverhandtekening over message-ID. Dit is een eigen implementatie op basis van [Spotwebs protocolverwerking](https://github.com/spotweb/spotweb/blob/develop/lib/services/Signing/Services_Signing_Base.php), met POST-artikelopbouw/dot-stuffing uit [php-nntp](https://github.com/rvdv/nntp). Geen overgenomen Spotweb-code of nieuwe dependency.
+
+Klassieke Spotnet-compatibiliteit gebruikt ISO-8859-1/8bit: maximaal 10000 UTF-8-bytes invoer en 900 bytes per verzonden regel. Niet-representeerbare tekens (zoals rechtstreeks geplakte emoji) worden expliciet geweigerd in plaats van stil gewijzigd; gebruik emoticoncodes. Ook gebruikersnaam en spottitel moeten in die tekenset passen. De reactie en het publicatieformulier blijven bij een normale fout behouden. Ongeldige UTF-8 of te grote invoer wordt niet terug in het formulier geplaatst.
+
+Een gebruikerslock, maximaal een verzendpoging per 30 seconden en een unieke formulier-ID voorkomen gelijktijdige/dubbele verzending van hetzelfde formulier. Bij een definitieve weigering verschijnt een fout; bij verbindingsverlies na verzendstart is de uitkomst **onbekend**, zonder automatische retry. Controleer dan eerst via retrieve/andere reader; een nieuwe detailpagina heeft een nieuw formulier en kan anders alsnog een dubbel bericht veroorzaken. Een later opgehaalde reactie met hetzelfde ID, spot, auteur en inhoud kan de eerdere poging bevestigen. Een geslaagde providerpublicatie kan niet door een databasefout worden teruggedraaid.
+
+`comment_signing_keys` bewaart een stabiele persoonlijke 2048-bits RSA-identiteit per username en een serveridentiteit; `comment_publications` bewaart poging, tekst, message-ID en status voor idempotentie en diagnose. Privatesleutels staan herstelbaar in de database, niet in HTML/logs. **Bescherm database/backups en databaseaccounts**; wissen/vervangen van sleutels verandert de publieke identiteit. Gebruiker verwijderen ruimt persoonlijke sleutels en pogingen op; spotretentie verwijdert gekoppelde pogingen. Publicaties op Usenet worden daarmee niet verwijderd. Pogingstekst wordt ook bij een providerfout voor diagnose bewaard, maar nooit als lokale reactie getoond.
+
 ## Tests en controles
 
 Spotnet-sleutelcontrole vereist dat de actieve PHP/OpenSSL-runtime RSA/SHA1-handtekeningen kan **verifieren**; de synthetische tests moeten ze ook kunnen **ondertekenen**. Sommige serverbeleidsregels blokkeren dit met `invalid digest`. Een OpenSSL-verificatiefout (`-1`/`false`) wordt expliciet als runtimefout gemeld, niet als ongeldige handtekening (`0`). Een retrieve stopt dan met status `failed` en schuift de cursor niet voorbij de betrokken batch; eerder opgeslagen batches/spots blijven behouden. Dit geldt ook wanneer Spotlist-moderatie uit staat, omdat spotteridentiteit onafhankelijk wordt gecontroleerd. Geen automatische fallback, testskip of verlaging van systeembeleid. Laat de hoster het beleid voor CLI en PHP-FPM beoordelen; zie [OpenSSL-diagnostiek](./docs/linux-server-testing.md#openssl-diagnostiek).
@@ -540,7 +558,7 @@ Een fixturetest bewijst geen providerbeschikbaarheid. Controleer met je eigen ac
 - Nog geen installatiewizard, ingebouwde scheduler/jobqueue of begin-/einddatumkalender voor historische retrieve; gebruik voorlopig console/cron en retentie in dagen.
 - Spottercontrole ondersteunt RSA/SHA1 over message-ID met exponent 65537, geen volledige header-/XML-/commenthandtekeningverificatie of echte-persoonsidentificatie. Ontbrekende/ongeldige handtekeningen blijven toegestaan. De externe Spotlist-inhoud is een moderatiebron, geen garantie voor betrouwbare of veilige inhoud.
 - Niet alle exotische Spotnet-tags/legacy-XML, dagelijkse/absolute afleveringscodes of multi-episodevarianten worden volledig ondersteund.
-- Geen Usenet-publicatie van lokale reacties, playback, reviews of verzonnen verificatie-/beoordelingsbadges.
+- Bestaande lokale reacties worden niet alsnog op Usenet gepubliceerd. Geen playback, reviews of verzonnen verificatie-/beoordelingsbadges.
 - Geen NZBGet-forwarding, afgeronde SABnzbd-historiesynchronisatie of SABnzbd-pauzeer/verwijderbediening.
 - Geen aparte IMDb-provider, klikbare cast-/crew-/studio-/netwerkontdekfilters of Newznab IMDb/TVDB-ID-zoeken. Externe IDs worden waar beschikbaar wel bewaard voor vervolgwerk.
 - Geen automatische filmkeuze voor onduidelijke collecties of niet-unieke titel-/jaarmatches.

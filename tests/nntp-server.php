@@ -39,7 +39,12 @@ while ($socket = stream_socket_accept($server, 60)) {
     $group = '';
     while (($line = fgets($socket)) !== false) {
         $command = rtrim($line, "\r\n");
-        if ($command === 'LIST OVERVIEW.FMT') {
+        if ($command === 'POST') {
+            fwrite($socket, "340 Send article\r\n");
+            while (($postedLine = fgets($socket)) !== false && $postedLine !== ".\r\n") {
+            }
+            fwrite($socket, "240 Article received\r\n");
+        } elseif ($command === 'LIST OVERVIEW.FMT') {
             multiline($socket, '215 Overview format', "Subject:\r\nFrom:\r\nDate:\r\nMessage-ID:\r\nReferences:\r\n:bytes\r\n:lines\r\nXref:full");
         } elseif (str_starts_with($command, 'GROUP ')) {
             $group = substr($command, 6);

@@ -27,11 +27,16 @@ final class SpotDetailPageRenderer
         bool $imagesEnabled = true,
         bool $retrieveComments = true,
         string $metadataControls = '',
-        ?array $facets = []
+        ?array $facets = [],
+        string $commentDraft = '',
+        ?string $commentRequestId = null,
+        bool $commentError = false
     ): string {
         $id = h($spot['id']);
         $summary = self::summary($spot, false, $imagesEnabled, $showComments, metadataLink: $metadataControls !== '');
-        $status = $statusMessage !== null ? '<div class="alert alert-info" role="status">' . h($statusMessage) . '</div>' : '';
+        $statusClass = $commentError ? 'warning' : 'info';
+        $statusRole = $commentError ? 'alert' : 'status';
+        $status = $statusMessage !== null ? '<div class="alert alert-' . $statusClass . '" role="' . $statusRole . '">' . h($statusMessage) . '</div>' : '';
         $commentHtml = '';
         foreach ($showComments ? $comments : [] as $comment) {
             $commentHtml .= '<article class="border-bottom py-3"><div class="fw-semibold">' . h($comment['poster'])
@@ -47,6 +52,9 @@ final class SpotDetailPageRenderer
             }
         }
         $count = count($comments);
+        $emoticons = SpotEmoticons::toolbar('comment');
+        $draft = h($commentDraft);
+        $publicationId = h($commentRequestId ?? bin2hex(random_bytes(32)));
         $retrievalNotice = !$retrieveComments ? '<div class="alert alert-info small">Usenet-reacties ophalen is uitgeschakeld. Hieronder staan alleen eerder opgeslagen en lokale reacties.</div>' : '';
         $commentsSection = !$showComments ? '<section class="card mt-4"><div class="card-body text-body-secondary">Reacties zijn door de beheerder uitgeschakeld.</div></section>' : <<<HTML
 <section class="card mt-4" id="comments">
@@ -54,13 +62,17 @@ final class SpotDetailPageRenderer
   <div class="card-body">
     {$retrievalNotice}
     {$commentHtml}
-    <form method="post" action="/spots/comment" class="mt-3">
+    <form method="post" action="/spots/comment" class="mt-3" data-comment-form>
       {$csrfField}<input type="hidden" name="spot_id" value="{$id}">
-      <label class="form-label" for="comment">Lokale reactie plaatsen</label>
-      <textarea class="form-control mb-2" name="comment" id="comment" rows="4" maxlength="10000" required></textarea>
-      <p class="form-text">Emoticoncodes zoals [img=smile], [img=buigen], [img=klappen] en [img=respekt] worden als moderne emoji's weergegeven.</p>
-      <p class="form-text">Deze reactie blijft in NNSpotty en wordt niet op Usenet gepubliceerd.</p>
-      <button class="btn btn-primary" type="submit">Reactie plaatsen</button>
+      <input type="hidden" name="publication_id" value="{$publicationId}">
+      <label class="form-label" for="comment">Reactie op Usenet plaatsen</label>
+      <textarea class="form-control mb-2" name="comment" id="comment" rows="4" maxlength="10000" aria-describedby="comment-help" required>{$draft}</textarea>
+      {$emoticons}
+      <p class="form-text" id="comment-help">Klik op een emoticon om de bijbehorende [img=...]-code in te voegen. Maximaal 10000 UTF-8-bytes en 900 bytes per regel; West-Europese tekst voor klassieke Spotnet-readers.</p>
+      <div class="alert alert-warning small">Je reactie en gebruikersnaam worden openbaar op Usenet, ook voor andere Spotnet-/Spotweb-gebruikers. Publicatie is niet via NNSpotty in te trekken; verspreiding hangt af van de provider.</div>
+      <div class="form-check mb-3"><input class="form-check-input" id="publish-consent" name="publish_consent" value="1" type="checkbox" required><label class="form-check-label" for="publish-consent">Ik wil deze reactie openbaar op Usenet publiceren.</label></div>
+      <button class="btn btn-primary" type="submit" data-comment-submit>Op Usenet publiceren</button>
+      <div class="alert alert-info mt-2" role="status" data-comment-progress hidden><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Reactie ondertekenen en naar Usenet versturen...</div>
     </form>
   </div>
 </section>

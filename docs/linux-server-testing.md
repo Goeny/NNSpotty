@@ -8,6 +8,40 @@ cp .env.example .env
 # vul daarna .env met jouw basis app + DB gegevens
 ```
 
+## Usenet-reacties publiceren en emoticons accepteren
+
+Pauzeer retrieves/cron tijdens de update, maak een databasebackup volgens je normale beheerprocedure en voer vanuit de bestaande projectmap op nnspotty.hopseflop.nl uit:
+
+```bash
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+php bin/console db migrate
+php bin/console db status
+php -l src/Comments/Article.php
+php -l src/Comments/Publisher.php
+php -l public/index.php
+curl -fsS https://nnspotty.hopseflop.nl/health
+```
+
+Controleer migratie `20261020_0020_comment_publication`. RSA-privatesleutels worden bij eerste publicatiepoging server-side in de database aangemaakt, nooit als projectbestand. Bescherm database/backups. Wis bestaande spots/cursors of sleutels niet.
+
+```bash
+# Alleen synthetische providers, geen echte publicatie:
+php tests/run.php
+```
+
+De suite vereist werkende RSA/SHA1-ondertekening en verificatie. Bij de bekende geblokkeerde serverconfiguratie mag deze expliciet falen; dat is geen reden een crypto-omweg of lokale reactie te gebruiken. De UI hoort dan bij publicatie een nette melding over serverconfiguratie te tonen met behoud van je tekst, zonder providerrequest of zichtbare nieuwe reactie. Eerst migreren, zodat een ontbrekende tabel deze melding niet maskeert. De web-runtime kan van CLI verschillen.
+
+Ververs assets met Ctrl+F5. Test mobiel/desktop en donker/licht: 28 emoticonknoppen bij het veld, toegankelijke namen, invoegen op cursorpositie, selectie vervangen, focus terug naar textarea, maxlength zonder stil afkappen. Bevestiging van openbare publicatie is verplicht; geen lokale keuze. Controleer ook handmatig getypte codes en native formulier zonder JavaScript.
+
+Na herstel van de serverconfiguratie: stel een provider met POST-rechten en `comments:free.usenet` in. Plaats alleen een bewuste, toegestane publieke testreactie op een passende spot. Verwacht providerbevestiging, bron Usenet en geen dubbele reactie bij herhaalde submit of latere retrieve. Controleer daarna dezelfde spot in Spotnet/Spotweb; verspreiding is niet onmiddellijk gegarandeerd. Bij een onbekende verzenduitkomst niet blind opnieuw plaatsen. Publicatie is niet via NNSpotty intrekbaar. Het oude adminformulier mag niet meer lokaal publiceren; historische reacties blijven zichtbaar. Globaal reacties uit blokkeert ook publicatie; alleen ophalen uit niet.
+
+Optioneel reacties ophalen binnen het ingestelde retentie-/datumbeleid (dit publiceert niets, maar kan netwerk-/databasewerk doen):
+
+```bash
+php bin/console retrieve --comments-only --days=1 --verbose
+```
+
 ## Kwaliteitsbadges accepteren
 
 Vanuit de bestaande installatiemap op `nnspotty.hopseflop.nl`, zonder actieve retrieve tijdens de code-update:

@@ -70,6 +70,7 @@ final class SpotLayout
   <script src="/assets/metadata.js" defer></script>
   <script src="/assets/retrieve.js" defer></script>
   <script src="/assets/favorites.js" defer></script>
+  <script src="/assets/comments.js" defer></script>
   {$scripts}
 </head>
 <body class="spotty">

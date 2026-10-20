@@ -154,7 +154,20 @@ final class SpotnetParser
         $references = $headers['references'][0] ?? '';
         preg_match_all('/<([^<>]+)>/', $references, $matches);
         $encodedReference = self::commentReference($messageId);
-        if ($encodedReference !== null) {
+        $matchingReference = null;
+        foreach ($matches[1] as $candidate) {
+            if (!str_contains($candidate, '@')) continue;
+            [$referenceLocal, $referenceDomain] = explode('@', $candidate, 2);
+            // A consistent full reference disambiguates original IDs containing dots.
+            if (preg_match('/^' . preg_quote($referenceLocal, '/') . '\.\d{1,2}\.[a-zA-Z0-9]+\.[a-zA-Z0-9]+@'
+                . preg_quote($referenceDomain, '/') . '$/D', $messageId) === 1) {
+                $matchingReference = self::messageId($candidate);
+                break;
+            }
+        }
+        if ($matchingReference !== null) {
+            $spotMessageId = $matchingReference;
+        } elseif ($encodedReference !== null) {
             $spotMessageId = $encodedReference;
         } elseif ($matches[1] !== []) {
             $spotMessageId = self::messageId($matches[1][0]);

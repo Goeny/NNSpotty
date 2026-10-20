@@ -6,6 +6,7 @@ namespace NnSpotty\Usenet;
 
 use Rvdv\Nntp\Command\ArticleCommand;
 use Rvdv\Nntp\Command\HeadCommand;
+use Rvdv\Nntp\Command\PostArticleCommand;
 use Rvdv\Nntp\Connection\Connection;
 use Rvdv\Nntp\Exception\RuntimeException as NntpException;
 use Rvdv\Nntp\Response\MultiLineResponse;
@@ -89,5 +90,18 @@ final class PipelineConnection extends Connection
             if (strlen($line) > $limit + 2) throw new NntpException('NNTP pipeline-regel is te lang.');
         } while (!str_ends_with($line, "\r\n"));
         return substr($line, 0, -2);
+    }
+
+    public function publishComment(PostArticleCommand $command): void
+    {
+        $wire = $command() . "\r\n.\r\n";
+        while ($wire !== '') {
+            $written = $this->transport->write($wire);
+            if ($written < 1 || $written > strlen($wire)) throw new NntpException('NNTP-reactie schrijven mislukt.');
+            $wire = substr($wire, $written);
+        }
+        $status = $this->line(512);
+        if (str_starts_with($status, '441 ')) throw new NntpException('Usenet-provider heeft de reactie geweigerd.', 441);
+        if (!str_starts_with($status, '240 ')) throw new NntpException('Geen geldige publicatiebevestiging van de Usenet-provider.');
     }
 }

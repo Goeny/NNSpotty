@@ -469,6 +469,29 @@ final class Migrator
                     FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             ],
+            '20261020_0020_comment_publication' => [
+                'CREATE TABLE IF NOT EXISTS comment_signing_keys (
+                    scope VARCHAR(191) CHARACTER SET ascii PRIMARY KEY,
+                    username VARCHAR(191) NULL,
+                    private_key TEXT NOT NULL,
+                    FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS comment_publications (
+                    username VARCHAR(191) NOT NULL,
+                    request_id CHAR(64) CHARACTER SET ascii NOT NULL,
+                    spot_id CHAR(64) CHARACTER SET ascii NOT NULL,
+                    message_id VARCHAR(250) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+                    body TEXT NOT NULL,
+                    status VARCHAR(16) NOT NULL,
+                    error_message VARCHAR(500) NULL,
+                    created_at DATETIME NOT NULL,
+                    PRIMARY KEY (username, request_id),
+                    UNIQUE KEY uq_comment_message (message_id),
+                    INDEX idx_comment_rate (username, created_at),
+                    FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE,
+                    FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+            ],
         ];
     }
 }

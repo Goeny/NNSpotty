@@ -49,7 +49,7 @@ final class AdminPageRenderer
         $eroticaChecked = $allowErotica ? 'checked' : '';
         $apiChecked = $apiEnabled ? 'checked' : '';
         $contentOptions = '';
-        foreach (['retrieve_comments' => 'Usenet-reacties indexeren', 'show_comments' => 'Reacties weergeven en lokale reacties toestaan', 'images_enabled' => 'Afbeeldingen ophalen en tonen (op aanvraag)'] as $key => $label) {
+        foreach (['retrieve_comments' => 'Usenet-reacties indexeren', 'show_comments' => 'Reacties weergeven en op Usenet publiceren toestaan', 'images_enabled' => 'Afbeeldingen ophalen en tonen (op aanvraag)'] as $key => $label) {
             $contentOptions .= '<div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="' . $key
                 . '" name="' . $key . '" value="1"' . ($spotContent[$key] ? ' checked' : '') . '><label class="form-check-label" for="' . $key . '">' . h($label) . '</label></div>';
         }
@@ -58,18 +58,7 @@ final class AdminPageRenderer
         $blacklistItems = self::renderSimpleList($spotterLists['blacklist']);
         $commentRows = self::renderCommentRows($comments);
         $commentPanel = !$spotContent['show_comments'] ? '<p class="text-body-secondary">Reacties zijn door de beheerder uitgeschakeld.</p>' : <<<HTML
-            <form method="post" action="/admin/comments" class="row g-2 mb-3">
-              {$csrfField}
-              <div class="col-md-6">
-                <input class="form-control" name="post_id" type="text" placeholder="Post ID" required>
-              </div>
-              <div class="col-md-6">
-                <button class="btn btn-primary w-100" type="submit">Comment toevoegen</button>
-              </div>
-              <div class="col-12">
-                <textarea class="form-control" name="comment" rows="3" placeholder="Comment tekst" required></textarea>
-              </div>
-            </form>
+            <p class="text-body-secondary">Nieuwe reacties plaats je via de detailpagina van de spot. Ze worden altijd op Usenet gepubliceerd. Hieronder staan eerder lokaal opgeslagen reacties.</p>
             <div class="table-responsive">
               <table class="table table-sm align-middle">
                 <thead><tr><th>Post</th><th>User</th><th>Comment</th><th>Tijd</th></tr></thead>

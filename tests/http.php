@@ -227,8 +227,19 @@ try {
     httpFixture($httpPort, '/spots/comment', $cookie, ['spot_id' => $spotId, 'comment' => 'Niet opslaan']);
     check(count($spots->comments($spotId)) === $before, 'Reactie zonder CSRF wordt niet opgeslagen');
     preg_match('/name="_csrf" value="([^"]+)"/', $detail['body'], $token);
-    $response = httpFixture($httpPort, '/spots/comment', $cookie, ['_csrf' => $token[1], 'spot_id' => $spotId, 'comment' => 'Via de echte route']);
-    check($response['status'] === 302 && count($spots->comments($spotId)) === $before + 1, 'Lokale reactie plaatsen via echte HTTP-route');
+    preg_match('/name="publication_id" value="([^"]+)"/', $detail['body'], $publicationToken);
+    $commentForm = ['_csrf' => $token[1], 'spot_id' => $spotId, 'comment' => 'Via de echte route', 'publication_id' => $publicationToken[1]];
+    $withoutConsent = httpFixture($httpPort, '/spots/comment', $cookie, $commentForm);
+    check($withoutConsent['status'] === 422 && count($spots->comments($spotId)) === $before
+        && str_contains($withoutConsent['body'], 'Via de echte route'), 'Usenet-publicatie vereist toestemming en bewaart concept bij fout');
+    $commentForm['publish_consent'] = '1';
+    $response = httpFixture($httpPort, '/spots/comment', $cookie, $commentForm);
+    check($response['status'] === 302 && count($spots->comments($spotId)) === $before + 1
+        && $pdo->query("SELECT status FROM comment_publications WHERE request_id = '" . $publicationToken[1] . "'")->fetchColumn() === 'posted',
+        'Reactie via echte HTTP-route en NNTP POST gepubliceerd na providerbevestiging');
+    $duplicatePublication = httpFixture($httpPort, '/spots/comment', $cookie, $commentForm);
+    check($duplicatePublication['status'] === 302 && count($spots->comments($spotId)) === $before + 1,
+        'Dubbele HTTP-submit veroorzaakt geen tweede Usenet-reactie');
     $admin = httpFixture($httpPort, '/admin', $cookie);
     check($admin['status'] === 200 && str_contains($admin['body'], 'comments:free.usenet') && !str_contains($admin['body'], 'alt.binaries.movies'), 'Admin toont de juiste Spotnet-configuratie');
     check(str_contains($admin['body'], 'spotter-lists-enabled') && str_contains($admin['body'], 'Lijsten nu bijwerken')
@@ -392,8 +403,8 @@ try {
         check(httpFixture($httpPort, '/spots/image?key=' . $adultKey, $cookie)['status'] === 404, $scenario . ': ook gecachte afbeelding geweigerd');
         $before = count($spots->comments($adult['id']));
         check(httpFixture($httpPort, '/spots/comment', $cookie, ['_csrf' => $token[1], 'spot_id' => $adult['id'], 'comment' => 'Niet opslaan'])['status'] === 404
-            && httpFixture($httpPort, '/admin/comments', $cookie, ['_csrf' => $token[1], 'post_id' => $adult['id'], 'comment' => 'Niet opslaan'])['status'] === 404
-            && count($spots->comments($adult['id'])) === $before, $scenario . ': beide reactieroutes geweigerd');
+            && httpFixture($httpPort, '/admin/comments', $cookie, ['_csrf' => $token[1], 'post_id' => $adult['id'], 'comment' => 'Niet opslaan'])['status'] === 410
+            && count($spots->comments($adult['id'])) === $before, $scenario . ': Usenet-route afgeschermd en oude lokale adminroute vervallen');
     };
     check(!$state->eroticaAllowed() && !$state->getPreferences('http-tester')['show_erotica'], 'Erotica standaard globaal en persoonlijk uit');
     $assertHidden('Globaal uit');
@@ -414,7 +425,9 @@ try {
     check(in_array('Cache-Control: private, no-store', $visible['headers'], true)
         && in_array('Cache-Control: private, no-store', httpFixture($httpPort, '/spots/image?key=' . $adultKey, $cookie)['headers'], true), 'Zichtbaarheid kan worden ingetrokken zonder private browsercache');
     $before = count($spots->comments($adult['id']));
-    httpFixture($httpPort, '/spots/comment', $cookie, ['_csrf' => $token[1], 'spot_id' => $adult['id'], 'comment' => 'Toegestane reactie']);
+    $pdo->exec("UPDATE comment_publications SET created_at = UTC_TIMESTAMP() - INTERVAL 1 MINUTE");
+    httpFixture($httpPort, '/spots/comment', $cookie, ['_csrf' => $token[1], 'spot_id' => $adult['id'], 'comment' => 'Toegestane reactie',
+        'publish_consent' => '1', 'publication_id' => bin2hex(random_bytes(32))]);
     check(count($spots->comments($adult['id'])) === $before + 1, 'Opt-in staat reageren op zichtbare erotica toe');
     httpFixture($httpPort, '/admin/content', $cookie, ['_csrf' => $token[1]]);
     check(!$state->canViewErotica('http-tester') && $state->getPreferences('http-tester')['show_erotica'], 'Globale blokkade overrulet opgeslagen persoonlijke opt-in');

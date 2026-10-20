@@ -69,4 +69,16 @@ final class SpotEmoticons
         }
         return $html;
     }
+
+    public static function toolbar(string $textareaId): string
+    {
+        $html = '<div class="d-flex flex-wrap gap-1 mb-2" role="group" aria-label="Emoticon invoegen" data-emoticon-toolbar>';
+        foreach (self::SYMBOLS as $name => [$emoji, $label]) {
+            if (in_array($name, ['respect', 'wink', 'redface'], true)) continue;
+            $html .= '<button class="btn btn-outline-secondary btn-sm" type="button" data-emoticon-code="[img=' . $name
+                . ']" data-emoticon-target="' . h($textareaId) . '" aria-label="' . h($label) . ' invoegen" title="'
+                . h($label) . '"><span aria-hidden="true">' . $emoji . '</span></button>';
+        }
+        return $html . '</div>';
+    }
 }
