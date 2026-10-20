@@ -454,6 +454,7 @@ try {
     require __DIR__ . '/quality-unit.php';
     require __DIR__ . '/preferences-unit.php';
     require __DIR__ . '/comments-unit.php';
+    require __DIR__ . '/posting-settings-unit.php';
     if (in_array('--integration', $argv, true)) {
         require __DIR__ . '/integration.php';
     }

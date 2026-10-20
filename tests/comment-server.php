@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 $mode = $argv[1] ?? 'accept';
+$expectedUsername = $argv[2] ?? null;
+$expectedPassword = $argv[3] ?? null;
 $server = stream_socket_server('tcp://127.0.0.1:0', $errno, $error);
 if ($server === false) throw new RuntimeException($error, $errno);
 echo substr(strrchr(stream_socket_get_name($server, false), ':'), 1) . PHP_EOL;
@@ -12,14 +14,19 @@ if ($socket === false) exit(1);
 stream_set_timeout($socket, 10);
 fwrite($socket, "200 NNSpotty posting fixture\r\n");
 $article = [];
+$usernameMatches = false;
+$authenticated = $expectedUsername === null;
 while (($line = fgets($socket)) !== false) {
     $command = rtrim($line, "\r\n");
     if (str_starts_with($command, 'AUTHINFO USER')) {
+        $usernameMatches = substr($command, strlen('AUTHINFO USER ')) === $expectedUsername;
         fwrite($socket, "381 Password required\r\n");
     } elseif (str_starts_with($command, 'AUTHINFO PASS')) {
-        fwrite($socket, "281 Authenticated\r\n");
+        $authenticated = $expectedUsername === null || ($usernameMatches
+            && substr($command, strlen('AUTHINFO PASS ')) === $expectedPassword);
+        fwrite($socket, $authenticated ? "281 Authenticated\r\n" : "481 Authentication rejected\r\n");
     } elseif ($command === 'POST') {
-        if ($mode === 'deny') {
+        if ($mode === 'deny' || !$authenticated) {
             fwrite($socket, "440 Posting not permitted\r\n");
             break;
         }

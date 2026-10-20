@@ -14,9 +14,12 @@ $spots->saveSpot($commentSpot, 'free.pt');
 $commentPublisher = new Publisher($pdo, $state);
 $localBeforePublication = (int) $pdo->query('SELECT COUNT(*) FROM post_comments')->fetchColumn();
 try {
-    foreach (['accept', 'reject', 'deny', 'drop'] as $postingMode) {
+    foreach ([['accept', 'default'], ['accept', 'inherited'], ['accept', 'custom'],
+        ['reject', 'default'], ['deny', 'default'], ['drop', 'default']] as [$postingMode, $connectionMode]) {
         $pdo->exec("UPDATE comment_publications SET created_at = UTC_TIMESTAMP() - INTERVAL 1 MINUTE");
-        $postingProcess = proc_open([PHP_BINARY, __DIR__ . '/comment-server.php', $postingMode],
+        $expectedPostingUsername = $connectionMode === 'custom' ? 'posting-user' : 'reading-user';
+        $expectedPostingPassword = $connectionMode === 'custom' ? 'posting-secret' : 'reading-secret';
+        $postingProcess = proc_open([PHP_BINARY, __DIR__ . '/comment-server.php', $postingMode, $expectedPostingUsername, $expectedPostingPassword],
             [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']], $postingPipes);
         if (!is_resource($postingProcess)) throw new RuntimeException('Publicatiefixture kon niet starten.');
         $postingPort = (int) trim(fgets($postingPipes[1]));
@@ -25,8 +28,23 @@ try {
         $postingSettings['server'] = '127.0.0.1';
         $postingSettings['port'] = $postingPort;
         $postingSettings['encryption'] = 'none';
+        $postingSettings['username'] = 'reading-user';
+        $postingSettings['password'] = 'reading-secret';
+        $postingSettings['posting_server'] = $connectionMode === 'default' ? '' : '127.0.0.1';
+        $postingSettings['posting_port'] = $postingPort;
+        $postingSettings['posting_encryption'] = 'none';
+        $postingSettings['posting_custom_credentials'] = $connectionMode === 'custom';
+        $postingSettings['posting_username'] = 'posting-user';
+        $postingSettings['posting_password'] = 'posting-secret';
+        if ($connectionMode !== 'default') $postingSettings['port'] = 1;
         $postingSettings['explicit_groups'] = 'spots:free.pt,comments:free.usenet';
         $state->saveUsenetSettings($postingSettings);
+        $reloadedPostingSettings = (new \NnSpotty\State\AppStateRepository($pdo))->getUsenetSettings();
+        check($reloadedPostingSettings === $postingSettings,
+            'Postinginstellingen blijven na herladen behouden: ' . $connectionMode);
+        check($reloadedPostingSettings['port'] === ($connectionMode === 'default' ? $postingPort : 1)
+            && $reloadedPostingSettings['username'] === 'reading-user',
+            'Afzonderlijke postingconfiguratie verandert de leesverbinding niet: ' . $connectionMode);
         $postingToken = bin2hex(random_bytes(32));
         $postedCount = (int) $pdo->query('SELECT COUNT(*) FROM spotnet_comments')->fetchColumn();
         try {

@@ -72,7 +72,7 @@ final class Publisher
             $insert->execute(['username' => $username, 'request' => $requestId, 'spot' => $spot['id'], 'message' => $id, 'body' => $body]);
             $claimed = true;
             try {
-                $client = NntpClientFactory::connectFromSettings($settings);
+                $client = NntpClientFactory::connectFromSettings(NntpClientFactory::postingSettings($settings));
                 $ready = $client->sendCommand(new PostCommand());
                 if ($ready->getStatusCode() !== 340) throw new NntpException('Provider accepteert geen POST.');
             } catch (\RuntimeException $exception) {

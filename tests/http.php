@@ -316,6 +316,53 @@ try {
             && str_contains(implode("\n", $invalidResponse['headers']), 'status='),
             'Admin weigert ongeldige pipeline-invoer met expliciete feedback en zonder opslaan');
     }
+    $postingForm = $pipelineForm + [
+        'posting_server' => 'post.example.invalid', 'posting_port' => '563', 'posting_encryption' => 'ssl',
+        'username' => 'reading-user', 'password' => 'reading-secret',
+        'posting_username' => 'posting-user', 'posting_password' => 'posting-secret',
+    ];
+    foreach ([false, true] as $postingCustomCredentials) {
+        $postingResponse = httpFixture($httpPort, '/admin/settings', $cookie, $postingForm
+            + ($postingCustomCredentials ? ['posting_custom_credentials' => '1'] : []));
+        $savedPosting = (new \NnSpotty\State\AppStateRepository($pdo))->getUsenetSettings();
+        $effectivePosting = \NnSpotty\Usenet\NntpClientFactory::postingSettings($savedPosting);
+        check($postingResponse['status'] === 302 && $savedPosting['posting_server'] === 'post.example.invalid'
+            && $savedPosting['server'] === '127.0.0.1' && $savedPosting['username'] === 'reading-user'
+            && $effectivePosting['username'] === ($postingCustomCredentials ? 'posting-user' : 'reading-user')
+            && $effectivePosting['password'] === ($postingCustomCredentials ? 'posting-secret' : 'reading-secret'),
+            'Admin bewaart aparte postingserver met overgenomen of eigen login zonder leesinstellingen te wijzigen');
+        $postingAdmin = httpFixture($httpPort, '/admin', $cookie)['body'];
+        check(str_contains($postingAdmin, 'name="posting_server" type="text" value="post.example.invalid"')
+            && str_contains($postingAdmin, 'name="posting_custom_credentials" type="checkbox" value="1"'
+                . ($postingCustomCredentials ? ' checked' : ' >')),
+            'Admin toont opgeslagen postingserver en credentialkeuze');
+    }
+    foreach ([
+        ['posting_port' => '0'], ['posting_port' => '65536'], ['posting_port' => '563oops'],
+        ['posting_port' => ['563']], ['posting_encryption' => 'invalid'], ['posting_server' => ['post.invalid']],
+        ['posting_custom_credentials' => '1', 'posting_password' => ''],
+        ['posting_custom_credentials' => '1', 'posting_username' => ''],
+        ['posting_custom_credentials' => ['1']],
+        ['posting_custom_credentials' => 'invalid'],
+    ] as $invalidPostingForm) {
+        $before = $state->getUsenetSettings();
+        $invalidPostingResponse = httpFixture($httpPort, '/admin/settings', $cookie, array_replace($postingForm, $invalidPostingForm));
+        check($invalidPostingResponse['status'] === 302 && $state->getUsenetSettings() === $before
+            && str_contains(implode("\n", $invalidPostingResponse['headers']), 'status='),
+            'Admin weigert ongeldige postinginstellingen met feedback zonder opslag');
+    }
+    $beforePostingCsrf = $state->getUsenetSettings();
+    httpFixture($httpPort, '/admin/settings', $cookie, array_replace($postingForm, ['_csrf' => 'invalid']));
+    check($state->getUsenetSettings() === $beforePostingCsrf, 'Postinginstellingen blijven CSRF-beveiligd');
+    httpFixture($httpPort, '/admin/settings', $cookie, array_replace($postingForm,
+        ['posting_server' => '', 'posting_custom_credentials' => '1']));
+    check(\NnSpotty\Usenet\NntpClientFactory::postingSettings($state->getUsenetSettings())['server'] === '127.0.0.1'
+        && \NnSpotty\Usenet\NntpClientFactory::postingSettings($state->getUsenetSettings())['password'] === 'reading-secret',
+        'Leegmaken van postingserver herstelt standaardverbinding inclusief login');
+    $postingAudit = $pdo->query("SELECT details_json FROM admin_audit_logs WHERE action = 'admin.settings.updated' ORDER BY id DESC LIMIT 1")->fetchColumn();
+    check(is_string($postingAudit) && str_contains($postingAudit, 'posting_server')
+        && !str_contains($postingAudit, 'posting-secret') && !str_contains($postingAudit, 'reading-secret'),
+        'Audit registreert postingconfiguratie zonder wachtwoorden');
     $state->saveUsenetSettings($originalHttpUsenetSettings);
     check(httpFixture($httpPort, '/preferences', $cookie)['status'] === 200, 'Bestaande preferences blijven werken');
     $defaults = $state->globalSpotColumns();

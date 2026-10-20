@@ -19,7 +19,13 @@ final class AdminPageRenderer
      *   group_pattern: string,
      *   discover_max_groups: int,
      *   max_articles_per_group: int,
-     *   pipeline_depth?: int
+     *   pipeline_depth?: int,
+     *   posting_server?: string,
+     *   posting_port?: int,
+     *   posting_encryption?: string,
+     *   posting_custom_credentials?: bool,
+     *   posting_username?: string,
+     *   posting_password?: string
      * } $settings
      * @param array{whitelist: string[], blacklist: string[]} $spotterLists
      * @param array<int, array{post_id: string, username: string, comment: string, created_at: string}> $comments
@@ -40,6 +46,15 @@ final class AdminPageRenderer
         $noneSelected = self::selectedAttr($encryption, 'none');
         $sslSelected = self::selectedAttr($encryption, 'ssl');
         $tlsSelected = self::selectedAttr($encryption, 'tls');
+        $postingServer = h($settings['posting_server'] ?? '');
+        $postingPort = (int) ($settings['posting_port'] ?? 563);
+        $postingEncryption = $settings['posting_encryption'] ?? 'ssl';
+        $postingNoneSelected = self::selectedAttr($postingEncryption, 'none');
+        $postingSslSelected = self::selectedAttr($postingEncryption, 'ssl');
+        $postingTlsSelected = self::selectedAttr($postingEncryption, 'tls');
+        $postingCustomChecked = ($settings['posting_custom_credentials'] ?? false) ? 'checked' : '';
+        $postingUsername = h($settings['posting_username'] ?? '');
+        $postingPassword = h($settings['posting_password'] ?? '');
         $statusAlert = '';
         if ($statusMessage !== null) {
             $statusAlert = '<div class="alert alert-info" role="alert">' . h($statusMessage) . '</div>';
@@ -155,6 +170,7 @@ HTML;
               <div class="mb-3">
                 <label class="form-label" for="server">Usenet server</label>
                 <input class="form-control" id="server" name="server" type="text" value="{$server}" required>
+                <div class="form-text">Standaardserver voor ophalen en publiceren. Een aparte postingserver hieronder geldt alleen voor nieuwe reacties.</div>
               </div>
               <div class="row g-2">
                 <div class="col-6">
@@ -178,6 +194,41 @@ HTML;
                 <label class="form-label" for="password">Password</label>
                 <input class="form-control" id="password" name="password" type="password" value="{$password}">
               </div>
+              <fieldset class="border rounded p-3 mb-3">
+                <legend class="float-none w-auto px-2 fs-6">Optionele postingserver</legend>
+                <div class="mb-3">
+                  <label class="form-label" for="posting_server">Postingserver</label>
+                  <input class="form-control" id="posting_server" name="posting_server" type="text" value="{$postingServer}" aria-describedby="posting-server-help">
+                  <div class="form-text" id="posting-server-help">Leeg = standaardserver, poort, encryptie en login hierboven gebruiken. Bijvoorbeeld bij Eweka: ophalen via news.eweka.nl, publiceren via post.eweka.nl. Vul alleen een hostnaam of IP-adres in.</div>
+                </div>
+                <div class="row g-2 mb-3">
+                  <div class="col-6">
+                    <label class="form-label" for="posting_port">Postingpoort</label>
+                    <input class="form-control" id="posting_port" name="posting_port" type="number" min="1" max="65535" value="{$postingPort}" required>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label" for="posting_encryption">Encryptie postingserver</label>
+                    <select class="form-select" id="posting_encryption" name="posting_encryption">
+                      <option value="none" {$postingNoneSelected}>Geen</option>
+                      <option value="ssl" {$postingSslSelected}>SSL</option>
+                      <option value="tls" {$postingTlsSelected}>TLS</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-check form-switch mb-2">
+                  <input class="form-check-input" id="posting_custom_credentials" name="posting_custom_credentials" type="checkbox" value="1" {$postingCustomChecked}>
+                  <label class="form-check-label" for="posting_custom_credentials">Andere inloggegevens voor de postingserver gebruiken</label>
+                </div>
+                <p class="form-text">Standaard gebruikt de postingserver de actuele login van de standaardserver. Onderstaande login wordt alleen gebruikt met deze optie aan en een ingevulde postingserver. Zonder aparte postingserver blijft de standaardlogin gelden.</p>
+                <div class="mb-3">
+                  <label class="form-label" for="posting_username">Postinggebruikersnaam</label>
+                  <input class="form-control" id="posting_username" name="posting_username" type="text" value="{$postingUsername}" autocomplete="off">
+                </div>
+                <div>
+                  <label class="form-label" for="posting_password">Postingwachtwoord</label>
+                  <input class="form-control" id="posting_password" name="posting_password" type="password" value="{$postingPassword}" autocomplete="new-password">
+                </div>
+              </fieldset>
               <div class="mb-3">
                 <input name="group_pattern" type="hidden" value="">
                 <input name="discover_max_groups" type="hidden" value="0">

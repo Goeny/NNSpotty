@@ -10,6 +10,27 @@ cp .env.example .env
 
 ## Usenet-reacties publiceren en emoticons accepteren
 
+### Aparte postingserver
+
+Voor een bestaande installatie met werkende RSA/SHA1-configuratie, als deploygebruiker vanuit de projectmap:
+
+```bash
+cd /home/hopseflop/domains/nnspotty.hopseflop.nl/public_html
+git pull --ff-only origin main
+OPENSSL_CONF=/home/hopseflop/.config/nnspotty/openssl.cnf \
+    /opt/remi/php84/root/usr/bin/php tests/run.php
+/opt/remi/php84/root/usr/bin/php -l public/index.php
+curl -fsS https://nnspotty.hopseflop.nl/health
+```
+
+Geen nieuwe migratie of dependency nodig voor deze instellingen. Een bestaande OPcache-deployprocedure blijft gelden. De OPENSSL_CONF hierboven geldt alleen voor dit CLI-proces; de web-runtime moet afzonderlijk correct geconfigureerd blijven.
+
+Onder Beheerpanel > Usenet: laat de standaardserver voor ophalen staan. Vul bij Eweka postingserver `post.eweka.nl`, poort `563`, encryptie `SSL` in; laat andere inloggegevens uit om de standaardlogin te gebruiken. Controleer na opslaan/herladen dat alles behouden blijft. Test ook terugschakelen met een lege postingserver en de optionele eigen login (beide velden verplicht bij aparte host). Ongeldige poort/login moet feedback geven zonder instellingen te wijzigen. Zonder JavaScript blijft het hele formulier bruikbaar. Wachtwoorden niet in audit of gedeelde logs opnemen.
+
+Een echte publicatietest verspreidt een reactie op Usenet: plaats alleen bewust toegestane tekst op een passende spot. Open na een eerder definitief geweigerde poging de spot opnieuw voor een nieuw formulier; hetzelfde formulier toont zijn opgeslagen uitkomst zonder opnieuw te posten. Bij onbekende uitkomst eerst controleren of de reactie al is gepubliceerd. Retrieve blijft de standaardserver gebruiken, ook met aparte postingserver.
+
+### Eerste installatie van publicatie
+
 Pauzeer retrieves/cron tijdens de update, maak een databasebackup volgens je normale beheerprocedure en voer vanuit de bestaande projectmap op nnspotty.hopseflop.nl uit:
 
 ```bash

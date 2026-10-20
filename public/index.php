@@ -335,6 +335,26 @@ $router->post('/admin/settings', static function (Request $request) use ($state,
             throw new InvalidArgumentException('Pipeline-diepte moet een geheel getal tussen 1 en 128 zijn.');
         }
         $pipelineDepth = (int) $pipelineRaw;
+        $postingPortRaw = $request->hasInput('posting_port') ? ($request->inputScalar('posting_port') ?? '') : '563';
+        if (!preg_match('/^[1-9][0-9]{0,4}$/D', $postingPortRaw)) {
+            throw new InvalidArgumentException('Postingpoort moet een geheel getal tussen 1 en 65535 zijn.');
+        }
+        $postingCredentialsRaw = $request->inputScalar('posting_custom_credentials');
+        if ($postingCredentialsRaw !== null && $postingCredentialsRaw !== '1') {
+            throw new InvalidArgumentException('Ongeldige keuze voor de postinglogin.');
+        }
+        $postingSettings = [
+            'posting_server' => trim($request->inputScalar('posting_server') ?? ''),
+            'posting_port' => (int) $postingPortRaw,
+            'posting_encryption' => $request->hasInput('posting_encryption') ? ($request->inputScalar('posting_encryption') ?? '') : 'ssl',
+            'posting_custom_credentials' => $postingCredentialsRaw === '1',
+            'posting_username' => trim($request->inputScalar('posting_username') ?? ''),
+            'posting_password' => $request->inputScalar('posting_password') ?? '',
+        ];
+        \NnSpotty\Usenet\NntpClientFactory::postingSettings($postingSettings + [
+            'server' => $server, 'port' => $port, 'encryption' => $encryption,
+            'username' => '', 'password' => '',
+        ]);
     } catch (InvalidArgumentException $exception) {
         return Response::redirect('/admin?status=' . rawurlencode($exception->getMessage()));
     }
@@ -371,7 +391,7 @@ $router->post('/admin/settings', static function (Request $request) use ($state,
         'discover_max_groups' => $discoverMaxGroups,
         'max_articles_per_group' => $maxArticlesPerGroup,
         'pipeline_depth' => $pipelineDepth,
-    ]);
+    ] + $postingSettings);
     $currentUser = $auth->user();
     if ($currentUser !== null) {
         $auditLogs->log(
@@ -390,6 +410,10 @@ $router->post('/admin/settings', static function (Request $request) use ($state,
                 'discover_max_groups' => $discoverMaxGroups,
                 'max_articles_per_group' => $maxArticlesPerGroup,
                 'pipeline_depth' => $pipelineDepth,
+                'posting_server' => $postingSettings['posting_server'],
+                'posting_port' => $postingSettings['posting_port'],
+                'posting_encryption' => $postingSettings['posting_encryption'],
+                'posting_custom_credentials' => $postingSettings['posting_custom_credentials'],
             ],
             ipAddress: $request->clientIp()
         );

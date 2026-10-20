@@ -25,7 +25,13 @@ final class AppStateRepository
      *   group_pattern: string,
      *   discover_max_groups: int,
      *   max_articles_per_group: int,
-     *   pipeline_depth: int
+     *   pipeline_depth: int,
+     *   posting_server: string,
+     *   posting_port: int,
+     *   posting_encryption: string,
+     *   posting_custom_credentials: bool,
+     *   posting_username: string,
+     *   posting_password: string
      * }
      */
     public function getUsenetSettings(): array
@@ -47,6 +53,12 @@ final class AppStateRepository
             'discover_max_groups' => (int) ($settings['discover_max_groups'] ?? 250),
             'max_articles_per_group' => (int) ($settings['max_articles_per_group'] ?? 5000),
             'pipeline_depth' => (int) ($settings['pipeline_depth'] ?? 32),
+            'posting_server' => (string) ($settings['posting_server'] ?? ''),
+            'posting_port' => (int) ($settings['posting_port'] ?? 563),
+            'posting_encryption' => (string) ($settings['posting_encryption'] ?? 'ssl'),
+            'posting_custom_credentials' => $settings['posting_custom_credentials'] ?? false,
+            'posting_username' => (string) ($settings['posting_username'] ?? ''),
+            'posting_password' => (string) ($settings['posting_password'] ?? ''),
         ];
     }
 
@@ -63,7 +75,13 @@ final class AppStateRepository
      *   group_pattern: string,
      *   discover_max_groups: int,
      *   max_articles_per_group: int,
-     *   pipeline_depth?: int
+     *   pipeline_depth?: int,
+     *   posting_server?: string,
+     *   posting_port?: int,
+     *   posting_encryption?: string,
+     *   posting_custom_credentials?: bool,
+     *   posting_username?: string,
+     *   posting_password?: string
      * } $settings
      */
     public function saveUsenetSettings(array $settings): void
@@ -73,6 +91,7 @@ final class AppStateRepository
             throw new \InvalidArgumentException('Pipeline-diepte moet een geheel getal tussen 1 en 128 zijn.');
         }
         $settings['pipeline_depth'] = $depth;
+        \NnSpotty\Usenet\NntpClientFactory::postingSettings($settings);
         $this->saveSetting('admin.usenet_settings', $settings);
     }
 
