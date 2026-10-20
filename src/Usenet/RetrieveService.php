@@ -71,6 +71,9 @@ final class RetrieveService
         if ($settings['max_articles_per_group'] < 100) {
             throw new \InvalidArgumentException('Max artikelen per groep moet minimaal 100 zijn.');
         }
+        if ($settings['pipeline_depth'] < 1 || $settings['pipeline_depth'] > 128) {
+            throw new \InvalidArgumentException('Pipeline-diepte moet tussen 1 en 128 liggen.');
+        }
         $lockName = $this->lockName();
         $lock = $this->pdo->prepare('SELECT GET_LOCK(:lock_name, 0)');
         $lock->execute(['lock_name' => $lockName]);
@@ -109,6 +112,9 @@ final class RetrieveService
             }
             $blacklisted = 0;
             $client = NntpClientFactory::connectFromSettings($settings);
+            $connection = $client->getConnection();
+            if (!$connection instanceof PipelineConnection) throw new \LogicException('Retrieve vereist een pipelineverbinding.');
+            if ($verbose) $log('NNTP pipeline-diepte: ' . $settings['pipeline_depth'] . ' (1 = uitgeschakeld).');
             $format = $client->overviewFormat();
             $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
             $retentionCutoff = $settings['retention'] > 0
@@ -163,6 +169,7 @@ final class RetrieveService
                     $counts = ['te_oud' => 0, 'bestaand' => 0, 'geen_spot' => 0, 'ongeldig' => 0, 'verdwenen' => 0, 'opgeslagen' => 0, 'vernieuwd' => 0, 'blacklist' => 0, 'onbevestigd' => 0];
                     $oldestDate = null;
                     $newestDate = null;
+                    $pending = [];
                     foreach ($rows as $row) {
                         $overview = array_change_key_case($row, CASE_LOWER);
                         $number = (int) ($overview['number'] ?? 0);
@@ -195,8 +202,21 @@ final class RetrieveService
                                 $counts['bestaand']++;
                                 continue;
                             }
+                            $pending[] = ['message_id' => $messageId, 'number' => $number, 'exists' => $exists];
+                        } catch (UnexpectedValueException $exception) {
+                            $skipped++;
+                            $counts['ongeldig']++;
+                            $log($groupName . ' artikel ' . $number . ' overgeslagen: ' . $exception->getMessage());
+                        }
+                    }
+                    foreach ($connection->articles(array_column($pending, 'message_id'), $role === 'spots', $settings['pipeline_depth']) as $index => $article) {
+                        $messageId = $pending[$index]['message_id'];
+                        $number = $pending[$index]['number'];
+                        $exists = $pending[$index]['exists'];
+                        try {
+                            if ($article instanceof NntpException) throw $article;
                             if ($role === 'spots') {
-                                $spot = SpotnetParser::spot($messageId, $client->head('<' . $messageId . '>'));
+                                $spot = SpotnetParser::spot($messageId, $article);
                                 if ($spot === null) {
                                     $skipped++;
                                     $counts['geen_spot']++;
@@ -211,10 +231,6 @@ final class RetrieveService
                                 }
                                 $repository->saveSpot($spot, $groupName, $refreshSpots);
                             } else {
-                                $article = $client->sendCommand(new \Rvdv\Nntp\Command\ArticleCommand('<' . $messageId . '>'));
-                                if (!is_string($article)) {
-                                    throw new \RuntimeException('NNTP ARTICLE retourneerde geen tekst.');
-                                }
                                 $repository->saveComment(SpotnetParser::comment($messageId, $article));
                             }
                             if ($exists) {

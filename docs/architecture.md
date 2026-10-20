@@ -37,6 +37,16 @@ Lees-/providerrequests sluiten de PHP-sessie voor langzame I/O. Waar nodig worde
 ## Spotnet is geen algemene headerindex
 Een binary-release groeperen op onderwerp levert geen Spotnet-spot op. Een spot is een afzonderlijk bericht met een eigen message-ID en XML-metadata.
 
+### Begrensde NNTP-pipelining
+
+`NntpClientFactory` injecteert een `PipelineConnection` (subklasse van php-nntp `Connection`) met dezelfde php-nntp `Socket` in de bestaande `Client`. Connectie/authenticatie/TLS, GROUP, XOVER en on-demand BODY blijven via php-nntp werken; geen vendorpatches, tweede verbinding of parallelle retrieve-worker. Alleen bulk-HEAD/ARTICLE hebben een eigen begrensde request-/responseframing; php-nntp `HeadCommand`/`ArticleCommand`, `Response` en `MultiLineResponse` blijven de commandrepresentatie en inhoudsverwerking verzorgen.
+
+`admin.usenet_settings.pipeline_depth` is een globaal geheel getal 1-128, default 32 voor oudere opgeslagen settings; 1 is stop-and-wait. Admin valideert scalars en getalbereik, bewaart/audit de waarde en toont uitleg. `AppStateRepository` en retrieve bewaken eveneens het bereik. Instelling wordt eenmalig bij runstart gelezen; geen schemawijziging. Alleen de admininstelling, geen extra CLI-vlag.
+
+Per XOVER-batch worden eerst datum/identiteit/existence gecontroleerd; alleen benodigde IDs gaan de pipeline in. Maximaal depth commands worden volledig geschreven (ook gedeeltelijke writes afhandelen), daarna worden de antwoorden in dezelfde volgorde gelezen en een voor een verwerkt. Geen volledige artikelcollectie in geheugen. Niet-gecomprimeerde CRLF-/dot-framing, dot-unstuffing en lange regels; grens 1 MiB/regel en 16 MiB/antwoord, volledige message-ID-check in successtatus. Een ontbrekend 423/430-antwoord levert een per-artikelfout zonder de volgende response te verschuiven; onverwachte status/identiteit, EOF, onvolledige framing, readtimeout of nul-byte-write laat de run falen en de verbinding sluiten. Geen stilzwijgende downgrade of retry op een mogelijk verschoven socket; beheerder kan expliciet diepte 1 kiezen.
+
+Dezelfde batch-/cursor-/datumgrenssemantiek blijft gelden, inclusief reacties en refresh: cursor pas na volledig verwerkte XOVER-batch, normale mislukkingen bewaren reeds gecommitte spots. Volgende run filtert die spots voor transport uit. Onderbroken historische import moet opnieuw met dezelfde historische modus worden gestart; de historische cursor wordt pas na succesvolle groepsafronding gezet, niet bij iedere terugwaartse batch.
+
 De huidige pipeline:
 1. `RetrieveService` selecteert expliciete groepen: standaard `free.pt` voor spots en `free.usenet` voor reacties. Er is geen algemene groepsdiscovery.
 2. `SpotnetOverviewCommand` leest XOVER, normaliseert de veldnamen van php-nntp en gebruikt het daadwerkelijke artikelnummer, niet de array-index. Ontbrekende optionele staartvelden (zoals References, bytes, lines of Xref) zijn toegestaan. Regels zonder bruikbaar artikelnummer, datum of message-ID krijgen een expliciete fout met range, regelnummer en veldaantallen en worden afzonderlijk overgeslagen. Verlopen lege ranges zijn toegestaan; transport-/commandofouten falen expliciet.

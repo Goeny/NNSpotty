@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NnSpotty\Usenet;
 
 use Rvdv\Nntp\Client;
-use Rvdv\Nntp\Connection\Connection;
+use Rvdv\Nntp\Socket\Socket;
 
 final class NntpClientFactory
 {
@@ -24,7 +24,7 @@ final class NntpClientFactory
             throw new \RuntimeException('Usenet server ontbreekt in admin instellingen.');
         }
 
-        $connection = new Connection($host, $port, $isSecure, null, $timeout);
+        $connection = new PipelineConnection($host, $port, $isSecure, new Socket($timeout));
         return new Client($connection);
     }
 

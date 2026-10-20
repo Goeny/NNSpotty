@@ -7,6 +7,8 @@
 
 Bij updates met persoonlijke favorieten is migratie `20261019_0019_favorites` vereist: voer voor browsergebruik `php bin/console db migrate` en `php bin/console db status` uit. Geen extra instellingen of API-key nodig; favorieten zijn direct voor alle ingelogde gebruikers beschikbaar. Ververs de browsercache voor de nieuwe assets.
 
+NNTP-pipelining vereist geen extra schema of dependency. Stel in **Beheerpanel > Usenet > NNTP pipeline-diepte** een waarde van 1-128 in (standaard 32; 1 = uit). Werkt voor alle bulk-retrievemodi en cron. Instellingen gelden vanaf de volgende run; pauzeer cron en laat een actieve retrieve afronden of stop je eigen proces gecontroleerd voor een code-update. Een onderbroken eerste import herstart je met dezelfde `--full`/`--days`-modus; opgeslagen spots worden overgeslagen, cursors/spotdata niet wissen.
+
 ## Stappen
 1. Installeer dependencies:
    ```bash

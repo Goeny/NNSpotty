@@ -285,6 +285,26 @@ try {
     ]);
     check($validSettingsResponse['status'] === 302 && $state->getUsenetSettings()['retrieve_after'] === '2019-01-02',
         'Admin slaat een geldige retrieve-begindatum op');
+    $pipelineForm = [
+        '_csrf' => $token[1], 'server' => '127.0.0.1', 'port' => '119', 'retention' => '30',
+        'encryption' => 'none', 'explicit_groups' => 'spots:free.pt,comments:free.usenet',
+        'discover_max_groups' => '0', 'max_articles_per_group' => '100',
+    ];
+    check(str_contains($admin['body'], 'name="pipeline_depth"') && str_contains($admin['body'], 'max="128"')
+        && $state->getUsenetSettings()['pipeline_depth'] === 32, 'Admin biedt pipeline-diepte 1-128 met standaard 32 voor oudere formulieren');
+    foreach (['1', '32', '128'] as $depth) {
+        httpFixture($httpPort, '/admin/settings', $cookie, $pipelineForm + ['pipeline_depth' => $depth]);
+        check($state->getUsenetSettings()['pipeline_depth'] === (int) $depth
+            && str_contains(httpFixture($httpPort, '/admin', $cookie)['body'], 'max="128" value="' . $depth . '"'),
+            'Admin slaat pipeline-diepte op en toont actuele waarde ' . $depth);
+    }
+    foreach (['0', '129', '-1', '1.5', '32oops', ['32'], ''] as $depth) {
+        $before = $state->getUsenetSettings();
+        $invalidResponse = httpFixture($httpPort, '/admin/settings', $cookie, $pipelineForm + ['pipeline_depth' => $depth]);
+        check($invalidResponse['status'] === 302 && $state->getUsenetSettings() === $before
+            && str_contains(implode("\n", $invalidResponse['headers']), 'status='),
+            'Admin weigert ongeldige pipeline-invoer met expliciete feedback en zonder opslaan');
+    }
     $state->saveUsenetSettings($originalHttpUsenetSettings);
     check(httpFixture($httpPort, '/preferences', $cookie)['status'] === 200, 'Bestaande preferences blijven werken');
     $defaults = $state->globalSpotColumns();

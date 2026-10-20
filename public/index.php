@@ -329,6 +329,15 @@ $router->post('/admin/settings', static function (Request $request) use ($state,
     $explicitGroupsRaw = trim((string) ($request->input('explicit_groups') ?? ''));
     $discoverMaxGroups = (int) ($request->input('discover_max_groups') ?? '-1');
     $maxArticlesPerGroup = (int) ($request->input('max_articles_per_group') ?? '0');
+    try {
+        $pipelineRaw = $request->hasInput('pipeline_depth') ? ($request->inputScalar('pipeline_depth') ?? '') : '32';
+        if (!preg_match('/^(?:[1-9]|[1-9][0-9]|1[01][0-9]|12[0-8])$/D', $pipelineRaw)) {
+            throw new InvalidArgumentException('Pipeline-diepte moet een geheel getal tussen 1 en 128 zijn.');
+        }
+        $pipelineDepth = (int) $pipelineRaw;
+    } catch (InvalidArgumentException $exception) {
+        return Response::redirect('/admin?status=' . rawurlencode($exception->getMessage()));
+    }
     $explicitGroups = str_replace(["\r\n", "\r"], "\n", $explicitGroupsRaw);
     $explicitGroups = str_replace("\n", ',', $explicitGroups);
     $explicitGroups = preg_replace('/\s*,\s*/', ',', $explicitGroups) ?? '';
@@ -361,6 +370,7 @@ $router->post('/admin/settings', static function (Request $request) use ($state,
         'group_pattern' => $groupPattern,
         'discover_max_groups' => $discoverMaxGroups,
         'max_articles_per_group' => $maxArticlesPerGroup,
+        'pipeline_depth' => $pipelineDepth,
     ]);
     $currentUser = $auth->user();
     if ($currentUser !== null) {
@@ -379,6 +389,7 @@ $router->post('/admin/settings', static function (Request $request) use ($state,
                 'group_pattern' => $groupPattern,
                 'discover_max_groups' => $discoverMaxGroups,
                 'max_articles_per_group' => $maxArticlesPerGroup,
+                'pipeline_depth' => $pipelineDepth,
             ],
             ipAddress: $request->clientIp()
         );

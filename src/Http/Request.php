@@ -81,6 +81,11 @@ final class Request
         return $this->scalar($this->body, $key);
     }
 
+    public function hasInput(string $key): bool
+    {
+        return array_key_exists($key, $this->body);
+    }
+
     /** @param array<string, mixed> $values */
     private function scalar(array $values, string $key): ?string
     {

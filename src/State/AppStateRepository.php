@@ -24,7 +24,8 @@ final class AppStateRepository
      *   explicit_groups: string,
      *   group_pattern: string,
      *   discover_max_groups: int,
-     *   max_articles_per_group: int
+     *   max_articles_per_group: int,
+     *   pipeline_depth: int
      * }
      */
     public function getUsenetSettings(): array
@@ -45,6 +46,7 @@ final class AppStateRepository
             'group_pattern' => (string) ($settings['group_pattern'] ?? ''),
             'discover_max_groups' => (int) ($settings['discover_max_groups'] ?? 250),
             'max_articles_per_group' => (int) ($settings['max_articles_per_group'] ?? 5000),
+            'pipeline_depth' => (int) ($settings['pipeline_depth'] ?? 32),
         ];
     }
 
@@ -60,11 +62,17 @@ final class AppStateRepository
      *   explicit_groups: string,
      *   group_pattern: string,
      *   discover_max_groups: int,
-     *   max_articles_per_group: int
+     *   max_articles_per_group: int,
+     *   pipeline_depth?: int
      * } $settings
      */
     public function saveUsenetSettings(array $settings): void
     {
+        $depth = $settings['pipeline_depth'] ?? 32;
+        if (!is_int($depth) || $depth < 1 || $depth > 128) {
+            throw new \InvalidArgumentException('Pipeline-diepte moet een geheel getal tussen 1 en 128 zijn.');
+        }
+        $settings['pipeline_depth'] = $depth;
         $this->saveSetting('admin.usenet_settings', $settings);
     }
 

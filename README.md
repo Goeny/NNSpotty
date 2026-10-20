@@ -38,6 +38,7 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 - Aparte Spotnet-groepen voor spots en reacties: standaard `spots:free.pt,comments:free.usenet`. Een lege groepsinstelling gebruikt deze defaults, geen automatische groepsontdekking.
 - Historische imports over een aantal dagen of de volledige beschikbare historie; incrementeel bijwerken met een databasecursor per groep.
 - Incrementele artikellimiet per groep, retentie in dagen, afzonderlijk reacties ophalen en expliciet verversen van bestaande spotmetadata.
+- Instelbare NNTP-pipelining voor bulk-`HEAD` (spots) en `ARTICLE` (reacties), op dezelfde verbinding via een eigen php-nntp-uitbreiding: **1-128**, standaard **32**, **1 = uitgeschakeld**. Retentie/dubbele artikelen worden voor transport gefilterd; geen extra verbindingen, provider of dependency.
 - Dubbele berichten overslaan, verdwenen/ongeldige artikelen afzonderlijk verwerken, diagnostische batchoutput en opgeslagen retrieve-runstatussen. Transportfouten worden expliciet gemeld; cursors worden niet voorbij ongelezen ranges geschoven.
 - Afbeeldingen en NZB-inhoud worden op aanvraag opgehaald, gevalideerd en in de database gecachet, niet massaal tijdens indexing gedownload.
 - Refresh bewaart reacties en vernieuwt metadata/categorie-index atomair; afbeelding-/NZB-caches vervallen alleen bij gewijzigde segmentbron.
@@ -231,12 +232,23 @@ Open `/login`, log in met je aangemaakte account en ga naar `/admin#usenet`. Ste
 - retentie in dagen;
 - `spots:free.pt,comments:free.usenet`;
 - het maximumaantal artikelen per groep voor incrementele runs.
+- **NNTP pipeline-diepte:** standaard **32**, instelbaar van **1 t/m 128**. Kies **1** als jouw provider problemen met pipelining heeft.
 
 Sla de instellingen op. Controleer onder **Inhoud en weergave** of reacties en afbeeldingen naar wens zijn ingeschakeld. Op een schone installatie staat er nog geen inhoud in het overzicht: voer nu de eerste retrieve uit.
 
 ## Eerste retrieve en dagelijks bijwerken
 
 Voer de commando's uit vanuit de projectroot, met dezelfde databaseconfiguratie als de website. Kies **een** van de onderstaande importmodi per run.
+
+### NNTP-pipelining
+
+**Beheerpanel > Usenet > NNTP pipeline-diepte** bepaalt hoeveel `HEAD`-/`ARTICLE`-verzoeken maximaal uitstaan op dezelfde verbinding. Standaard **32**, bereik **1-128**, **1** verstuurt steeds een verzoek en wacht op het antwoord. Dit geldt voor `--full`/`--all`, `--days`, `--since-last` (ook cron), `--comments-only` en `--refresh-spots`. De instelling wordt bij runstart ingelezen; bestaande installaties gebruiken 32 als de instelling nog niet is opgeslagen. Geen nieuwe databasemigratie vereist.
+
+XOVER blijft in batches van maximaal 250 overzichtsregels werken; binnen zo'n batch worden bestaande/te oude artikelen eerst weggelaten en de overige verzoeken in begrensde pipelinevensters verstuurd. Ieder venster wordt volledig afgehandeld voor het volgende. Antwoorden worden op volgorde en message-ID gecontroleerd en via de php-nntp-commandhandlers verwerkt. Ontbrekende artikelen (423/430) worden afzonderlijk gemeld en overgeslagen; andere NNTP-/transportfouten breken de run expliciet af. De cursor verschuift pas na verwerking van een hele XOVER-batch. Reeds opgeslagen spots blijven behouden en worden bij een volgende gewone run niet opnieuw opgehaald. Retentie, datumgrensstop, moderatie en retentieopruiming blijven gelden.
+
+De snelheidswinst hangt af van netwerkvertraging, provider, artikelgrootte en databasewerk; diepte 128 is niet automatisch sneller dan 32. Een lokale synthetische TCP-test met 131 artikelen en 20 ms wachttijd per venster gaf circa **4,0 s bij 1**, **0,15 s bij 32** en **0,06 s bij 128** voor zowel HEAD als ARTICLE. Dit is geen productiemeting of garantie voor een volledige importduur. Er wordt alleen een artikelantwoord tegelijk geparseerd, met veiligheidsgrenzen van 1 MiB per regel en 16 MiB totale antwoordtekst; overschrijding is een expliciete runfout. De php-nntp-socket gebruikt 10 s connecttimeout en de lees-timeout uit PHP `default_socket_timeout`.
+
+**Update tijdens een lange import:** pauzeer cron en laat de actieve run eerst afronden of stop je eigen consoleproces gecontroleerd, voordat je de code bijwerkt. Een lopende run verandert niet van pipeline-instelling. Start een onderbroken eerste historische import opnieuw met **dezelfde `--full`/`--days`-modus en datuminstellingen**, niet blind met `--since-last`: dat is zonder voltooide historische cursor geen hervatting vanaf de laatst getoonde datum. Er wordt opnieuw XOVER gescand, maar opgeslagen spots worden overgeslagen. Wis geen spots/cursors en gebruik hiervoor geen `--refresh-spots`.
 
 ### Aanbevolen eerste import: recente spots
 

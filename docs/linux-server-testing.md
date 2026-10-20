@@ -8,6 +8,43 @@ cp .env.example .env
 # vul daarna .env met jouw basis app + DB gegevens
 ```
 
+## NNTP-pipelining accepteren
+
+Pauzeer cron. Laat de lopende retrieve afronden of stop uitsluitend je eigen consoleproces gecontroleerd (bijvoorbeeld Ctrl+C in die terminal). Update geen PHP-code midden in een run en start geen tweede retrieve. Bestaande spots/cursors niet wissen.
+
+Voer in de bestaande installatiemap op `nnspotty.hopseflop.nl` uit:
+
+```bash
+git status --short
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+composer check-platform-reqs
+php bin/console db status
+php bin/console db health
+php tests/run.php
+curl -fsS https://nnspotty.hopseflop.nl/health
+```
+
+Deze wijziging heeft geen nieuwe migratie. Zijn oudere migraties nog niet uitgevoerd, werk die dan volgens hun eigen uitrolinstructies bij. Open **Beheerpanel > Usenet**, stel **NNTP pipeline-diepte = 32** in en sla op. Test dat 1 en 128 toegestaan zijn, 0/129 worden geweigerd en de opgeslagen waarde na herladen blijft staan. Begin voor productie met 32; bij providerproblemen expliciet 1 gebruiken, geen automatische stille downgrade.
+
+Voor de onderbroken eerste historische import gebruik je dezelfde historische modus/retentie/begindatum als voorheen:
+
+```bash
+php bin/console retrieve --full --verbose
+# Na volledig geslaagde historische import: normale dagelijkse cronmodus
+php bin/console retrieve --since-last --verbose
+```
+
+Kies een van beide passend bij de importfase; start ze niet tegelijkertijd. Een onderbroken `--days=N` herstart je met dezelfde N, niet blind met `--since-last`. Verbose startoutput moet `NNTP pipeline-diepte: 32` tonen. Opgeslagen spots tellen als `bestaand` en krijgen geen nieuwe HEAD-aanvraag. Reacties gebruiken dezelfde diepte voor ARTICLE; `--refresh-spots` haalt bestaande spots juist wel opnieuw op. Wijziging tijdens een actieve run geldt pas bij de volgende run.
+
+Vergelijk doorvoer alleen op vergelijkbare **nieuwe** artikelen met dezelfde instellingen/provider, niet een eerste import met een tweede run die alles als bestaand overslaat. Noteer tijd, opgeslagen/overgeslagen aantallen en fouten; pure XOVER-/databasebelasting wordt niet door pipelining opgelost. Voor niet-destructieve, reproduceerbare transport-/doorvoertests gebruik je een aparte testserver volgens de `NNSPOTTY_TEST_*`-instructies:
+
+```bash
+php tests/run.php --integration
+```
+
+De suite start een lokale TCP-NNTP-fixture die pas antwoordt nadat het volledige pipelinevenster is ontvangen, test HEAD en ARTICLE bij 1/32/128, meet met synthetische 20 ms vensterlatentie en vereist minstens tweemaal snellere transportafhandeling bij 32/128 dan bij 1. Inclusief verdwenen artikelen midden in vensters, fout/verbroken verbinding na 34 opgeslagen spots, ongewijzigde cursor en volledig hervatten zonder gaten. Dit gebruikt geen productiecredentials/provider en voorspelt geen exacte importduur op productie.
+
 ## Spotlist whitelist en blacklist
 
 Wacht eerst tot de huidige retrieve klaar is of stop hem gecontroleerd. Niet upgraden/migreren midden in een run. Maak een beveiligde databasebackup en pauzeer webverkeer/cron tijdens de schemawijziging. Deze update verwijdert geen spots en reset geen retrieve-cursors; een eventuele schone start is een aparte, door jou beheerde handeling.

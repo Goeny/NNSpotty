@@ -18,7 +18,8 @@ final class AdminPageRenderer
      *   explicit_groups: string,
      *   group_pattern: string,
      *   discover_max_groups: int,
-     *   max_articles_per_group: int
+     *   max_articles_per_group: int,
+     *   pipeline_depth?: int
      * } $settings
      * @param array{whitelist: string[], blacklist: string[]} $spotterLists
      * @param array<int, array{post_id: string, username: string, comment: string, created_at: string}> $comments
@@ -35,6 +36,7 @@ final class AdminPageRenderer
         $encryption = $settings['encryption'];
         $explicitGroups = h(str_replace(',', "\n", $settings['explicit_groups']));
         $maxArticlesPerGroup = (int) $settings['max_articles_per_group'];
+        $pipelineDepth = (int) ($settings['pipeline_depth'] ?? 32);
         $noneSelected = self::selectedAttr($encryption, 'none');
         $sslSelected = self::selectedAttr($encryption, 'ssl');
         $tlsSelected = self::selectedAttr($encryption, 'tls');
@@ -197,6 +199,11 @@ HTML;
                 <div class="form-text">Leeg = spots:free.pt en comments:free.usenet. Alleen de rollen spots en comments worden verwerkt; geen algemene header-discovery.</div>
               </div>
               <div class="row g-2">
+                <div class="col-12 mb-3">
+                  <label class="form-label" for="pipeline_depth">NNTP pipeline-diepte</label>
+                  <input class="form-control" id="pipeline_depth" name="pipeline_depth" type="number" min="1" max="128" value="{$pipelineDepth}" required>
+                  <div class="form-text">1 = uitgeschakeld; standaard 32, bereik 1-128. Verstuurt meerdere HEAD-/ARTICLE-verzoeken op dezelfde verbinding voor bulk-retrieve (ook cron). Wordt bij de start van een run ingelezen; een lopende run blijft ongewijzigd. Bij providerproblemen kun je 1 instellen.</div>
+                </div>
                 <div class="col-12">
                   <label class="form-label" for="max_articles_per_group">Max artikelen per groep per incrementele run</label>
                   <input class="form-control" id="max_articles_per_group" name="max_articles_per_group" type="number" min="100" value="{$maxArticlesPerGroup}" required>
