@@ -90,7 +90,7 @@ $quality = \NnSpotty\UI\SpotReleaseQuality::parse('Snowfall.2017.S03.1080p.DSNP.
 check($quality['Audio'] === ['Dolby Digital', '5.1'] && $quality['Video'] === ['1080p', 'H.264', 'WEB-DL'],
     'Aaneengeschreven DD5.1 en H.264 worden herkend zonder dubbele WEB-tag');
 $quality = \NnSpotty\UI\SpotReleaseQuality::parse('Fixture (2020) 2160p HDR10+ HEVC DDP5.1 MULTISUBS');
-check($quality === ['Video' => ['4K (2160p)', 'HDR10+', 'HEVC / H.265'], 'Audio' => ['DD+', '5.1'], 'Ondertiteling' => ['Meerdere talen']],
+check($quality === ['Video' => ['4K (2160p)', 'HDR10+', 'HEVC'], 'Audio' => ['DD+', '5.1'], 'Ondertiteling' => ['Meerdere talen']],
     'HDR10+ en DD+ blijven onderscheidbaar en meertalige subs krijgen geen verzonnen SRT-formaat');
 foreach (['Dutch (1991)', 'Atmos (2016) 1080p', 'English Patient (1996) 720p'] as $title) {
     $quality = \NnSpotty\UI\SpotReleaseQuality::parse($title);

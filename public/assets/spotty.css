@@ -206,6 +206,9 @@
 .release-quality dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); gap: 12px 20px; margin-bottom: 6px; }
 .release-quality dt { font-size: .8rem; color: var(--spot-muted); }
 .release-quality dd { margin: 3px 0 0; font-size: .9rem; }
+.quality-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.quality-badge { display: inline-flex; align-items: center; justify-content: center; min-height: 30px; max-width: 100%; padding: 4px 9px; border: 1px solid var(--spot-border); border-radius: 5px; background: var(--spot-bg); color: var(--bs-body-color); font-size: .75rem; line-height: 1.35; overflow-wrap: anywhere; text-align: center; }
+.quality-badge-format { border-color: var(--spot-muted); font-weight: 750; letter-spacing: .035em; }
 .release-quality > small { display: block; font-size: .7rem; }
 .episode-hero .spot-poster { height: auto; aspect-ratio: 16 / 9; }
 .episode-hero .poster-enlarge { height: auto; aspect-ratio: 16 / 9; }

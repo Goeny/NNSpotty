@@ -8,6 +8,18 @@ cp .env.example .env
 # vul daarna .env met jouw basis app + DB gegevens
 ```
 
+## Kwaliteitsbadges accepteren
+
+Vanuit de bestaande installatiemap op `nnspotty.hopseflop.nl`, zonder actieve retrieve tijdens de code-update:
+
+```bash
+git pull --ff-only origin main
+php tests/run.php
+curl -fsS https://nnspotty.hopseflop.nl/health
+```
+
+Geen migratie/dependency/installatie van logo's nodig. Ververs CSS met Ctrl+F5. Open film-/seriedetail en preview, eerst origineel en daarna met TVDB-metadata, in donker/licht en op mobiel. Video/audio/taal/ondertiteling staan in wrappende badges. Vergelijk expliciete tags x265 versus H.265/HEVC, DTS:X versus DTS-HD MA/DTS en HDR10+ versus HDR10. Alleen daadwerkelijke claims uit de titel horen te verschijnen; geen claims uit de filmnaam en geen metadata-afgeleide codecs. De bronwaarschuwing blijft staan. Network toont geen requests voor kwaliteitsafbeeldingen: huidige badges zijn eigen tekstontwerpen, geen officiele logo's; externe artwork wordt pas toegevoegd met verifieerbare passende toestemming.
+
 ## NNTP-pipelining accepteren
 
 Pauzeer cron. Laat de lopende retrieve afronden of stop uitsluitend je eigen consoleproces gecontroleerd (bijvoorbeeld Ctrl+C in die terminal). Update geen PHP-code midden in een run en start geen tweede retrieve. Bestaande spots/cursors niet wissen.

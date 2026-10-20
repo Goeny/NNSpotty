@@ -24,6 +24,14 @@ Na expliciet activeren laadt retrieve bij runstart een lijstmap (blacklist wint)
 
 Protocolreferentie: [Spotweb signing](https://github.com/spotweb/spotweb/blob/develop/lib/services/Signing/Services_Signing_Base.php) en [Spotnet base64](https://github.com/spotweb/spotweb/blob/develop/lib/services/Format/Services_Format_Util.php). Eigen kleine implementatie op basis van protocol/DER-standaarden, geen overgenomen legacy-signingcode of nieuwe cryptobibliotheek.
 
+## Releasekwaliteitsbadges
+
+`SpotReleaseQuality` herkent uitsluitend een vaste set kwaliteitsclaims in het technische deel van de releasetitel, na jaar/aflevering of een herkenbaar bron-/resolutiekenmerk. Dezelfde renderer wordt gebruikt door originele film-/serieheroes en `Metadata/View::hero` voor detail, preview en asynchrone TVDB-vervanging. Geen database-/providerwijziging. x264/x265 blijven onderscheiden van codecclaims H.264/H.265/HEVC; specifiekere DTS/DD/HDR10+/BDRemux-tags produceren geen onterechte generieke dubbelen.
+
+Eigen `.quality-badge`-tekstlabels gebruiken lokale CSS/themavariabelen, wrappen op smalle schermen en blijven leesbaar zonder afbeeldingen, JavaScript of aanvullende requests. Labels zijn een escaped allowlist, geen ongecontroleerde titelfragmenten. Disclaimer over niet-gecontroleerde mediabestanden blijft zichtbaar. Dit is geen certificering.
+
+Officiele logo's worden uitsluitend overgenomen met aantoonbare passende hergebruikvoorwaarden en bron-/licentievermelding; anders blijft de eigen typografische badge staan. Bij deze implementatie zijn geen logo's toegevoegd: onderzochte bronnen leverden geen verifieerbare artworktoestemming op. Software-/codec-opensourcelicenties zijn niet automatisch merk-/artworkrechten. Geen nieuwe iconenbibliotheek of nagemaakte merklogo's.
+
 ## Browseperformance en requestconcurrency
 
 Gewone lijstqueries begrenzen eerst de IDs op datum/ID-keyset en selecteren vervolgens uitsluitend lijstvelden. Bekende hoofdgroepen/types gebruiken enkelvoudige categorie-/typepredicates. Migratie `20261019_0015_browse_performance` indexeert `(is_erotica, posted_at, id)`.

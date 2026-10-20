@@ -82,6 +82,8 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 - Klikbare cover in detail en preview met lightbox, Escape, sluiten buiten het venster en focusherstel. Zonder JavaScript opent het beeld in een nieuw tabblad.
 - Eigen NNSpotty-logo, favicon, touch-icon en coverplaceholders; ontbrekende/defecte covers tonen alleen de placeholder, ook als hero-achtergrond.
 - Herkende **Video / Audio / Taal / Ondertiteling** uit de releasetitel, ook zonder TVDB: onder andere resolutie, HDR, codec, bron, IMAX, AI-enhanced, RIFE/60 fps, audioformaat, kanalen en subtitleclaims.
+- Kwaliteitskenmerken verschijnen als compacte, eigen typografische badges, lokaal gestyled zonder extra afbeeldingsrequests; dezelfde weergave in film-/seriedetail, preview en TVDB-verrijking, geschikt voor dark/light. Onder andere x264/x265 (los van H.264/H.265/HEVC), AV1/VP9, 4K/8K, HDR10/HDR10+/SDR/Dolby Vision, Dolby Digital/DD+/TrueHD/Atmos, DTS/DTS-HD MA/HRA/DTS:X, AAC/FLAC/MP3, Blu-ray/BDRemux/DVD/WEB-DL/WEBRip/Remux.
+- Dit zijn **geen officiele merklogo's**. Gekozen beleid: officiele artwork alleen lokaal meeleveren wanneer de hergebruikvoorwaarden voor onze distributie verifieerbaar zijn, anders eigen tekstbadges. Voor deze wijziging is geen geschikte toestemming voor onderzochte officiele artwork bevestigd en zijn geen merkafbeeldingen overgenomen; een codecsoftwarelicentie bewijst op zichzelf geen toestemming voor logohergebruik. Termen zoals WEB-DL/Remux hebben bovendien geen universeel officieel logo.
 - Releasekwaliteit is nadrukkelijk **niet gecontroleerd in mediabestanden**. Onbekende waarden worden niet ingevuld en een taalclaim is niet automatisch de audiotaal.
 
 ### Omschrijvingen, reacties en emoticons
