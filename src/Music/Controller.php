@@ -25,7 +25,8 @@ final class Controller
         $action = '';
         try {
             $action = $request->inputScalar('action') ?? '';
-            if (in_array($action, ['settings', 'fanart-settings', 'search', 'choose', 'reset', 'block'], true) && !$user['is_admin']) {
+            if ((in_array($action, ['settings', 'fanart-settings'], true) && !\NnSpotty\Users\Permissions::allows($user, 'settings.manage'))
+                || (in_array($action, ['search', 'choose', 'reset', 'block'], true) && !\NnSpotty\Users\Permissions::allows($user, 'metadata.manage'))) {
                 return Response::privateJson(['error' => 'Alleen admins beheren muziektoegang en gedeelde matches.'], 403);
             }
             if (in_array($action, ['fanart-settings', 'fanart-preference'], true)) {

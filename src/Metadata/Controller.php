@@ -29,7 +29,8 @@ final class Controller
         $action = '';
         try {
             $action = $request->inputScalar('action') ?? '';
-            if (in_array($action, ['settings', 'test', 'search', 'choose', 'reset', 'block'], true) && !$user['is_admin']) {
+            if ((in_array($action, ['settings', 'test'], true) && !\NnSpotty\Users\Permissions::allows($user, 'settings.manage'))
+                || (in_array($action, ['search', 'choose', 'reset', 'block'], true) && !\NnSpotty\Users\Permissions::allows($user, 'metadata.manage'))) {
                 return Response::privateJson(['error' => 'Alleen admins mogen TVDB-toegang of gedeelde matches beheren.'], 403);
             }
             if ($action === 'preference') {

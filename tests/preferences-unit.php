@@ -21,8 +21,8 @@ foreach (['plex-dark', 'plex-light'] as $preferencesTheme) {
     $preferencesDocument = new DOMDocument();
     $preferencesDocument->loadHTML($preferencesHtml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
     $preferencesXpath = new DOMXPath($preferencesDocument);
-    check($preferencesXpath->query('//nav[@data-preferences-navigation]/a')->length === 6,
-        'Voorkeuren heeft zes navigatietabs: ' . $preferencesTheme);
+    check($preferencesXpath->query('//nav[@data-preferences-navigation]/a')->length === 7,
+        'Voorkeuren heeft zeven navigatietabs inclusief profiel: ' . $preferencesTheme);
     foreach (['general' => '/preferences', 'columns' => '/preferences/columns', 'downloads' => '/downloader',
         'metadata' => '/metadata', 'music-metadata' => '/music-metadata', 'api-key' => '/preferences/api-key'] as $panel => $action) {
         check($preferencesXpath->query('//nav[@data-preferences-navigation]/a[@href="#' . $panel . '"]')->length === 1

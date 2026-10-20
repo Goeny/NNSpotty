@@ -318,3 +318,4 @@
 @media (prefers-reduced-motion: reduce) {
     .preview-drawer, .preview-drawer.is-open { transition: none; }
 }
+.account-avatar { border-radius: 50%; object-fit: cover; vertical-align: middle; }

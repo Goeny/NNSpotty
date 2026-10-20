@@ -9,7 +9,7 @@ final class PreferencesPageRenderer
     /**
      * @param array{theme: string, items_per_page: int, show_erotica?: bool} $preferences
      */
-    public static function render(string $username, array $preferences, ?string $statusMessage, bool $isAdmin, string $csrfField, bool $allowErotica = false, array $globalColumns = [], array $personalColumns = [], bool $apiEnabled = false, bool $hasApiKey = false, ?string $newApiKey = null, string $sabSettings = '', string $metadataSettings = '', string $musicSettings = ''): string
+    public static function render(string $username, array $preferences, ?string $statusMessage, bool $isAdmin, string $csrfField, bool $allowErotica = false, array $globalColumns = [], array $personalColumns = [], bool $apiEnabled = false, bool $hasApiKey = false, ?string $newApiKey = null, string $sabSettings = '', string $metadataSettings = '', string $musicSettings = '', string $profileSettings = ''): string
     {
         $safeUsername = h($username);
         $columnForm = SpotColumns::form($globalColumns !== [] ? $globalColumns : SpotColumns::defaults(), $personalColumns, $csrfField);
@@ -72,6 +72,7 @@ final class PreferencesPageRenderer
     </div>
     {$statusAlert}
     <nav class="nav nav-pills gap-2 settings-navigation" aria-label="Voorkeurenonderdelen" data-preferences-navigation>
+      <a class="nav-link" href="#profile">Profiel</a>
       <a class="nav-link" href="#general">Algemeen</a>
       <a class="nav-link" href="#columns">Kolommen</a>
       <a class="nav-link" href="#downloads">SABnzbd</a>
@@ -79,6 +80,7 @@ final class PreferencesPageRenderer
       <a class="nav-link" href="#music-metadata">Muziekmetadata</a>
       <a class="nav-link" href="#api-key">Newznab API</a>
     </nav>
+    <div data-preferences-panel="profile" id="profile">{$profileSettings}</div>
     <div data-preferences-panel="general" id="general">
     <div class="card my-4">
       <div class="card-header fw-semibold">Preferences voor username: {$safeUsername}</div>

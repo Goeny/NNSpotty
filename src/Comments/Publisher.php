@@ -22,7 +22,12 @@ final class Publisher
 
     public function publish(string $username, array $spot, string $body, string $requestId): void
     {
-        $body = Article::body($body);
+        $sourceBody = Article::body($body);
+        $account = (new \NnSpotty\Users\UserRepository($this->pdo))->findByUsername($username);
+        if (!\NnSpotty\Users\Permissions::allows($account, 'comments.publish')) {
+            throw new PublicationException('Je account mag geen reacties publiceren.');
+        }
+        $poster = $account['display_name'];
         if (!preg_match('/^[a-f0-9]{64}$/D', $requestId)) throw new \InvalidArgumentException('Ongeldig publicatieformulier. Herlaad de spot.');
         if (!$this->state->spotContentSettings()['show_comments']) throw new PublicationException('Reacties zijn door de beheerder uitgeschakeld.');
         $settings = $this->state->getUsenetSettings();
@@ -41,7 +46,7 @@ final class Publisher
             $existing->execute(['username' => $username, 'request' => $requestId]);
             $previous = $existing->fetch();
             if (is_array($previous)) {
-                if ($previous['spot_id'] !== $spot['id'] || $previous['body'] !== $body) {
+                if ($previous['spot_id'] !== $spot['id'] || ($previous['source_body'] ?? $previous['body']) !== $sourceBody) {
                     throw new PublicationException('Dit publicatieformulier is al gebruikt voor een andere reactie. Herlaad de spot.');
                 }
                 if ($previous['status'] === 'posted') return;
@@ -49,14 +54,15 @@ final class Publisher
                 $retrieved->execute(['message' => $previous['message_id']]);
                 $retrievedComment = $retrieved->fetch();
                 if (is_array($retrievedComment) && $retrievedComment['spot_id'] === $spot['id']
-                    && $retrievedComment['poster'] === $username
-                    && trim(str_replace(["\r\n", "\r"], "\n", $retrievedComment['body'])) === $body) {
+                    && $retrievedComment['poster'] === ($previous['poster'] ?? $username)
+                    && trim(str_replace(["\r\n", "\r"], "\n", $retrievedComment['body'])) === $previous['body']) {
                     $this->status($username, $requestId, 'posted');
                     return;
                 }
                 throw new PublicationException($previous['error_message']
                     ?? 'De eerdere verzendpoging heeft geen bevestigde uitkomst. Niet opnieuw verzonden; controleer eerst of de reactie op Usenet staat.');
             }
+            $body = Article::body($sourceBody . ($account['signature'] !== '' ? "\n\n-- \n" . $account['signature'] : ''));
             $rate = $this->pdo->prepare('SELECT COUNT(*) FROM comment_publications WHERE username = :username AND created_at > UTC_TIMESTAMP() - INTERVAL 30 SECOND');
             $rate->execute(['username' => $username]);
             if ((int) $rate->fetchColumn() > 0) throw new PublicationException('Wacht minimaal 30 seconden tussen publicatiepogingen.');
@@ -65,11 +71,12 @@ final class Publisher
             // Validate server signing support before proof-of-work or opening a provider connection.
             Article::sign('NNSpotty signing capability check', Article::privateKey($userKey));
             $id = Article::messageId($spot['message_id']);
-            $article = Article::build($spot, $username, $body, $id, $userKey, $serverKey);
+            $article = Article::build($spot, $poster, $body, $id, $userKey, $serverKey);
             $insert = $this->pdo->prepare('INSERT INTO comment_publications
-                (username, request_id, spot_id, message_id, body, status, created_at)
-                VALUES (:username, :request, :spot, :message, :body, \'prepared\', UTC_TIMESTAMP())');
-            $insert->execute(['username' => $username, 'request' => $requestId, 'spot' => $spot['id'], 'message' => $id, 'body' => $body]);
+                (username, request_id, spot_id, message_id, body, source_body, poster, status, created_at)
+                VALUES (:username, :request, :spot, :message, :body, :source, :poster, \'prepared\', UTC_TIMESTAMP())');
+            $insert->execute(['username' => $username, 'request' => $requestId, 'spot' => $spot['id'], 'message' => $id,
+                'body' => $body, 'source' => $sourceBody, 'poster' => $poster]);
             $claimed = true;
             try {
                 $client = NntpClientFactory::connectFromSettings(NntpClientFactory::postingSettings($settings));
@@ -90,7 +97,7 @@ final class Publisher
             try {
                 (new SpotRepository($this->pdo))->saveComment([
                     'id' => hash('sha256', $id), 'message_id' => $id, 'spot_id' => $spot['id'],
-                    'poster' => $username, 'body' => $body, 'posted_at' => gmdate('Y-m-d H:i:s'),
+                    'poster' => $poster, 'body' => $body, 'posted_at' => gmdate('Y-m-d H:i:s'),
                 ]);
                 $this->status($username, $requestId, 'posted');
                 $this->pdo->commit();

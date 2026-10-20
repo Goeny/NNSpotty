@@ -56,6 +56,12 @@ final class SpotDetailPageRenderer
         $draft = h($commentDraft);
         $publicationId = h($commentRequestId ?? bin2hex(random_bytes(32)));
         $retrievalNotice = !$retrieveComments ? '<div class="alert alert-info small">Usenet-reacties ophalen is uitgeschakeld. Hieronder staan alleen eerder opgeslagen en lokale reacties.</div>' : '';
+        $profile = SpotLayout::currentAccount();
+        $postingName = h($profile !== null && $profile['username'] === $username ? $profile['display_name'] : $username);
+        $signatureText = $profile !== null && $profile['username'] === $username ? $profile['signature'] : '';
+        $postingSignature = h($signatureText);
+        $fullDraft = h(trim($commentDraft) . ($signatureText !== '' ? "\n\n-- \n" . $signatureText : ''));
+        $profileRevision = hash('sha256', ($profile !== null && $profile['username'] === $username ? $profile['display_name'] : $username) . "\0" . $signatureText);
         $commentsSection = !$showComments ? '<section class="card mt-4"><div class="card-body text-body-secondary">Reacties zijn door de beheerder uitgeschakeld.</div></section>' : <<<HTML
 <section class="card mt-4" id="comments">
   <div class="card-header">Reacties ({$count})</div>
@@ -65,11 +71,15 @@ final class SpotDetailPageRenderer
     <form method="post" action="/spots/comment" class="mt-3" data-comment-form>
       {$csrfField}<input type="hidden" name="spot_id" value="{$id}">
       <input type="hidden" name="publication_id" value="{$publicationId}">
+      <input type="hidden" name="profile_revision" value="{$profileRevision}">
       <label class="form-label" for="comment">Reactie op Usenet plaatsen</label>
       <textarea class="form-control mb-2" name="comment" id="comment" rows="4" maxlength="10000" aria-describedby="comment-help" required>{$draft}</textarea>
       {$emoticons}
       <p class="form-text" id="comment-help">Klik op een emoticon om de bijbehorende [img=...]-code in te voegen. Maximaal 10000 UTF-8-bytes en 900 bytes per regel; West-Europese tekst voor klassieke Spotnet-readers.</p>
-      <div class="alert alert-warning small">Je reactie en gebruikersnaam worden openbaar op Usenet, ook voor andere Spotnet-/Spotweb-gebruikers. Publicatie is niet via NNSpotty in te trekken; verspreiding hangt af van de provider.</div>
+      <div class="alert alert-warning small">Je reactie, publieke naam en ingestelde handtekening worden openbaar op Usenet, ook voor andere Spotnet-/Spotweb-gebruikers. Publicatie is niet via NNSpotty in te trekken; verspreiding hangt af van de provider.</div>
+      <p class="small">Publiceren als: <strong>{$postingName}</strong>. Publieke namen zijn niet uniek; een naam bewijst geen identiteit.</p>
+      <details class="mb-3" open><summary>Volledige publicatietekst</summary><pre class="text-wrap" data-comment-preview>{$fullDraft}</pre></details>
+      <div class="small mb-3">Vaste handtekening (altijd toegevoegd indien ingesteld):<pre class="text-wrap" data-comment-signature>{$postingSignature}</pre></div>
       <div class="form-check mb-3"><input class="form-check-input" id="publish-consent" name="publish_consent" value="1" type="checkbox" required><label class="form-check-label" for="publish-consent">Ik wil deze reactie openbaar op Usenet publiceren.</label></div>
       <button class="btn btn-primary" type="submit" data-comment-submit>Op Usenet publiceren</button>
       <div class="alert alert-info mt-2" role="status" data-comment-progress hidden><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Reactie ondertekenen en naar Usenet versturen...</div>
@@ -77,6 +87,10 @@ final class SpotDetailPageRenderer
   </div>
 </section>
 HTML;
+        if ($showComments && !SpotLayout::can('comments.publish')) {
+            $commentsSection = '<section class="card mt-4" id="comments"><div class="card-header">Reacties</div><div class="card-body">'
+                . $retrievalNotice . $commentHtml . '<p class="text-body-secondary">Je account heeft geen recht om reacties te publiceren.</p></div></section>';
+        }
         $content = <<<HTML
 <a class="btn btn-sm btn-outline-secondary mb-3" href="/spots">Terug naar spots</a>
 {$status}
@@ -106,8 +120,8 @@ HTML;
             : ($showComments ? '<a class="btn btn-sm btn-warning" href="#comments">Reacties</a>' : '');
         $action = \NnSpotty\Favorites\View::button($spot) . $action;
         if ($spot['nzb_segments'] !== []) {
-            $action .= ' <a class="btn btn-sm btn-primary" href="/spots/nzb?key=' . rawurlencode($spot['id']) . '">NZB</a>';
-            $action .= ' <button class="btn btn-sm btn-warning" type="button" data-sab-send="' . h($spot['id']) . '">SABnzbd</button>';
+            if (SpotLayout::can('nzb.download')) $action .= ' <a class="btn btn-sm btn-primary" href="/spots/nzb?key=' . rawurlencode($spot['id']) . '">NZB</a>';
+            if (SpotLayout::can('nzb.forward')) $action .= ' <button class="btn btn-sm btn-warning" type="button" data-sab-send="' . h($spot['id']) . '">SABnzbd</button>';
         }
         if ($metadataLink && !$preview) $action = ($spot['category'] === 'Geluid'
             ? \NnSpotty\Music\View::link() : \NnSpotty\Metadata\View::link()) . $action;

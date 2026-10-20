@@ -9,11 +9,15 @@
     "ext-curl": "*",
     "ext-dom": "*",
     "ext-iconv": "*",
+    "ext-mbstring": "*",
     "ext-openssl": "*",
     "ext-pdo_mysql": "*",
     "ext-simplexml": "*",
     "ext-zlib": "*",
     "rvdv/nntp": "^1.0"
+  },
+  "suggest": {
+    "ext-gd": "Required for processing profile avatars"
   },
   "autoload": {
     "psr-4": {

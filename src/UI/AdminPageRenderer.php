@@ -88,6 +88,7 @@ HTML;
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
       <h1 class="h3 mb-0">Admin Beheerpanel</h1>
       <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-outline-primary btn-sm" href="/manage">Gebruikers en groepen</a>
         <span class="badge text-bg-warning align-self-center">Admin: {$safeCurrentUsername}</span>
         <a class="btn btn-outline-secondary btn-sm" href="/spots">Terug naar spots</a>
         <form method="post" action="/logout" class="d-inline">

@@ -40,3 +40,10 @@
         }
     });
 })();
+document.addEventListener('input', (event) => {
+    if (!(event.target instanceof HTMLTextAreaElement) || event.target.id !== 'comment') return;
+    const form = event.target.closest('[data-comment-form]');
+    const preview = form?.querySelector('[data-comment-preview]');
+    const signature = form?.querySelector('[data-comment-signature]');
+    if (preview) preview.textContent = event.target.value.trim() + (signature?.textContent ? '\n\n-- \n' + signature.textContent : '');
+});

@@ -131,8 +131,9 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 ### Gebruikers, beheer en weergave
 
 - Sessie-login/logout met gehashte wachtwoorden, adminrechten, CSRF-beschermde mutaties en login-rate-limiting: blokkering na vijf mislukte pogingen binnen vijftien minuten. De loginpagina gebruikt altijd het donkere thema; ingelogde gebruikers kiezen Default, Plex Dark of Plex Light.
-- Username-menu in de header met Voorkeuren en, uitsluitend voor admins, Beheerpanel. Admins kunnen vanuit de header een incrementele retrieve (`--since-last`) starten; een bewegende indicator toont actieve runs en de laatste uitvoeringstijd geldt voor zowel handmatige als cron-runs.
+- Gebruikersmenu met publieke naam, optionele lokale profielfoto, Profiel, Voorkeuren en bevoegde beheerlinks. Gebruikers met retrieve-recht kunnen vanuit de header een incrementele retrieve (`--since-last`) starten; een bewegende indicator toont actieve runs en de laatste uitvoeringstijd geldt voor zowel handmatige als cron-runs.
 - Consolebeheer voor gebruikers aanmaken, verwijderen, adminrol wijzigen, wachtwoord wijzigen en gebruikers tonen.
+- Webbeheer voor gebruikers, activering/deactivering, tijdelijke wachtwoorden, meerdere groepen en instelbare groepsrechten. Profiel met publieke reactienaam, vaste handtekening, prive-e-mailadres en avatar via upload/HTTPS/Gravatar. Zie [gebruikers en profielen](#gebruikers-groepen-en-profielen).
 - Username-gebonden voorkeuren, los van centrale instellingen: **Default**, **Plex Dark**, **Plex Light**, laadbatch, kolommen, erotica, Newznab-key, eigen SABnzbd en TVDB-toestemming.
 - Erotica standaard globaal en persoonlijk verborgen; pas zichtbaar na beide toestemmingen. Globaal uit geldt ook voor admins. Dit beleid geldt voor zoeken, aantallen, facetten, details, afbeeldingen, reacties, API en lokale verzendhistorie; indexing verwijdert deze inhoud niet.
 - Admin met zeven deelbare submenu's: **Usenet**, **Inhoud en weergave**, **Newznab**, **SABnzbd**, **TVDB metadata**, **Moderatie en reacties**, **Auditlog**. Zonder JavaScript blijven de secties zichtbaar.
@@ -147,7 +148,7 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 ### 1. Benodigdheden
 
 - Linux-server met Git, **PHP 8.2+** voor zowel CLI als webserver en **Composer 2.x**.
-- PHP-extensies `curl`, `dom`, `iconv`, `openssl`, `pdo_mysql`, `SimpleXML` en `zlib`; werkende TLS/CA-certificaten voor HTTPS en versleutelde NNTP-streams.
+- PHP-extensies `curl`, `dom`, `iconv`, `mbstring`, `openssl`, `pdo_mysql`, `SimpleXML` en `zlib`; voor profielfotoverwerking ook `gd`. Ontbrekende GD geeft een expliciete avatarfout; de rest van de app blijft bruikbaar. Werkende TLS/CA-certificaten voor HTTPS en versleutelde NNTP-streams.
 - MySQL of MariaDB, met een eigen database en databasegebruiker.
 - Apache of Nginx met PHP-FPM voor productie. De PHP-developmentserver is alleen voor lokaal testen.
 - Een Usenet-abonnement/provider die de Spotnet-groepen aanbiedt. Beschikbare historie hangt af van de provider.
@@ -217,7 +218,7 @@ php bin/console user create admin "$ADMIN_PASSWORD" --admin=1
 unset ADMIN_PASSWORD
 ```
 
-Dit maakt je eerste account; er is geen standaardlogin. Het consolecommando ontvangt het wachtwoord als procesargument: voer dit alleen in een vertrouwde beheeromgeving uit. De verborgen invoer voorkomt een letterlijk wachtwoord in shellhistorie, niet inzage door bevoegde procesinspectie.
+Dit maakt je eerste account; er is geen standaardlogin. Het wachtwoord is tijdelijk: bij eerste login is een ander wachtwoord verplicht (12-72 bytes). Het consolecommando ontvangt het wachtwoord als procesargument: voer dit alleen in een vertrouwde beheeromgeving uit. De verborgen invoer voorkomt een letterlijk wachtwoord in shellhistorie, niet inzage door bevoegde procesinspectie.
 
 ### 5. Webserver en eerste login
 
@@ -231,7 +232,7 @@ Gebruik HTTPS en geef de web-/CLI-gebruiker passende leesrechten. Publiceer geen
 php -S localhost:8080 -t public
 ```
 
-Open `/login`, log in met je aangemaakte account en ga naar `/admin#usenet`. Stel in:
+Open `/login`, log in met je aangemaakte account, wijzig eerst het tijdelijke wachtwoord en ga naar `/admin#usenet`. Stel in:
 
 - providerhost, poort, login en encryptie (`none`, `ssl`, `tls`); gebruik bij voorkeur de versleutelde NNTP-poort van je provider, meestal **563 + ssl**. `none`, vaak op 119, versleutelt login en inhoud niet; de TLS-keuze is geen ingebouwde STARTTLS-onderhandeling;
 - retentie in dagen;
@@ -505,18 +506,58 @@ Beide feeds worden eerst opgehaald/gevalideerd en daarna **samen transactioneel*
 
 Als dagelijks vernieuwen mislukt, gebruikt retrieve de laatst succesvolle lijsten met een expliciete waarschuwing. Als nog nooit een geldige synchronisatie is gelukt, **faalt een retrieve met ingeschakelde moderatie**, zodat er niet stilzwijgend zonder blacklist wordt geimporteerd. Een databasefout blijft een fout. Bij cURL-code 60: herstel de CA-configuratie van zowel CLI-PHP als PHP-FPM (`curl.cainfo`/systeemcertificaten); TLS-controle niet uitschakelen. Deze lijsten worden niet tijdens paginaweergave of per spot extern opgehaald.
 
+## Gebruikers, groepen en profielen
+
+Bestaande installaties: `php bin/console db migrate` voor **20261020_0021_accounts**. Bestaande accounts blijven actief en behouden hun wachtwoord: admins krijgen Beheerders, overige accounts Gebruikers. Loginnaam blijft de vaste koppeling voor voorkeuren, API-keys, favorieten en RSA-identiteit.
+
+### Accountbeheer en groepsrechten
+
+Open **Gebruikers en groepen** in het gebruikersmenu of beheerpanel (`/manage`). Bevoegde gebruikers krijgen alleen toegestane onderdelen: Gebruikers, Groepen en rechten, Spotterbeheer en Auditlog. Gebruikerslijst met loginnaamzoeken en paginering (50 per pagina), aanmaken, profiel bewerken, actief/inactief, meerdere groepen, tijdelijk wachtwoord resetten en bevestigde definitieve verwijdering. Nieuwe accounts beginnen in Gebruikers; wijs andere groepen daarna bij Bewerken toe. Groepstoewijzing vereist ook groepsbeheerrecht. Zonder JavaScript blijven formulieren en bevestigingen beschikbaar.
+
+- Standaardgroepen **Beheerders**, **Moderators**, **Gebruikers**; extra groepen en de rechten van niet-beheerdersgroepen zijn aanpasbaar. Meerdere groepen combineren hun toegekende rechten; geen ontzeggingen of groepshierarchie.
+- Beheerders is beschermd en heeft alle rechten. De laatste actieve beheerder kan niet worden verwijderd, gedeactiveerd of gedegradeerd, ook niet via CLI. Eigen account verwijderen vanuit de beheersessie wordt geweigerd.
+- Gebruikers: reacties publiceren, NZB downloaden/doorsturen en Newznab gebruiken (API blijft ook globaal inschakelen en een key vereisen).
+- Moderators krijgen daarnaast metadata corrigeren, spotterlijsten beheren, handmatige retrieve starten en auditacties bekijken. Geen standaardrechten voor systeeminstellingen, gebruikers of groepen. Geen nieuwe lokale verberg-/verwijderfunctie voor spots/reacties.
+- Rechtenmatrix bevat deze functies plus gebruikersbeheer, groepen/rechtenbeheer en systeeminstellingenbeheer. Groepsbeheer is een vertrouwd hoogprivilegereerd recht: hiermee kunnen rechten worden toegekend. Alleen echte beheerders mogen de beschermde beheerdersgroep toewijzen of beheerdersaccounts beheren. Een niet-admin mag geen account met ruimere rechten beheren.
+- De centrale SABnzbd-koppeling, interne netwerktoegang en gedeelde categorietoewijzing blijven uitsluitend voor echte beheerders; systeeminstellingenrecht alleen geeft deze aanvullende netwerkprivileges niet.
+- Gewijzigde rechten worden bij het volgende verzoek toegepast; niet alleen knoppen verbergen, ook directe routes controleren rechten. Deactiveren blokkeert browser en API, trekt bestaande sessies in en bewaart profiel/voorkeuren/keys. Reactiveren herstelt oude sessies niet.
+- Admin/CLI-aanmaak en wachtwoordreset gebruiken tijdelijke wachtwoorden met verplichte wijziging; API en overige functies zijn tot die tijd geblokkeerd. Wachtwoord wijzigen controleert het huidige wachtwoord en trekt andere sessies in. Geen zelfregistratie of e-mailreset.
+- Definitief verwijderen wist de gekoppelde persoonlijke data en ondertekeningssleutel volgens database-cascades; auditregistratie en reeds gepubliceerde Usenet-berichten blijven bestaan. Deactiveren is de aanbevolen reguliere beheeractie.
+- Account-/groepsacties krijgen auditregistratie zonder wachtwoorden, e-mail of avatar-URL. Beperkte auditinzage toont acties/doelen, geen configuratiepayloads.
+
+Aanvullende CLI-opties (naast bestaande create/delete/edit/password/list):
+
+```bash
+php bin/console user groups
+php bin/console user edit <username> --active=0
+php bin/console user edit <username> --active=1 --groups=2,3
+```
+
+Gebruik de actuele groeps-ID's uit `user groups`. `--admin=1|0` blijft beschikbaar. De CLI is vertrouwd serverbeheer, geen groepsgebonden websessie; wachtwoorden worden niet in audit gelogd.
+
+### Persoonlijk profiel en avatars
+
+**Voorkeuren > Profiel** (`/preferences#profile`):
+- Publieke naam: maximaal 80 tekens; niet uniek, dus geen identiteitsbewijs. Leeg profiel gebruikt de bestaande loginnaam totdat een publieke naam is opgeslagen. Naamwijziging vervangt de persoonlijke RSA-sleutel niet.
+- Handtekening: maximaal 200 tekens / 3 regels, altijd toegevoegd bij nieuwe reacties indien ingesteld. De volledige naam/tekst inclusief handtekening worden voor publicatie getoond en ondertekend; totale Usenet-tekst-/regellimieten blijven gelden. Oude reacties en eerdere publicatiepogingen behouden hun oorspronkelijke publieke identiteit/tekst; herhaald formulier publiceert niet opnieuw.
+- Optioneel prive-e-mailadres, niet in reacties gepubliceerd. Gravatar vereist opslaan van dit adres en expliciete toestemming voor het delen van de SHA256-hash met [Gravatar](https://docs.gravatar.com/general/images/).
+- Avatarbronnen: upload, HTTPS-afbeeldings-URL, Gravatar, of verwijderen. Maximaal 2 MiB en 4096 pixels per zijde, bovendien begrensd door het beschikbare PHP-geheugen. Alleen ondersteunde PNG/JPEG/GIF/WebP-rasterafbeeldingen; SVG geweigerd. Verwerking via [PHP GD](https://www.php.net/manual/en/book.image.php) naar centraal uitgesneden 256x256 PNG zonder oorspronkelijke metadata; geen nieuwe dependency.
+- Remote ophalen is server-side met publieke-IP/DNS-controle, IP-pinning, TLS-verificatie, time-outs en bytegrenzen; geen interne adressen, credentials of redirects. Gebruik de rechtstreekse HTTPS-afbeeldings-URL. Bij meerdere DNS-adressen wordt een gecontroleerd adres gekozen, zonder automatische fallback. Een mislukte wijziging bewaart de vorige avatar met zichtbare fout.
+- Alleen het verwerkte beeld staat in de database; de bron-URL wordt niet bewaard. Avatar wordt lokaal aan ingelogde gebruikers geserveerd, zonder externe requests per pagina. Gravatar/remote bron wordt alleen bij expliciet bijwerken opnieuw opgehaald.
+- Header toont publieke naam met avatar indien ingesteld. Avatars zijn niet automatisch zichtbaar in Spotnet/Spotweb; externe auteurs worden nooit op alleen een gelijke naam aan een lokaal profiel gekoppeld.
+
 ### Reacties publiceren op Usenet
 
 1. Bestaande installaties: voer `php bin/console db migrate` uit voor migratie **`20261020_0020_comment_publication`**.
 2. Stel onder **Beheerpanel > Usenet** een verbinding in waarmee je provider **NNTP POST toestaat**, en precies een reactiegroep, normaal `comments:free.usenet` naast `spots:free.pt`. Zonder ingevulde **Postingserver** gebruiken ophalen en publiceren dezelfde server, poort, encryptie en login. Voor een aparte postingserver vul je de hostnaam, eigen poort en encryptie in (standaard 563/SSL). Alleen nieuwe reacties gaan daarheen; retrieve, afbeeldingen en NZB-ophalen blijven de standaardserver gebruiken. De postingserver gebruikt standaard de actuele standaardlogin. Vink **Andere inloggegevens voor de postingserver gebruiken** aan en vul beide velden in als daarvoor een ander account nodig is. Zonder aparte postingserver worden de afwijkende postingvelden genegeerd; maak de hostnaam leeg om terug te schakelen. Opslag in bestaande databaseconfiguratie; geen nieuwe migratie nodig.
    - Eweka: standaardserver `news.eweka.nl`, postingserver `post.eweka.nl`, bijvoorbeeld poort 563/SSL en dezelfde login; posting moet ook in het provideraccount ingeschakeld zijn. Controleer de actuele instellingen bij je [provider](https://www.eweka.nl/).
 3. **Reacties weergeven en op Usenet publiceren toestaan** moet aan staan. Reacties *indexeren* staat daar los van: publiceren werkt ook als periodiek ophalen uit staat. RSA-sleutelaanmaak, RSA/SHA1-ondertekening en verificatie moeten in de actieve PHP-runtime werken. De bekende serverblokkade met `invalid digest` geeft een zichtbare configuratiemelding, zonder Usenet-request of lokale reactie als fallback. NNSpotty wijzigt geen serverbeleid.
-4. Open een zichtbare spot, schrijf een reactie, voeg eventueel emoticons toe en bevestig dat je openbaar wilt publiceren. **Op Usenet publiceren** verstuurt onder je ingelogde gebruikersnaam; er wordt geen e-mailadres uit een gebruikersprofiel gedeeld. De From-header gebruikt een synthetisch adres. De publieke waarschuwing geldt ook zonder JavaScript. NNSpotty kan een eenmaal gepubliceerde reactie niet intrekken.
+4. Open een zichtbare spot, schrijf een reactie, voeg eventueel emoticons toe en controleer de volledige publicatiepreview met publieke profielnaam en ingestelde handtekening. Bevestig dat je openbaar wilt publiceren. Er wordt geen e-mailadres uit een gebruikersprofiel gedeeld. De From-header gebruikt een synthetisch adres. De publieke waarschuwing geldt ook zonder JavaScript. NNSpotty kan een eenmaal gepubliceerde reactie niet intrekken.
 5. Na NNTP-status **240** staat de reactie meteen in de lokale **Usenet-cache** met bron Usenet. Een latere retrieve met hetzelfde message-ID maakt geen duplicaat. Acceptatie door je provider garandeert niet dat iedere andere provider/reader de reactie al heeft; controleer echte interoperabiliteit in Spotnet/Spotweb.
 
 Protocol: spotverwijzing in `References` en een reactie-message-ID met rating `0` (geen door de gebruiker opgegeven beoordeling) en 16-bit SHA1-proof-of-work; persoonlijke RSA/SHA1-handtekening over message-ID, exacte body en From, plus serverhandtekening over message-ID. Dit is een eigen implementatie op basis van [Spotwebs protocolverwerking](https://github.com/spotweb/spotweb/blob/develop/lib/services/Signing/Services_Signing_Base.php), met POST-artikelopbouw/dot-stuffing uit [php-nntp](https://github.com/rvdv/nntp). Geen overgenomen Spotweb-code of nieuwe dependency.
 
-Klassieke Spotnet-compatibiliteit gebruikt ISO-8859-1/8bit: maximaal 10000 UTF-8-bytes invoer en 900 bytes per verzonden regel. Niet-representeerbare tekens (zoals rechtstreeks geplakte emoji) worden expliciet geweigerd in plaats van stil gewijzigd; gebruik emoticoncodes. Ook gebruikersnaam en spottitel moeten in die tekenset passen. De reactie en het publicatieformulier blijven bij een normale fout behouden. Ongeldige UTF-8 of te grote invoer wordt niet terug in het formulier geplaatst.
+Klassieke Spotnet-compatibiliteit gebruikt ISO-8859-1/8bit: maximaal 10000 UTF-8-bytes inclusief handtekening en 900 bytes per verzonden regel. Niet-representeerbare tekens (zoals rechtstreeks geplakte emoji) worden expliciet geweigerd in plaats van stil gewijzigd; gebruik emoticoncodes. Ook publieke naam en spottitel moeten in die tekenset passen. De reactie en het publicatieformulier blijven bij een normale fout behouden. Ongeldige UTF-8 of te grote invoer wordt niet terug in het formulier geplaatst.
 
 Een gebruikerslock, maximaal een verzendpoging per 30 seconden en een unieke formulier-ID voorkomen gelijktijdige/dubbele verzending van hetzelfde formulier. Bij een definitieve weigering verschijnt een fout; bij verbindingsverlies na verzendstart is de uitkomst **onbekend**, zonder automatische retry. Controleer dan eerst via retrieve/andere reader; een nieuwe detailpagina heeft een nieuw formulier en kan anders alsnog een dubbel bericht veroorzaken. Een later opgehaalde reactie met hetzelfde ID, spot, auteur en inhoud kan de eerdere poging bevestigen. Een geslaagde providerpublicatie kan niet door een databasefout worden teruggedraaid.
 

@@ -9,6 +9,23 @@ use NnSpotty\Usenet\SpotFilters;
 
 final class SpotLayout
 {
+    private static ?array $account = null;
+
+    public static function account(?array $account): void
+    {
+        self::$account = $account;
+    }
+
+    public static function currentAccount(): ?array
+    {
+        return self::$account;
+    }
+
+    public static function can(string $permission): bool
+    {
+        return self::$account === null || \NnSpotty\Users\Permissions::allows(self::$account, $permission);
+    }
+
     /** @param list<array<string, mixed>> $categories
      *  @param list<array<string, mixed>>|null $facets
      */
@@ -34,9 +51,23 @@ final class SpotLayout
         $admin = $isAdmin ? '<a class="dropdown-link" href="/admin">Beheerpanel</a>' : '';
         $safeTitle = h($title);
         $safeUsername = h($username);
+        $account = self::$account !== null && self::$account['username'] === $username ? self::$account : null;
+        if ($account !== null) {
+            $isAdmin = (bool) $account['is_admin'];
+            $safeUsername = h($account['display_name']);
+            if ($account['has_avatar']) $safeUsername = '<img class="account-avatar" src="/account/avatar?user=' . rawurlencode($username)
+                . '" width="28" height="28" alt="" referrerpolicy="no-referrer"> ' . $safeUsername;
+            $admin = \NnSpotty\Users\Permissions::allows($account, 'settings.manage') ? '<a class="dropdown-link" href="/admin">Beheerpanel</a>' : '';
+            foreach (['users.manage', 'groups.manage', 'audit.view', 'spotters.manage'] as $permission) {
+                if (\NnSpotty\Users\Permissions::allows($account, $permission)) {
+                    $admin .= '<a class="dropdown-link" href="/manage">Gebruikers, groepen en moderatie</a>';
+                    break;
+                }
+            }
+        }
         $safeSearch = h($search);
         $userMenu = '<details class="user-menu"><summary class="account-link">' . $safeUsername . '</summary><div class="user-menu-dropdown">'
-            . '<a class="dropdown-link" href="/preferences">Voorkeuren</a>' . $admin . '</div></details>';
+            . '<a class="dropdown-link" href="/preferences#profile">Profiel</a><a class="dropdown-link" href="/preferences">Voorkeuren</a>' . $admin . '</div></details>';
         $categoryInput = $head !== null ? '<input type="hidden" name="category" value="' . h(SpotCategories::HEADS[$head]) . '">' : '';
         $filterInput = $filters !== [] ? '<input type="hidden" name="subcategory" value="' . h(implode(',', $filters)) . '">' : '';
         $favoriteInput = $favoritesOnly ? '<input type="hidden" name="favorites" value="1">' : '';
@@ -49,11 +80,13 @@ final class SpotLayout
             ] + $favoriteQuery)) . '"';
             $scripts .= '<script src="/assets/facets.js" defer></script>';
         }
-        $retrieveForm = $isAdmin
+        $retrieveForm = ($account !== null ? \NnSpotty\Users\Permissions::allows($account, 'retrieve.run') : $isAdmin)
             ? '<form method="post" action="/admin/retrieve" data-retrieve-form>' . $csrfField
                 . '<button class="btn btn-sm btn-outline-primary" type="submit">Retrieve</button></form>'
             : '';
         $connectionOptions = '<option value="personal">Mijn SABnzbd</option>' . ($isAdmin ? '<option value="central">Centrale SABnzbd (admin)</option>' : '');
+        $downloadButton = $account === null || \NnSpotty\Users\Permissions::allows($account, 'nzb.forward')
+            ? '<button class="btn btn-sm btn-outline-secondary" type="button" data-sab-open="personal">Downloads</button>' : '';
         return <<<HTML
 <!doctype html>
 <html lang="nl" data-bs-theme="{$mode}">
@@ -89,7 +122,7 @@ final class SpotLayout
         </div>
       </div>
       {$userMenu}
-      <button class="btn btn-sm btn-outline-secondary" type="button" data-sab-open="personal">Downloads</button>
+      {$downloadButton}
     </div>
     <form method="get" action="/spots" role="search" class="global-search">
       {$categoryInput}

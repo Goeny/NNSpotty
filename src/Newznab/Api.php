@@ -54,6 +54,9 @@ final class Api
                 return self::xml(self::caps($base, $adult));
             }
             if ($type === 'get') {
+                if (!\NnSpotty\Users\Permissions::allows((new \NnSpotty\Users\UserRepository($this->pdo))->findByUsername($username), 'nzb.download')) {
+                    return self::error(203, 'NZB-download niet toegestaan.', 403);
+                }
                 $id = $request->queryScalar('id') ?? '';
                 if (preg_match('/^[a-f0-9]{64}$/D', $id) !== 1) {
                     return self::error(201, 'Ongeldig spot-ID.');

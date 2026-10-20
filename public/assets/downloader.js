@@ -280,15 +280,16 @@
 
 (() => {
     'use strict';
-    for (const navigation of document.querySelectorAll('[data-admin-navigation], [data-preferences-navigation]')) {
+    for (const navigation of document.querySelectorAll('[data-admin-navigation], [data-preferences-navigation], [data-account-navigation]')) {
         const admin = navigation.hasAttribute('data-admin-navigation');
-        const attribute = admin ? 'data-admin-panel' : 'data-preferences-panel';
+        const accounts = navigation.hasAttribute('data-account-navigation');
+        const attribute = accounts ? 'data-account-panel' : (admin ? 'data-admin-panel' : 'data-preferences-panel');
         const panels = [...document.querySelectorAll('[' + attribute + ']')];
         const aliases = admin ? {'spot-content': 'appearance', columns: 'appearance'} : {};
         function select() {
             const hash = location.hash.slice(1);
             const selected = panels.find(panel => panel.getAttribute(attribute) === (aliases[hash] || hash))?.getAttribute(attribute)
-                || (admin ? 'usenet' : 'general');
+                || (accounts ? panels[0]?.getAttribute(attribute) : (admin ? 'usenet' : 'general'));
             for (const panel of panels) panel.hidden = panel.getAttribute(attribute) !== selected;
             for (const link of navigation.querySelectorAll('a')) {
                 const active = link.hash === '#' + selected;

@@ -9,6 +9,8 @@ use NnSpotty\Users\UserRepository;
 final class SessionAuth
 {
     private const SESSION_KEY = 'nnspotty_auth_user';
+    private ?array $resolved = null;
+    private bool $loaded = false;
 
     public function __construct(private readonly UserRepository $users)
     {
@@ -17,7 +19,7 @@ final class SessionAuth
     public function login(string $username, string $password): bool
     {
         $user = $this->users->findByUsername($username);
-        if ($user === null) {
+        if ($user === null || !$user['active']) {
             return false;
         }
 
@@ -29,7 +31,9 @@ final class SessionAuth
         $_SESSION[self::SESSION_KEY] = [
             'username' => $user['username'],
             'is_admin' => $user['is_admin'] === 1,
+            'auth_version' => $user['auth_version'],
         ];
+        $this->loaded = false;
 
         return true;
     }
@@ -37,23 +41,29 @@ final class SessionAuth
     public function logout(): void
     {
         unset($_SESSION[self::SESSION_KEY]);
+        $this->loaded = false;
         session_regenerate_id(true);
     }
 
-    /**
-     * @return array{username: string, is_admin: bool}|null
-     */
+    /** @return array<string, mixed>|null */
     public function user(): ?array
     {
+        if ($this->loaded) return $this->resolved;
+        $this->loaded = true;
+        $this->resolved = null;
         $sessionUser = $_SESSION[self::SESSION_KEY] ?? null;
         if (!is_array($sessionUser) || !isset($sessionUser['username'], $sessionUser['is_admin'])) {
             return null;
         }
 
-        return [
-            'username' => (string) $sessionUser['username'],
-            'is_admin' => (bool) $sessionUser['is_admin'],
-        ];
+        $user = $this->users->findByUsername((string) $sessionUser['username']);
+        if ($user === null || !$user['active'] || ($sessionUser['auth_version'] ?? 1) !== $user['auth_version']) {
+            unset($_SESSION[self::SESSION_KEY]);
+            return null;
+        }
+        unset($user['password_hash']);
+        $user['is_admin'] = $user['is_admin'] === 1;
+        return $this->resolved = $user;
     }
 
     public function isAuthenticated(): bool
@@ -80,6 +90,11 @@ final class SessionAuth
     {
         $user = $this->user();
 
-        return $user !== null && $user['is_admin'] === true;
+        return $user !== null && !$user['must_change_password'] && $user['is_admin'] === true;
+    }
+
+    public function can(string $permission): bool
+    {
+        return \NnSpotty\Users\Permissions::allows($this->user(), $permission);
     }
 }

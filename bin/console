@@ -44,6 +44,10 @@ try {
             break;
         case 'user':
             handleUserCommand($argv, new UserRepository($pdo));
+            if (in_array($argv[2] ?? '', ['create', 'delete', 'edit', 'password'], true)) {
+                (new \NnSpotty\Audit\AuditLogRepository($pdo))->log('console', 'accounts.cli.' . $argv[2],
+                    'account', $argv[3] ?? '', [], 'local');
+            }
             break;
         case 'retrieve':
             handleRetrieveCommand($argv, new RetrieveService($pdo, $state));
@@ -120,7 +124,7 @@ function handleUserCommand(array $argv, UserRepository $users): void
         $list = $users->list();
         foreach ($list as $user) {
             $role = $user['is_admin'] === 1 ? 'admin' : 'user';
-            fwrite(STDOUT, $user['username'] . ' (' . $role . ') created=' . $user['created_at'] . PHP_EOL);
+            fwrite(STDOUT, $user['username'] . ' (' . $role . ', ' . ($user['active'] ? 'active' : 'inactive') . ') created=' . $user['created_at'] . PHP_EOL);
         }
         if ($list === []) {
             fwrite(STDOUT, "Geen users gevonden.\n");
@@ -135,7 +139,7 @@ function handleUserCommand(array $argv, UserRepository $users): void
             throw new RuntimeException('Gebruik: bin/console user create <username> <password> [--admin=1]');
         }
         $isAdmin = optionBool($argv, '--admin', false);
-        $users->create($username, $password, $isAdmin);
+        $users->create($username, $password, $isAdmin, true);
         fwrite(STDOUT, "User aangemaakt: {$username}\n");
         return;
     }
@@ -156,7 +160,7 @@ function handleUserCommand(array $argv, UserRepository $users): void
         if ($username === '' || $password === '') {
             throw new RuntimeException('Gebruik: bin/console user password <username> <newPassword>');
         }
-        $affected = $users->updatePassword($username, $password);
+        $affected = $users->updatePassword($username, $password, true);
         fwrite(STDOUT, "Wachtwoord geüpdatet: {$username} (rows={$affected})\n");
         return;
     }
@@ -164,11 +168,39 @@ function handleUserCommand(array $argv, UserRepository $users): void
     if ($action === 'edit') {
         $username = $argv[3] ?? '';
         if ($username === '') {
-            throw new RuntimeException('Gebruik: bin/console user edit <username> [--admin=1|0]');
+            throw new RuntimeException('Gebruik: bin/console user edit <username> [--admin=1|0] [--active=1|0] [--groups=<id,id>]');
         }
-        $isAdmin = optionBool($argv, '--admin', false);
-        $affected = $users->setAdmin($username, $isAdmin);
-        fwrite(STDOUT, "User geüpdatet: {$username} (rows={$affected})\n");
+        $user = $users->findByUsername($username);
+        if ($user === null) throw new InvalidArgumentException('Gebruiker niet gevonden.');
+        $ids = array_map('intval', array_column($users->memberships($username), 'id'));
+        $active = $user['active'];
+        foreach ($argv as $option) {
+            if (str_starts_with($option, '--groups=')) {
+                $raw = substr($option, 9);
+                if (!preg_match('/^[1-9][0-9]*(?:,[1-9][0-9]*)*$/D', $raw)) throw new InvalidArgumentException('Gebruik --groups=<id,id>.');
+                $ids = array_map('intval', explode(',', $raw));
+            }
+            if (str_starts_with($option, '--active=')) $active = optionBool($argv, '--active', $active);
+            if (str_starts_with($option, '--admin=')) {
+                $admin = optionBool($argv, '--admin', false);
+                foreach ($users->groups() as $group) {
+                    if ($group['system_key'] !== 'admins') continue;
+                    $adminId = (int) $group['id'];
+                    $ids = array_values(array_filter($ids, static fn (int $id): bool => $id !== $adminId));
+                    if ($admin) $ids[] = $adminId;
+                }
+            }
+        }
+        if ($ids === []) {
+            foreach ($users->groups() as $group) if ($group['system_key'] === 'users') $ids[] = (int) $group['id'];
+        }
+        $users->manage($username, $active, $ids);
+        fwrite(STDOUT, "User geüpdatet: {$username}\n");
+        return;
+    }
+
+    if ($action === 'groups') {
+        foreach ($users->groups() as $group) fwrite(STDOUT, $group['id'] . ' ' . $group['name'] . ' (' . ($group['system_key'] ?? 'custom') . ')' . PHP_EOL);
         return;
     }
 
@@ -253,11 +285,11 @@ function showHelp(): void
     fwrite(STDOUT, "NNSpotty console\n");
     fwrite(STDOUT, "Gebruik:\n");
     fwrite(STDOUT, "  bin/console db migrate|status|health|cleanup [--days=90]\n");
-    fwrite(STDOUT, "  bin/console user list\n");
+    fwrite(STDOUT, "  bin/console user list|groups\n");
+    fwrite(STDOUT, "  bin/console user edit <username> [--admin=1|0] [--active=1|0] [--groups=<id,id>]\n");
     fwrite(STDOUT, "  bin/console user create <username> <password> [--admin=1]\n");
     fwrite(STDOUT, "  bin/console user delete <username>\n");
     fwrite(STDOUT, "  bin/console user password <username> <newPassword>\n");
-    fwrite(STDOUT, "  bin/console user edit <username> [--admin=1|0]\n");
     fwrite(STDOUT, "  bin/console retrieve [--all|--full|--since-last|--days=30] [--comments-only|--refresh-spots] [--verbose]\n");
     fwrite(STDOUT, "  bin/console spotters status|sync|enable|disable\n");
 }

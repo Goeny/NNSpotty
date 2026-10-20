@@ -43,7 +43,9 @@ final class ApiKeys
         $query = $this->pdo->prepare('SELECT username FROM user_api_keys WHERE key_hash = :hash');
         $query->execute(['hash' => hash('sha256', $key)]);
         $username = $query->fetchColumn();
-        return is_string($username) ? $username : null;
+        if (!is_string($username)) return null;
+        $user = (new \NnSpotty\Users\UserRepository($this->pdo))->findByUsername($username);
+        return \NnSpotty\Users\Permissions::allows($user, 'api.use') ? $username : null;
     }
 
     public function allowRequest(string $username): bool

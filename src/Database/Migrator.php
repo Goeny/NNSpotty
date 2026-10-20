@@ -492,6 +492,53 @@ final class Migrator
                     FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             ],
+            '20261020_0021_accounts' => [
+                'ALTER TABLE app_users
+                    ADD COLUMN IF NOT EXISTS active TINYINT(1) NOT NULL DEFAULT 1,
+                    ADD COLUMN IF NOT EXISTS must_change_password TINYINT(1) NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS auth_version INT NOT NULL DEFAULT 1,
+                    ADD COLUMN IF NOT EXISTS display_name VARCHAR(80) NOT NULL DEFAULT \'\',
+                    ADD COLUMN IF NOT EXISTS signature VARCHAR(200) NOT NULL DEFAULT \'\',
+                    ADD COLUMN IF NOT EXISTS email VARCHAR(254) NOT NULL DEFAULT \'\',
+                    ADD COLUMN IF NOT EXISTS avatar_data MEDIUMBLOB NULL,
+                    ADD COLUMN IF NOT EXISTS avatar_mime VARCHAR(64) NULL',
+                'CREATE TABLE IF NOT EXISTS user_groups (
+                    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(80) NOT NULL UNIQUE,
+                    system_key VARCHAR(20) NULL UNIQUE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS group_permissions (
+                    group_id INT UNSIGNED NOT NULL,
+                    permission VARCHAR(64) CHARACTER SET ascii NOT NULL,
+                    PRIMARY KEY (group_id, permission),
+                    FOREIGN KEY (group_id) REFERENCES user_groups(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS user_group_memberships (
+                    username VARCHAR(191) NOT NULL,
+                    group_id INT UNSIGNED NOT NULL,
+                    PRIMARY KEY (username, group_id),
+                    FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE,
+                    FOREIGN KEY (group_id) REFERENCES user_groups(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'INSERT IGNORE INTO user_groups (name, system_key) VALUES
+                    (\'Beheerders\', \'admins\'), (\'Moderators\', \'moderators\'), (\'Gebruikers\', \'users\')',
+                'INSERT IGNORE INTO user_group_memberships (username, group_id)
+                    SELECT u.username, g.id FROM app_users u JOIN user_groups g
+                    ON g.system_key = IF(u.is_admin = 1, \'admins\', \'users\')',
+                'INSERT IGNORE INTO group_permissions (group_id, permission)
+                    SELECT g.id, p.permission FROM user_groups g JOIN (
+                        SELECT \'comments.publish\' AS permission UNION ALL SELECT \'nzb.download\'
+                        UNION ALL SELECT \'nzb.forward\' UNION ALL SELECT \'api.use\'
+                    ) p ON g.system_key IN (\'users\', \'moderators\')',
+                'INSERT IGNORE INTO group_permissions (group_id, permission)
+                    SELECT g.id, p.permission FROM user_groups g JOIN (
+                        SELECT \'metadata.manage\' AS permission UNION ALL SELECT \'spotters.manage\'
+                        UNION ALL SELECT \'retrieve.run\' UNION ALL SELECT \'audit.view\'
+                    ) p ON g.system_key = \'moderators\'',
+                'ALTER TABLE comment_publications
+                    ADD COLUMN IF NOT EXISTS poster VARCHAR(191) NULL,
+                    ADD COLUMN IF NOT EXISTS source_body TEXT NULL',
+            ],
         ];
     }
 }

@@ -575,6 +575,7 @@ try {
     require __DIR__ . '/sab-http.php';
     require __DIR__ . '/tvdb-http.php';
     require __DIR__ . '/music-http.php';
+    require __DIR__ . '/accounts-http.php';
 } catch (Throwable $exception) {
     rewind($httpLog);
     fwrite(STDERR, stream_get_contents($httpLog));

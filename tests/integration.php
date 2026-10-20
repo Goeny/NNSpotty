@@ -37,6 +37,7 @@ try {
     check(count(array_filter($migrator->status(), static fn (array $row): bool => !$row['executed'])) === 0, 'Alle migraties werken en zijn herhaalbaar');
     require __DIR__ . '/moderation-integration.php';
     $state = new AppStateRepository($pdo);
+    require __DIR__ . '/accounts-integration.php';
     $service = new RetrieveService($pdo, $state);
     require __DIR__ . '/pipeline-integration.php';
     $settings = $state->getUsenetSettings();

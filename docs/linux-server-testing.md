@@ -2,11 +2,56 @@
 
 Pas `<pad-naar-project>` aan naar jouw deploylocatie.
 
+Alleen bij een **nieuwe installatie**, niet bij een bestaande deployment:
+
 ```bash
 cd <pad-naar-project>
 cp .env.example .env
 # vul daarna .env met jouw basis app + DB gegevens
 ```
+
+## Gebruikers, groepen en profielen accepteren
+
+Plan een onderhoudsmoment: laat web-/cron-retrieves afronden, pauzeer cron, maak een databasebackup en werk niet tijdens actieve publicaties bij. Nieuwe code vereist migratie 0021 voordat webverkeer hervat wordt. Als deploygebruiker `hopseflop`:
+
+```bash
+cd /home/hopseflop/domains/nnspotty.hopseflop.nl/public_html
+git pull --ff-only origin main
+composer install --no-dev --optimize-autoloader
+/opt/remi/php84/root/usr/bin/php bin/console db migrate
+/opt/remi/php84/root/usr/bin/php bin/console db status
+/opt/remi/php84/root/usr/bin/php bin/console user groups
+OPENSSL_CONF=/home/hopseflop/.config/nnspotty/openssl.cnf \
+    /opt/remi/php84/root/usr/bin/php -d memory_limit=256M tests/run.php
+/opt/remi/php84/root/usr/bin/php -l public/index.php
+/opt/remi/php84/root/usr/bin/php -r 'foreach (["gd","mbstring","curl"] as $ext) echo $ext, ": ", extension_loaded($ext) ? "OK" : "ONTBREEKT", PHP_EOL;'
+```
+
+Voor avatarverwerking moet GD ook in PHP 8.4-FPM geladen zijn. De CLI-check bewijst niet welke modules FPM heeft. Ontbrekende GD moet een zichtbare fout bij avatarbijwerken opleveren, niet een onveilige onbewerkte upload. Geen nieuwe Composer-package. Na configuratiecontrole als root alleen de aparte NNSpotty-service herladen:
+
+```bash
+systemctl reload nnspotty-php84-fpm.service
+systemctl status nnspotty-php84-fpm.service --no-pager -l
+curl -fsS https://nnspotty.hopseflop.nl/health
+```
+
+Ververs assets met Ctrl+F5. Bestaand adminaccount blijft actief zonder nieuwe wachtwoordplicht. Controleer:
+1. Gebruikers en groepen: testaccount aanmaken met tijdelijk wachtwoord; in tweede browser verplichte wijziging met controle van huidig wachtwoord. Geen spots/API voor de wijziging; daarna normale toegang.
+2. Profiel: publieke naam, 3-regelige handtekening, optionele prive-e-mail, avatarupload. Headerfoto/naam na redirect; donker/licht en mobiel. Foute naam/emoji, te lange signature, SVG, ongeldige upload en interne HTTPS-URL geven feedback zonder onveilige opslag. Remote URL moet direct HTTPS 200 leveren, geen redirect.
+3. Gravatar alleen met bewuste toestemming en eigen adres; dit doet een echt extern verzoek. Verwijder avatar en controleer dat de afbeelding niet meer wordt geserveerd.
+4. Meerdere groepen: moderator krijgt metadata-/spotterbeheer, retrieve en audit maar geen providercredentials/gebruikers/groepen. Extra groep met alleen NZB-download: publicatie en forwarding ook via directe routes geblokkeerd. Rechten wijzigen zonder opnieuw inloggen; beperkte audit bevat geen configuratiepayloads.
+5. Account deactiveren trekt bestaande browsersessie/API-toegang in; reactiveren vereist nieuwe login. Tijdelijk wachtwoord resetten trekt andere sessies in. Laatste actieve beheerder kan niet gedeactiveerd/verwijderd/gedegradeerd; test dit voorzichtig, behoud CLI-toegang.
+6. Eigen lege groep verwijderen na bevestiging; groep met leden en systeemgroepen niet verwijderbaar. Gebruiker verwijderen pas na bewuste bevestiging, bestaande Usenet-publicaties blijven bestaan.
+7. Reactiepreview toont publieke naam en volledige handtekening; een echte publicatietest alleen op een passende spot met toegestane tekst. Totale tekstlengte inclusief signature telt mee. Geen onbevestigde poging blind opnieuw versturen.
+
+CLI-statuswijziging (gebruik de groeps-ID's uit `user groups`, geen wachtwoorden in gedeelde uitvoer):
+
+```bash
+/opt/remi/php84/root/usr/bin/php bin/console user edit <testusername> --active=0
+/opt/remi/php84/root/usr/bin/php bin/console user edit <testusername> --active=1
+```
+
+Hervat cron na acceptatie. Stop/bewerk geen publieke Usenet-berichten als testcleanup; NNSpotty kan die niet intrekken.
 
 ## Usenet-reacties publiceren en emoticons accepteren
 

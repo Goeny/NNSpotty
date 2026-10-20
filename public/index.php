@@ -119,7 +119,7 @@ $router->get('/retrieve/status', static function (Request $_request) use ($auth,
 });
 
 $router->post('/admin/retrieve', static function (Request $request) use ($auth, $csrf, $pdo, $state): Response {
-    if (!$auth->isAdmin()) {
+    if (!$auth->can('retrieve.run')) {
         return $request->expectsJson()
             ? Response::privateJson(['error' => 'Admin login vereist.'], 403)
             : Response::redirect('/login?status=' . rawurlencode('Admin login vereist.'));
@@ -198,7 +198,8 @@ $router->post('/logout', static function (Request $request) use ($auth, $csrf): 
 });
 
 $router->get('/admin', static function (Request $request) use ($state, $auth, $csrf, $auditLogs, $pdo): Response {
-    if (!$auth->isAdmin()) {
+    if (!$auth->can('settings.manage')) {
+        if ($auth->can('spotters.manage') || $auth->can('audit.view') || $auth->can('users.manage') || $auth->can('groups.manage')) return Response::redirect('/manage');
         return Response::redirect('/login?status=' . rawurlencode('Admin login vereist.'));
     }
 
@@ -211,7 +212,7 @@ $router->get('/admin', static function (Request $request) use ($state, $auth, $c
         settings: $state->getUsenetSettings(),
         spotterLists: $state->getSpotterLists(),
         comments: $state->spotContentSettings()['show_comments'] ? $state->getComments($state->canViewErotica($currentUser['username'])) : [],
-        auditLogs: $auditLogs->recent(50),
+        auditLogs: $auth->can('audit.view') ? $auditLogs->recent(50) : [],
         statusMessage: $request->query('status'),
         currentUsername: $currentUser['username'],
         csrfField: $csrf->field(),
@@ -220,17 +221,19 @@ $router->get('/admin', static function (Request $request) use ($state, $auth, $c
         globalColumns: $state->globalSpotColumns(),
         spotContent: $state->spotContentSettings(),
         apiEnabled: $state->apiEnabled(),
-        sabSettings: \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('central'), $csrf->field(), true, true),
+        sabSettings: $auth->isAdmin()
+            ? \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('central'), $csrf->field(), true, true)
+            : '<p>De centrale SABnzbd-koppeling en categorietoewijzing zijn uitsluitend voor beheerders.</p>',
         metadataSettings: \NnSpotty\Metadata\View::settings(new \NnSpotty\Metadata\Repository($pdo), $csrf->field()),
         musicSettings: \NnSpotty\Music\View::settings(new \NnSpotty\Music\Repository($pdo), $csrf->field()),
-        spotterSettings: \NnSpotty\Moderation\View::settings(new \NnSpotty\Moderation\SpotterLists($pdo), $csrf->field())
+        spotterSettings: $auth->can('spotters.manage') ? \NnSpotty\Moderation\View::settings(new \NnSpotty\Moderation\SpotterLists($pdo), $csrf->field()) : ''
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
 });
 
 $router->post('/admin/content', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
-    if (!$auth->isAdmin()) {
+    if (!$auth->can('settings.manage')) {
         return new Response(403, 'Admin login vereist.');
     }
     if (!$csrf->verify($request->input('_csrf'))) {
@@ -254,7 +257,7 @@ $router->post('/admin/content', static function (Request $request) use ($state, 
 });
 
 $router->post('/admin/columns', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
-    if (!$auth->isAdmin()) {
+    if (!$auth->can('settings.manage')) {
         return new Response(403, 'Admin login vereist.');
     }
     if (!$csrf->verify($request->input('_csrf'))) {
@@ -271,7 +274,7 @@ $router->post('/admin/columns', static function (Request $request) use ($state, 
 });
 
 $router->post('/admin/spot-content', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
-    if (!$auth->isAdmin()) {
+    if (!$auth->can('settings.manage')) {
         return new Response(403, 'Admin login vereist.');
     }
     if (!$csrf->verify($request->input('_csrf'))) {
@@ -313,7 +316,7 @@ $router->post('/preferences/columns', static function (Request $request) use ($s
 });
 
 $router->post('/admin/settings', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
-    if (!$auth->isAdmin()) {
+    if (!$auth->can('settings.manage')) {
         return Response::redirect('/login?status=' . rawurlencode('Admin login vereist.'));
     }
     if (!$csrf->verify($request->input('_csrf'))) {
@@ -423,7 +426,7 @@ $router->post('/admin/settings', static function (Request $request) use ($state,
 });
 
 $router->post('/admin/spotter-lists', static function (Request $request) use ($pdo, $auth, $csrf, $auditLogs): Response {
-    if (!$auth->isAdmin()) return new Response(403, 'Admin login vereist.');
+    if (!$auth->can('spotters.manage')) return new Response(403, 'Spotterbeheerrecht vereist.');
     if (!$csrf->verify($request->input('_csrf'))) {
         return Response::redirect('/admin?status=' . rawurlencode('Ongeldige CSRF token.') . '#moderation');
     }
@@ -456,7 +459,7 @@ $router->post('/admin/spotter-lists', static function (Request $request) use ($p
 });
 
 $router->post('/admin/spotters', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
-    if (!$auth->isAdmin()) {
+    if (!$auth->can('spotters.manage')) {
         return Response::redirect('/login?status=' . rawurlencode('Admin login vereist.'));
     }
     if (!$csrf->verify($request->input('_csrf'))) {
@@ -525,12 +528,15 @@ $router->get('/preferences', static function (Request $request) use ($state, $au
         allowErotica: $state->eroticaAllowed(),
         globalColumns: $state->globalSpotColumns(),
         personalColumns: $state->personalSpotColumns($username),
-        apiEnabled: $state->apiEnabled(),
+        apiEnabled: $state->apiEnabled() && $auth->can('api.use'),
         hasApiKey: (new \NnSpotty\Newznab\ApiKeys($pdo))->exists($username),
         newApiKey: is_array($newKey) && $newKey['username'] === $username ? $newKey['key'] : null,
-        sabSettings: \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('user:' . $username), $csrf->field(), false, $currentUser['is_admin']),
+        sabSettings: $auth->can('nzb.forward')
+            ? \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('user:' . $username), $csrf->field(), false, $currentUser['is_admin'])
+            : '<p>Je account heeft geen recht om NZB-bestanden door te sturen.</p>',
         metadataSettings: \NnSpotty\Metadata\View::settings(new \NnSpotty\Metadata\Repository($pdo), $csrf->field(), $username),
-        musicSettings: \NnSpotty\Music\View::settings(new \NnSpotty\Music\Repository($pdo), $csrf->field(), $username)
+        musicSettings: \NnSpotty\Music\View::settings(new \NnSpotty\Music\Repository($pdo), $csrf->field(), $username),
+        profileSettings: \NnSpotty\Users\View::profile($currentUser, $csrf->field())
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store', 'Referrer-Policy' => 'no-referrer']);
@@ -556,7 +562,7 @@ $router->post('/music-metadata', static function (Request $request) use ($pdo, $
 });
 
 $router->post('/admin/newznab', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
-    if (!$auth->isAdmin()) {
+    if (!$auth->can('settings.manage')) {
         return new Response(403, 'Admin login vereist.');
     }
     if (!$csrf->verify($request->input('_csrf'))) {
@@ -791,9 +797,9 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
         retrieveComments: $content['retrieve_comments'],
         metadataControls: $spot['category'] === 'Geluid'
             ? ((new \NnSpotty\Music\Repository($pdo))->allowed($currentUser['username'])
-                ? \NnSpotty\Music\View::controls($spot, $currentUser['is_admin'], $csrfField) : '')
+                ? \NnSpotty\Music\View::controls($spot, $auth->can('metadata.manage'), $csrfField) : '')
             : ((new \NnSpotty\Metadata\Repository($pdo))->allowed($currentUser['username'])
-                ? \NnSpotty\Metadata\View::controls($spot, $currentUser['is_admin'], $csrfField) : ''),
+                ? \NnSpotty\Metadata\View::controls($spot, $auth->can('metadata.manage'), $csrfField) : ''),
         facets: null
     );
 
@@ -884,6 +890,10 @@ $router->post('/spots/comment', static function (Request $request) use ($auth, $
         if ($request->inputScalar('publish_consent') !== '1') {
             throw new InvalidArgumentException('Bevestig dat je de reactie openbaar op Usenet wilt publiceren.');
         }
+        $identityRevision = hash('sha256', $user['display_name'] . "\0" . $user['signature']);
+        if ($request->inputScalar('profile_revision') !== null && !hash_equals($identityRevision, $request->inputScalar('profile_revision'))) {
+            throw new InvalidArgumentException('Je profiel is gewijzigd. Controleer de nieuwe publicatienaam en handtekening voordat je opnieuw bevestigt.');
+        }
         (new \NnSpotty\Comments\Publisher($pdo, $state))->publish($user['username'], $spot, $body, $publicationId ?? '');
         return Response::redirect($location . '&status=' . rawurlencode('Reactie door de Usenet-provider geaccepteerd. Verspreiding naar andere readers kan even duren.') . '#comments');
     } catch (\NnSpotty\Comments\PublicationException | InvalidArgumentException $exception) {
@@ -901,8 +911,8 @@ $router->post('/spots/comment', static function (Request $request) use ($auth, $
         $message, theme: $preferences['theme'], showErotica: $state->canViewErotica($user['username']),
         showComments: $content['show_comments'], imagesEnabled: $content['images_enabled'], retrieveComments: $content['retrieve_comments'],
         metadataControls: $spot['category'] === 'Geluid'
-            ? ((new \NnSpotty\Music\Repository($pdo))->allowed($user['username']) ? \NnSpotty\Music\View::controls($spot, $user['is_admin'], $csrfField) : '')
-            : ((new \NnSpotty\Metadata\Repository($pdo))->allowed($user['username']) ? \NnSpotty\Metadata\View::controls($spot, $user['is_admin'], $csrfField) : ''),
+            ? ((new \NnSpotty\Music\Repository($pdo))->allowed($user['username']) ? \NnSpotty\Music\View::controls($spot, \NnSpotty\Users\Permissions::allows($user, 'metadata.manage'), $csrfField) : '')
+            : ((new \NnSpotty\Metadata\Repository($pdo))->allowed($user['username']) ? \NnSpotty\Metadata\View::controls($spot, \NnSpotty\Users\Permissions::allows($user, 'metadata.manage'), $csrfField) : ''),
         facets: null,
         commentDraft: strlen($body) <= 10000 && preg_match('//u', $body) === 1 ? $body : '',
         commentRequestId: $publicationId !== null && preg_match('/^[a-f0-9]{64}$/D', $publicationId) ? $publicationId : null,
@@ -960,7 +970,38 @@ $router->post('/preferences', static function (Request $request) use ($state, $a
     return Response::redirect('/preferences?status=' . rawurlencode('Preferences opgeslagen.'));
 });
 
+$accountController = new \NnSpotty\Users\Controller($pdo, $users, $auth, $csrf, $state);
+$router->get('/account/password', $accountController->profile(...));
+$router->post('/account/profile', $accountController->profile(...));
+$router->get('/manage', $accountController->manage(...));
+$router->post('/manage', $accountController->manage(...));
+$router->get('/account/avatar', static function (Request $request) use ($auth, $pdo): Response {
+    if (!$auth->isAuthenticated()) return new Response(401, 'Login vereist.');
+    $avatar = (new \NnSpotty\Users\AvatarService($pdo))->get($request->query('user', '') ?? '');
+    return $avatar === null ? Response::notFound() : new Response(200, $avatar['data'], [
+        'Content-Type' => $avatar['mime'], 'Cache-Control' => 'private, no-store',
+        'X-Content-Type-Options' => 'nosniff', 'Content-Security-Policy' => "default-src 'none'",
+    ]);
+});
 $request = Request::fromGlobals($_SERVER, $_GET, $_POST);
+\NnSpotty\UI\SpotLayout::account($auth->user());
+$account = $auth->user();
+if ($account !== null && $account['must_change_password']
+    && !in_array($request->path(), ['/account/password', '/account/profile', '/logout', '/health'], true)) {
+    Response::redirect('/account/password')->send();
+    exit;
+}
+$requiredPermission = match ($request->path()) {
+    '/spots/comment' => 'comments.publish',
+    '/spots/nzb' => 'nzb.download',
+    '/downloader' => 'nzb.forward',
+    '/preferences/api-key' => $request->input('action') === 'revoke' ? null : 'api.use',
+    default => null,
+};
+if ($account !== null && $requiredPermission !== null && !$auth->can($requiredPermission)) {
+    ($request->expectsJson() ? Response::privateJson(['error' => 'Geen recht voor deze functie.'], 403) : new Response(403, 'Geen recht voor deze functie.'))->send();
+    exit;
+}
 $applicationStartedAt = hrtime(true);
 $response = $router->dispatch($request);
 if ($auth->isAdmin() && filter_var(envValue('APP_TIMING', 'false'), FILTER_VALIDATE_BOOL)) {

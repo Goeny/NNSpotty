@@ -39,6 +39,9 @@ try {
         if ($connectionMode !== 'default') $postingSettings['port'] = 1;
         $postingSettings['explicit_groups'] = 'spots:free.pt,comments:free.usenet';
         $state->saveUsenetSettings($postingSettings);
+        (new UserRepository($pdo))->saveProfile('comment-publisher',
+            $connectionMode === 'custom' ? 'Publieke poster' : 'comment-publisher',
+            $connectionMode === 'custom' ? 'Vaste groet' : '', '');
         $reloadedPostingSettings = (new \NnSpotty\State\AppStateRepository($pdo))->getUsenetSettings();
         check($reloadedPostingSettings === $postingSettings,
             'Postinginstellingen blijven na herladen behouden: ' . $connectionMode);
@@ -70,6 +73,15 @@ try {
             check($decodedArticle['spot_id'] === $commentSpot['id'] && str_contains($decodedArticle['body'], "caf\u{00E9}")
                 && str_contains($decodedArticle['body'], ".punt") && str_contains($capturedArticle, 'Newsgroups: free.usenet'),
                 'Echte TCP POST heeft geldige framing, encoding en spotverwijzing: ' . $postingMode);
+            if ($connectionMode === 'custom') {
+                check($decodedArticle['poster'] === 'Publieke poster'
+                    && str_ends_with(trim(str_replace("\r\n", "\n", $decodedArticle['body'])), "-- \nVaste groet"),
+                    'Publieke profielnaam en vaste handtekening worden werkelijk via NNTP gepubliceerd');
+                $cachedPoster = $pdo->query("SELECT poster FROM spotnet_comments WHERE message_id = '" . $postingRow['message_id'] . "'")->fetchColumn();
+                check($cachedPoster === 'Publieke poster' && $postingRow['source_body'] !== $postingRow['body']
+                    && $postingRow['poster'] === 'Publieke poster', 'Publicatiecache en poging bewaren de werkelijke publieke identiteit en volledige tekst');
+                (new UserRepository($pdo))->saveProfile('comment-publisher', 'Latere naam', 'Latere groet', '');
+            }
         }
         try {
             $commentPublisher->publish('comment-publisher', $commentSpot, "Bedankt caf\u{00E9}!\n.punt\n[img=respekt]", $postingToken);
