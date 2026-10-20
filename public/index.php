@@ -530,8 +530,8 @@ $router->get('/preferences', static function (Request $request) use ($state, $au
         hasApiKey: (new \NnSpotty\Newznab\ApiKeys($pdo))->exists($username),
         newApiKey: is_array($newKey) && $newKey['username'] === $username ? $newKey['key'] : null,
         sabSettings: \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('user:' . $username), $csrf->field(), false, $currentUser['is_admin']),
-        metadataSettings: \NnSpotty\Metadata\View::settings(new \NnSpotty\Metadata\Repository($pdo), $csrf->field(), $username)
-            . \NnSpotty\Music\View::settings(new \NnSpotty\Music\Repository($pdo), $csrf->field(), $username)
+        metadataSettings: \NnSpotty\Metadata\View::settings(new \NnSpotty\Metadata\Repository($pdo), $csrf->field(), $username),
+        musicSettings: \NnSpotty\Music\View::settings(new \NnSpotty\Music\Repository($pdo), $csrf->field(), $username)
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store', 'Referrer-Policy' => 'no-referrer']);

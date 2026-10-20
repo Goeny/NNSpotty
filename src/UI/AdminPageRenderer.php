@@ -93,7 +93,7 @@ HTML;
       </div>
     </div>
     {$statusAlert}
-    <nav class="nav nav-pills gap-2 admin-navigation" aria-label="Beheeronderdelen" data-admin-navigation>
+    <nav class="nav nav-pills gap-2 settings-navigation" aria-label="Beheeronderdelen" data-admin-navigation>
       <a class="nav-link" href="#usenet">Usenet</a>
       <a class="nav-link" href="#appearance">Inhoud en weergave</a>
       <a class="nav-link" href="#newznab">Newznab</a>

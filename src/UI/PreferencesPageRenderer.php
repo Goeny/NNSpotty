@@ -9,7 +9,7 @@ final class PreferencesPageRenderer
     /**
      * @param array{theme: string, items_per_page: int, show_erotica?: bool} $preferences
      */
-    public static function render(string $username, array $preferences, ?string $statusMessage, bool $isAdmin, string $csrfField, bool $allowErotica = false, array $globalColumns = [], array $personalColumns = [], bool $apiEnabled = false, bool $hasApiKey = false, ?string $newApiKey = null, string $sabSettings = '', string $metadataSettings = ''): string
+    public static function render(string $username, array $preferences, ?string $statusMessage, bool $isAdmin, string $csrfField, bool $allowErotica = false, array $globalColumns = [], array $personalColumns = [], bool $apiEnabled = false, bool $hasApiKey = false, ?string $newApiKey = null, string $sabSettings = '', string $metadataSettings = '', string $musicSettings = ''): string
     {
         $safeUsername = h($username);
         $columnForm = SpotColumns::form($globalColumns !== [] ? $globalColumns : SpotColumns::defaults(), $personalColumns, $csrfField);
@@ -71,10 +71,16 @@ final class PreferencesPageRenderer
       </div>
     </div>
     {$statusAlert}
-    {$sabSettings}
-    {$metadataSettings}
-    {$apiKey}
-    <div class="card">
+    <nav class="nav nav-pills gap-2 settings-navigation" aria-label="Voorkeurenonderdelen" data-preferences-navigation>
+      <a class="nav-link" href="#general">Algemeen</a>
+      <a class="nav-link" href="#columns">Kolommen</a>
+      <a class="nav-link" href="#downloads">SABnzbd</a>
+      <a class="nav-link" href="#metadata">TVDB metadata</a>
+      <a class="nav-link" href="#music-metadata">Muziekmetadata</a>
+      <a class="nav-link" href="#api-key">Newznab API</a>
+    </nav>
+    <div data-preferences-panel="general" id="general">
+    <div class="card my-4">
       <div class="card-header fw-semibold">Preferences voor username: {$safeUsername}</div>
       <div class="card-body">
         <form method="post" action="/preferences">
@@ -100,8 +106,13 @@ final class PreferencesPageRenderer
           <button class="btn btn-primary" type="submit">Preferences opslaan</button>
         </form>
       </div>
-      {$columnForm}
     </div>
+    </div>
+    <div data-preferences-panel="columns">{$columnForm}</div>
+    <div data-preferences-panel="downloads">{$sabSettings}</div>
+    <div data-preferences-panel="metadata">{$metadataSettings}</div>
+    <div data-preferences-panel="music-metadata">{$musicSettings}</div>
+    <div data-preferences-panel="api-key">{$apiKey}</div>
   </div>
 HTML;
         return SpotLayout::render('Voorkeuren', $username, $isAdmin, $csrfField, $content, theme: $theme);

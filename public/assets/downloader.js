@@ -280,21 +280,24 @@
 
 (() => {
     'use strict';
-    const navigation = document.querySelector('[data-admin-navigation]');
-    if (!navigation) return;
-    const panels = [...document.querySelectorAll('[data-admin-panel]')];
-    const aliases = {'spot-content': 'appearance', columns: 'appearance'};
-    function select() {
-        const hash = location.hash.slice(1);
-        const selected = panels.find(panel => panel.dataset.adminPanel === (aliases[hash] || hash))?.dataset.adminPanel || 'usenet';
-        for (const panel of panels) panel.hidden = panel.dataset.adminPanel !== selected;
-        for (const link of navigation.querySelectorAll('a')) {
-            const active = link.hash === '#' + selected;
-            link.classList.toggle('active', active);
-            if (active) link.setAttribute('aria-current', 'page');
-            else link.removeAttribute('aria-current');
+    for (const navigation of document.querySelectorAll('[data-admin-navigation], [data-preferences-navigation]')) {
+        const admin = navigation.hasAttribute('data-admin-navigation');
+        const attribute = admin ? 'data-admin-panel' : 'data-preferences-panel';
+        const panels = [...document.querySelectorAll('[' + attribute + ']')];
+        const aliases = admin ? {'spot-content': 'appearance', columns: 'appearance'} : {};
+        function select() {
+            const hash = location.hash.slice(1);
+            const selected = panels.find(panel => panel.getAttribute(attribute) === (aliases[hash] || hash))?.getAttribute(attribute)
+                || (admin ? 'usenet' : 'general');
+            for (const panel of panels) panel.hidden = panel.getAttribute(attribute) !== selected;
+            for (const link of navigation.querySelectorAll('a')) {
+                const active = link.hash === '#' + selected;
+                link.classList.toggle('active', active);
+                if (active) link.setAttribute('aria-current', 'page');
+                else link.removeAttribute('aria-current');
+            }
         }
+        addEventListener('hashchange', select);
+        select();
     }
-    addEventListener('hashchange', select);
-    select();
 })();

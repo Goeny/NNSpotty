@@ -83,8 +83,8 @@
 .chart-grid { stroke: var(--spot-border); fill: none; }
 .download-item { padding: .8rem 0; border-bottom: 1px solid var(--spot-border); }
 .download-item progress { width: 100%; height: .5rem; accent-color: var(--bs-primary); }
-.admin-navigation { position: sticky; top: 0; z-index: 3; background: var(--spot-bg); padding-block: .75rem; border-bottom: 1px solid var(--spot-border); }
-[data-admin-panel][hidden], [data-sab-confirm][hidden] { display: none !important; }
+.settings-navigation { position: sticky; top: 0; z-index: 3; background: var(--spot-bg); padding-block: .75rem; border-bottom: 1px solid var(--spot-border); }
+[data-admin-panel][hidden], [data-preferences-panel][hidden], [data-sab-confirm][hidden] { display: none !important; }
 @keyframes download-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
 @keyframes download-out { to { transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) { .download-drawer[open], .download-drawer.is-closing { animation: none; } }
@@ -285,7 +285,7 @@
     .spot-table td:not(.column-title):not(.column-cover)::before { content: attr(data-label) ": "; color: var(--spot-muted); }
 }
 @media (max-width: 767px) {
-    .admin-navigation { top: var(--header-height); }
+    .settings-navigation { top: var(--header-height); }
     .spotty { --header-height: 150px; padding-top: var(--header-height); }
     .sidebar { position: static; width: 100%; padding: 10px 16px; max-height: 280px; }
     .brand { font-size: 1rem; }
