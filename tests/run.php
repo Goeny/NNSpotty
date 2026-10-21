@@ -254,6 +254,22 @@ try {
         && str_contains($stacked, 'aria-label="Verwijder filter x264"')
         && str_contains($stacked, 'name="subcategory" value="0:a9,0:d0"')
         && str_contains($stacked, 'class="page-heading-actions"'), 'Sidebar stapelt filters, chips verwijderen apart en zoeken behoudt selectie');
+    $drill = SpotsPageRenderer::render('tester', false, [$spot], 'Beeld', '', filters: ['0:z0'], available: ['0:a9', '0:d0']);
+    check(str_contains($drill, '>x264<span') && str_contains($drill, '>Films<span') && !str_contains($drill, '>Series<span')
+        && !str_contains($drill, '>WEBRip<span') && !str_contains($drill, '<summary>Bron</summary>')
+        && str_contains($drill, 'Alleen filters die nog resultaten opleveren'),
+        'Drill-down verbergt filters en lege groepen zonder resultaten, maar houdt actieve filters zichtbaar');
+    $terms = \NnSpotty\Usenet\SearchTerms::parse('The Juggler (1953)');
+    check($terms->words === ['The', 'Juggler', '1953'] && $terms->fulltext(3) === '+juggler +1953'
+        && \NnSpotty\Usenet\SearchTerms::parse('the who')->fulltext(3) === '+the +who'
+        && \NnSpotty\Usenet\SearchTerms::parse('a b')->fulltext(3) === null
+        && \NnSpotty\Usenet\SearchTerms::parse('%_!')->words === [] && \NnSpotty\Usenet\SearchTerms::parse('  ') === null,
+        'Zoektermen: FULLTEXT vereist selectieve woorden; korte woorden en leestekens worden niet als wildcard gebruikt');
+    $phrase = '/' . $terms->phrasePattern() . '/u';
+    check(preg_match($phrase, 'The.Juggler.1953.1080p') === 1 && preg_match($phrase, 'the juggler - 1953') === 1
+        && preg_match($phrase, 'The Jugglers 1953') === 0 && preg_match($phrase, 'Juggler 1953 The') === 0
+        && preg_match('/' . \NnSpotty\Usenet\SearchTerms::parse('The')->phrasePattern() . '/u', 'Thesaurus') === 0,
+        'Woordgroepexpressie matcht hele woorden in volgorde, ook met punten als scheiding');
     foreach (SpotColumns::defaults() as $selection) {
         check(SpotColumns::validate($selection) === $selection, 'Standaard kolommen zijn geldig en behouden vaste volgorde');
     }

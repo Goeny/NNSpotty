@@ -291,7 +291,7 @@ Voor de database-/HTTP-regressies en benchmark gebruik je uitsluitend een **apar
 ```bash
 php tests/run.php --integration
 NNSPOTTY_PERF_SPOTS=300000 php tests/browse-performance.php
-NNSPOTTY_PERF_SPOTS=1300000 php tests/browse-performance.php
+NNSPOTTY_PERF_SPOTS=4300000 php tests/browse-performance.php
 ```
 
 De suite test echte gelijktijdigheid met twee lokale PHP-workers en een NNTP-afbeelding die drie seconden wacht: een batch plus retrieve-status van dezelfde sessie moeten samen binnen 1,5 seconde gereed zijn, terwijl de afbeelding nog wacht. Benchmarktijden zijn lokale synthetische metingen, geen productietijden of garantie voor jouw hardware.
@@ -1043,6 +1043,28 @@ systemctl reload nnspotty-php84-fpm.service
 ```
 
 Ververs de browsercache. Open `/admin#metadata`: subtabs Providers, Films, Series en Muziek. Vul onder Providers een TMDB API-key of Read Access Token in, schakel in en klik **Toegang testen**. Controleer onder Films (standaard TMDB) en Series (standaard TheTVDB) de primaire provider. Open een filmdetail: TMDB-score, classificatie, filmrol-icoon naast de favorietknop (opent de trailer in een venster; sluiten stopt de speler), gelijk uitgelijnde knoppen Reacties/NZB/SABnzbd en bovenaan naast Metadata link de bronvermeldingen met even grote TVDB- en TMDB-logo's. Open een aflevering: TVDB-data met aanvulling door TMDB (score/trailer). Test **Metadata link** > zoeken per provider en kiezen. Open de Beck-muziekspot en controleer de albumkoppeling. Ga naar Favorieten en klik een hoofdcategorie: het reguliere overzicht opent. Controleer fouten:
+
+```bash
+tail -n 50 /home/hopseflop/domains/nnspotty.hopseflop.nl/logs/php_log
+```
+
+## Overzichtsindex, drill-down en woordzoeken accepteren
+
+Migratie `20261023_0024_spot_browse_index` bouwt een leestabel voor alle spots. Bij ruim 4 miljoen spots duurt dat tientallen minuten en kost het extra schijfruimte. Pauzeer cron-retrieves, controleer de vrije ruimte en voer de migratie uit in `tmux`/`screen`:
+
+```bash
+cd /home/hopseflop/domains/nnspotty.hopseflop.nl/public_html
+df -h /var/lib/mysql
+mysql -e "SELECT table_name, ROUND((data_length+index_length)/1024/1024) AS mb FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('spotnet_spots','spotnet_spot_categories')" <database>
+sudo -u hopseflop git pull --ff-only origin main
+tmux new -s nnspotty-migrate
+sudo -u hopseflop env OPENSSL_CONF=/home/hopseflop/.config/nnspotty/openssl.cnf /opt/remi/php84/root/usr/bin/php -d memory_limit=512M bin/console db migrate
+# Na afloop (Ctrl+B D om los te koppelen, `tmux attach -t nnspotty-migrate` om terug te keren):
+sudo -u hopseflop env OPENSSL_CONF=/home/hopseflop/.config/nnspotty/openssl.cnf /opt/remi/php84/root/usr/bin/php bin/console db status
+systemctl reload nnspotty-php84-fpm.service
+```
+
+Wordt de opbouw onderbroken, dan hervat `bin/console db reindex-spots` veilig. Controles: `SELECT COUNT(*) FROM spot_browse` gelijk aan `spotnet_spots`; `SHOW INDEX FROM spot_browse WHERE Key_name = 'ft_browse_title'` bestaat. Open daarna met Ctrl+F5: **Beeld**, **Films** (Series verdwijnt uit de sidebar), een filtercombinatie met nauwelijks resultaten, zoeken op `The` (geen `Thesaurus`-treffers) en op `The Juggler`. Meet in DevTools of met `APP_TIMING=true` de documentrequest en vervolgbatches. Controleer het MariaDB slow log op `spot_browse`-queries.
 
 ```bash
 tail -n 50 /home/hopseflop/domains/nnspotty.hopseflop.nl/logs/php_log

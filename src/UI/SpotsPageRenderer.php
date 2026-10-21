@@ -13,6 +13,7 @@ final class SpotsPageRenderer
      *  @param list<array<string, mixed>>|null $facets
      *  @param list<string> $filters
      *  @param list<string> $columns
+     *  @param list<string>|null $available Subcategory codes that still yield results; null shows every code.
      */
     public static function render(
         string $username,
@@ -27,7 +28,8 @@ final class SpotsPageRenderer
         bool $showErotica = false,
         array $columns = ['cover', 'title', 'format', 'poster', 'size'],
         ?string $nextCursor = null,
-        bool $favoritesOnly = false
+        bool $favoritesOnly = false,
+        ?array $available = null
     ): string {
         $query = ['category' => $selectedCategory, 'subcategory' => implode(',', $filters), 'q' => $search];
         if ($favoritesOnly) $query['favorites'] = '1';
@@ -91,7 +93,7 @@ final class SpotsPageRenderer
 </div>
 HTML;
         return SpotLayout::render('Spots', $username, $isAdmin, $csrfField, $content, selected: $selectedCategory, theme: $theme,
-            facets: $facets, selectedSubcategory: $filters, search: $search, showErotica: $showErotica, browse: true, favoritesOnly: $favoritesOnly);
+            facets: $facets, selectedSubcategory: $filters, search: $search, showErotica: $showErotica, browse: true, favoritesOnly: $favoritesOnly, available: $available);
     }
 
     /** @param array<string, mixed> $query */

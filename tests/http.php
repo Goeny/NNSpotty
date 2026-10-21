@@ -131,14 +131,16 @@ try {
     check($list['status'] === 200 && substr_count($list['body'], 'data-preview=') === 3
         && str_contains($list['body'], 'aria-hidden="true" inert'), 'HTTP-overzicht bevat drie individuele spots en een gesloten detailpaneel');
     $headList = httpFixture($httpPort, '/spots?category=Beeld', $cookie);
-    check($headList['status'] === 200 && str_contains($headList['body'], '>WEBRip<span')
-        && str_contains($headList['body'], '>Sciencefiction<span') && !str_contains($headList['body'], '>Erotica<span'), 'Hoofdcategorie toont volledige sidebar zonder verborgen erotica');
+    check($headList['status'] === 200 && str_contains($headList['body'], '>WMV<span') && str_contains($headList['body'], '>Films<span')
+        && !str_contains($headList['body'], '>WEBRip<span') && !str_contains($headList['body'], '>Sciencefiction<span')
+        && !str_contains($headList['body'], '>Erotica<span'), 'Hoofdcategorie toont alleen subcategorieen met resultaten en geen verborgen erotica');
     check(str_contains($headList['body'], 'data-facets-url=') && str_contains($headList['body'], 'Nieuwtellers laden...')
         && count(array_filter($headList['headers'], static fn (string $header): bool => str_starts_with($header, 'Server-Timing: session;dur='))) === 1,
         'Pagina levert filters direct en laadt nieuwtellers apart; admin kan veilige timings bekijken');
     $soundList = httpFixture($httpPort, '/spots?category=Geluid', $cookie);
-    check($soundList['status'] === 200 && str_contains($soundList['body'], '>FLAC<span')
-        && !str_contains($soundList['body'], '>WEBRip<span'), 'Hoofdcategorielink wisselt de bijbehorende sidebar via echte HTTP-route');
+    check($soundList['status'] === 200 && str_contains($soundList['body'], '<p class="nav-caption">Geluid</p>')
+        && !str_contains($soundList['body'], '>WMV<span') && !str_contains($soundList['body'], '>FLAC<span'),
+        'Hoofdcategorielink wisselt de bijbehorende sidebar via echte HTTP-route en verbergt filters zonder spots');
     $firstVisitPage = httpFixture($httpPort, '/spots?category=Beeld&q=Visit+Route+Fixture', $cookie);
     $firstVisitCounts = json_decode(httpFixture($httpPort, '/spots/facets?category=Beeld&q=Visit+Route+Fixture', $cookie)['body'], true, 512, JSON_THROW_ON_ERROR)['counts'];
     check($firstVisitCounts === [], 'Eerste browsersessie begint met nul nieuwe spots, niet het volledige historische totaal');

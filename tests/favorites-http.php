@@ -112,11 +112,12 @@ $pdo->exec("INSERT INTO spotnet_spots
      CONCAT('favorite-scale-', a.n, b.n, c.n, d.n, '@example.invalid'), 'free.pt', 'Unrelated scale fixture',
      '', 'Fixture', 'Beeld', '[]', 0, UTC_TIMESTAMP(), '', '', '', '[]', '[]', '', UTC_TIMESTAMP(), 'Films'
     FROM $digits a CROSS JOIN $digits b CROSS JOIN $digits c CROSS JOIN $digits d");
-$plan = $pdo->query("EXPLAIN SELECT s.id FROM spotnet_spots s
-    WHERE s.id IN (SELECT spot_id FROM spot_favorites WHERE username = 'http-tester')
-    ORDER BY s.posted_at DESC, s.id DESC LIMIT 11")->fetchAll();
-check(count(array_filter($plan, static fn (array $step): bool => $step['table'] === 'spot_favorites' && $step['key'] === 'PRIMARY')) === 1
-    && count(array_filter($plan, static fn (array $step): bool => $step['table'] === 's' && $step['type'] === 'eq_ref')) === 1,
+$spots->rebuildBrowseIndex();
+$plan = $pdo->query("EXPLAIN SELECT b.id FROM spot_favorites f JOIN spot_browse b ON b.spot_id = f.spot_id
+    WHERE f.username = 'http-tester' AND b.is_erotica = 0
+    ORDER BY b.posted_at DESC, b.id DESC LIMIT 11")->fetchAll();
+check(count(array_filter($plan, static fn (array $step): bool => $step['table'] === 'f' && $step['key'] === 'PRIMARY')) === 1
+    && count(array_filter($plan, static fn (array $step): bool => $step['table'] === 'b' && $step['type'] === 'eq_ref')) === 1,
     'Favorietenquery gebruikt username-primary-key en exacte spotlookups tussen 10000 niet-favorieten, geen volledige spotscan');
 $sparseBatch = $spots->batch(null, 10, false, [], '', null, 'http-tester');
 check(count($sparseBatch['spots']) === 10 && $sparseBatch['next'] !== null

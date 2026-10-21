@@ -12,7 +12,8 @@ final class Migrator
     {
     }
 
-    public function migrate(): void
+    /** @param (callable(string): void)|null $progress Receives progress lines for long data migrations. */
+    public function migrate(?callable $progress = null): void
     {
         $this->ensureMigrationsTable();
         $executed = $this->executedMigrations();
@@ -26,11 +27,15 @@ final class Migrator
                 foreach ($sqlStatements as $sql) {
                     $this->pdo->exec($sql);
                 }
+                // Earlier hooks run before the overview read model exists; migration 0024 builds it in one pass.
                 if ($name === '20261018_0008_category_backfill') {
-                    (new \NnSpotty\Usenet\SpotRepository($this->pdo))->rebuildCategories();
+                    (new \NnSpotty\Usenet\SpotRepository($this->pdo))->rebuildCategories(false);
                 }
                 if ($name === '20261018_0011_newznab_nzb') {
-                    (new \NnSpotty\Usenet\SpotRepository($this->pdo))->rebuildCategories();
+                    (new \NnSpotty\Usenet\SpotRepository($this->pdo))->rebuildCategories(false);
+                }
+                if ($name === '20261023_0024_spot_browse_index') {
+                    (new \NnSpotty\Usenet\SpotRepository($this->pdo))->rebuildBrowseIndex($progress);
                 }
                 $insert = $this->pdo->prepare('INSERT INTO migrations (name, executed_at) VALUES (:name, UTC_TIMESTAMP())');
                 $insert->execute(['name' => $name]);
@@ -96,6 +101,7 @@ final class Migrator
         $metadataStatement->execute();
         $musicStatement = $this->pdo->prepare('DELETE FROM music_cache WHERE expires_at < UTC_TIMESTAMP()');
         $musicStatement->execute();
+        (new \NnSpotty\Usenet\SpotRepository($this->pdo))->refreshBrowseCounts();
 
         return [
             'post_comments_deleted' => $commentsStatement->rowCount(),
@@ -557,6 +563,54 @@ final class Migrator
                     provider VARCHAR(10) CHARACTER SET ascii NOT NULL
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
                 'INSERT IGNORE INTO metadata_providers (media_type, provider) VALUES (\'movie\', \'tmdb\'), (\'series\', \'tvdb\')',
+            ],
+            // Narrow overview read model; filled and given its FULLTEXT index by the hook in migrate().
+            '20261023_0024_spot_browse_index' => [
+                'CREATE TABLE IF NOT EXISTS spot_combos (
+                    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    signature CHAR(40) CHARACTER SET ascii NOT NULL UNIQUE,
+                    category VARCHAR(32) NOT NULL,
+                    browse_type VARCHAR(32) NOT NULL,
+                    is_erotica TINYINT(1) NOT NULL,
+                    spot_count INT NOT NULL DEFAULT 0,
+                    INDEX idx_combo_scope (category, browse_type, is_erotica)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS spot_combo_codes (
+                    combo_id INT UNSIGNED NOT NULL,
+                    code VARCHAR(16) CHARACTER SET ascii NOT NULL,
+                    PRIMARY KEY (combo_id, code),
+                    INDEX idx_combo_code (code, combo_id),
+                    FOREIGN KEY (combo_id) REFERENCES spot_combos(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS spot_browse (
+                    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    spot_id CHAR(64) CHARACTER SET ascii NOT NULL UNIQUE,
+                    combo_id INT UNSIGNED NOT NULL,
+                    category VARCHAR(32) NOT NULL,
+                    browse_type VARCHAR(32) NOT NULL,
+                    is_erotica TINYINT(1) NOT NULL,
+                    posted_at DATETIME NOT NULL,
+                    created_at DATETIME(6) NOT NULL,
+                    title TEXT NOT NULL,
+                    INDEX idx_browse_date (posted_at, id, is_erotica, combo_id),
+                    INDEX idx_browse_category (category, posted_at, id, is_erotica, combo_id),
+                    INDEX idx_browse_type (browse_type, posted_at, id, is_erotica, combo_id),
+                    INDEX idx_browse_combo (combo_id, posted_at, id),
+                    INDEX idx_browse_created (created_at, combo_id),
+                    FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE,
+                    FOREIGN KEY (combo_id) REFERENCES spot_combos(id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS spot_filter_cache (
+                    cache_key CHAR(40) CHARACTER SET ascii PRIMARY KEY,
+                    codes TEXT NOT NULL,
+                    expires_at DATETIME NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                // Superseded by spot_browse; idx_spotnet_spots_date and idx_spotnet_visible_date stay for retention and Newznab.
+                'ALTER TABLE spotnet_spots
+                    DROP INDEX IF EXISTS idx_spotnet_visibility,
+                    DROP INDEX IF EXISTS idx_spotnet_type_date,
+                    DROP INDEX IF EXISTS idx_spotnet_spots_category_date,
+                    DROP INDEX IF EXISTS idx_spotnet_created_at',
             ],
         ];
     }

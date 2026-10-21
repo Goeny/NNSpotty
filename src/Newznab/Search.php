@@ -67,11 +67,19 @@ final class Search
             $where[] = 'EXISTS (SELECT 1 FROM spotnet_newznab_categories c WHERE c.spot_id = s.id AND c.category_id IN ('
                 . implode(',', $placeholders) . '))';
         }
-        // Dotted release names and ordinary title words must match the same query.
-        $title = "REPLACE(REPLACE(REPLACE(s.title, '.', ' '), '_', ' '), '-', ' ')";
-        foreach ($words as $index => $word) {
-            $where[] = $title . ' LIKE :word' . $index;
-            $parameters['word' . $index] = '%' . $word . '%';
+        // Every word must occur as a whole word; FULLTEXT preselects candidates and the expressions confirm word boundaries.
+        $terms = $query === '' ? null : \NnSpotty\Usenet\SearchTerms::parse($query);
+        $fulltextWhere = null;
+        if ($terms !== null) {
+            $fulltext = $terms->fulltext((int) ($this->pdo->query('SELECT @@innodb_ft_min_token_size')->fetchColumn() ?: 3));
+            if ($fulltext !== null) {
+                $where[] = $fulltextWhere = 's.id IN (SELECT b.spot_id FROM spot_browse b WHERE MATCH (b.title) AGAINST (:fulltext IN BOOLEAN MODE))';
+                $parameters['fulltext'] = $fulltext;
+            }
+            foreach ($terms->wordPatterns() as $index => $pattern) {
+                $where[] = 's.title REGEXP :word' . $index;
+                $parameters['word' . $index] = $pattern;
+            }
         }
         if ($maxage > 0) {
             $where[] = 's.posted_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL :maxage DAY)';
@@ -103,6 +111,25 @@ final class Search
             $parameters['year'] = '(^|[^0-9])' . self::number($request, 'year', 1900, 1888, 2100) . '([^0-9]|$)';
             $where[] = 's.title REGEXP :year';
         }
+        try {
+            return $this->fetch($where, $parameters, $limit, $offset);
+        } catch (\PDOException $exception) {
+            // Extremely common words exceed the FULLTEXT result cache; the whole-word expressions alone stay correct.
+            if ($fulltextWhere === null || (int) ($exception->errorInfo[1] ?? 0) !== 188) {
+                throw $exception;
+            }
+            unset($parameters['fulltext']);
+            return $this->fetch(array_values(array_diff($where, [$fulltextWhere])), $parameters, $limit, $offset);
+        }
+    }
+
+    /**
+     * @param list<string> $where
+     * @param array<string, mixed> $parameters
+     * @return array{items: list<array<string, mixed>>, total: int, offset: int}
+     */
+    private function fetch(array $where, array $parameters, int $limit, int $offset): array
+    {
         $sql = ' FROM spotnet_spots s WHERE ' . implode(' AND ', $where);
         $count = $this->pdo->prepare('SELECT COUNT(*)' . $sql);
         $count->execute($parameters);

@@ -28,8 +28,9 @@ final class SpotLayout
 
     /** @param list<array<string, mixed>> $categories
      *  @param list<array<string, mixed>>|null $facets
+     *  @param list<string>|null $available Subcategory codes that still yield results; null shows every code.
      */
-    public static function render(string $title, string $username, bool $isAdmin, string $csrfField, string $content, array $categories = [], ?string $selected = null, string $theme = 'default', ?array $facets = [], string|array|null $selectedSubcategory = null, string $search = '', bool $showErotica = false, bool $browse = false, bool $favoritesOnly = false): string
+    public static function render(string $title, string $username, bool $isAdmin, string $csrfField, string $content, array $categories = [], ?string $selected = null, string $theme = 'default', ?array $facets = [], string|array|null $selectedSubcategory = null, string $search = '', bool $showErotica = false, bool $browse = false, bool $favoritesOnly = false, ?array $available = null): string
     {
         $mode = $theme === 'plex-light' ? 'light' : 'dark';
         $head = SpotCategories::headForCategory($selected);
@@ -45,7 +46,7 @@ final class SpotLayout
                 . h('/spots?' . http_build_query(['category' => $category, 'q' => $search])) . '">' . h($category) . '</a>';
         }
         $filters = is_array($selectedSubcategory) ? $selectedSubcategory : SpotFilters::parse($selectedSubcategory);
-        $navigation = self::subcategories($head, $facets, $filters, $search, $showErotica, $favoritesOnly);
+        $navigation = self::subcategories($head, $facets, $filters, $search, $showErotica, $favoritesOnly, $available);
         $favoritesNavigation = '<nav class="mb-3" aria-label="Mijn spots"><p class="nav-caption">Mijn spots</p>'
             . '<a class="side-link' . ($favoritesOnly ? ' active' : '') . '" href="/spots?favorites=1"'
             . ($favoritesOnly ? ' aria-current="page"' : '') . '>Favorieten</a></nav>';
@@ -207,8 +208,10 @@ final class SpotLayout
 HTML;
     }
 
-    /** @param list<array<string, mixed>>|null $facets */
-    private static function subcategories(?int $head, ?array $facets, array $selected, string $search, bool $showErotica, bool $favoritesOnly = false): string
+    /** @param list<array<string, mixed>>|null $facets
+     *  @param list<string>|null $available
+     */
+    private static function subcategories(?int $head, ?array $facets, array $selected, string $search, bool $showErotica, bool $favoritesOnly = false, ?array $available = null): string
     {
         if ($head === null) {
             return '<p class="nav-caption">Subcategorieen</p><p class="small text-body-secondary px-2">Kies hierboven een hoofdcategorie om alle bijbehorende subcategorieen te bekijken.</p>';
@@ -225,23 +228,30 @@ HTML;
                 . '<button class="btn btn-sm btn-outline-secondary mb-2" data-facets-retry type="button" hidden>Opnieuw proberen</button>'
                 . '<noscript><p class="small px-2">Nieuwtellers vereisen JavaScript; de filters werken zonder.</p></noscript>';
         }
+        // Drill-down: only codes that still combine with the current selection are offered.
+        $offered = $available === null ? null : array_fill_keys(array_merge($available, $selected), true);
+        if ($offered !== null && $selected !== []) {
+            $html .= '<p class="small text-body-secondary px-2">Alleen filters die nog resultaten opleveren worden getoond.</p>';
+        }
         foreach (SpotCategories::dimensions($head) as $dimension => $name) {
-            $html .= '<details class="category-group" open><summary>' . h($name) . '</summary>';
+            $links = '';
             foreach (SpotCategories::definitions()[$head][$dimension] as $number => $label) {
                 $code = $head . ':' . $dimension . $number;
                 $adult = $head === 0 && (($dimension === 'z' && $number === 3)
                     || ($dimension === 'd' && (($number >= 23 && $number <= 26) || ($number >= 72 && $number <= 89))));
-                if ($adult && !$showErotica) {
+                if (($adult && !$showErotica) || ($offered !== null && !isset($offered[$code]))) {
                     continue;
                 }
                 $active = in_array($code, $selected, true) ? ' active' : '';
                 $countLabel = $facets === null ? 'Nieuwteller wordt geladen' : (int) ($counts[$code] ?? 0) . ' nieuw sinds je vorige bezoek';
                 $count = '<span class="side-count" data-facet-count="' . h($code) . '" title="' . h($countLabel) . '" aria-label="'
                     . h($countLabel) . '">' . ($facets === null ? '&hellip;' : (int) ($counts[$code] ?? 0)) . '</span>';
-                $html .= '<a class="side-link' . $active . '"' . ($active !== '' ? ' aria-current="page"' : '') . ' href="'
+                $links .= '<a class="side-link' . $active . '"' . ($active !== '' ? ' aria-current="page"' : '') . ' href="'
                     . h('/spots?' . http_build_query($base + ['subcategory' => implode(',', SpotFilters::toggle($selected, $code))])) . '">' . h($label) . $count . '</a>';
             }
-            $html .= '</details>';
+            if ($links !== '') {
+                $html .= '<details class="category-group" open><summary>' . h($name) . '</summary>' . $links . '</details>';
+            }
         }
         return $html;
     }

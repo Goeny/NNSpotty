@@ -273,6 +273,8 @@ try {
             $pdo->rollBack();
             throw $exception;
         }
+        // Direct SQL bypasses the overview read model, exactly like manual database edits in production.
+        $spots->rebuildBrowseIndex();
         $recentCount = $spots->countSpots(null) - $expiredCount;
         $batchCleanupRun = $service->run('since-last', null, true, $logger);
         check($batchCleanupRun['status'] === 'completed'
@@ -390,12 +392,69 @@ try {
     check(array_merge(array_column($dense['spots'], 'id'), array_column($denseNext['spots'], 'id')) === $denseExpected,
         'Geordend zoeken behoudt databasecollatie, sortering en keyset zonder dubbelen');
     $sparse = $spots->batch('Beeld', 10, false, [], '%_!');
-    check(count($sparse['spots']) === 4 && $sparse['next'] === null
-        && in_array(hash('sha256', 'search-probe-1@example.invalid'), array_column($sparse['spots'], 'id'), true),
-        'Schaarse zoekactie heeft geen zoekdieptelimiet en behandelt procent, underscore en uitroepteken letterlijk');
+    check($sparse['spots'] === [] && $sparse['next'] === null && $spots->countSpots('Beeld', false, [], '%_!') === 0,
+        'Zoektekst zonder woorden levert niets op en procent, underscore en uitroepteken werken niet als wildcard');
     check(array_column($spots->listSpots('Beeld', 10, 7, false, [], 'Probe fixture'), 'id') === array_slice($denseExpected, 7, 10),
         'Zoeken met offset behoudt dezelfde gefilterde sorteervolgorde');
     $pdo->exec("DELETE FROM spotnet_spots WHERE message_id LIKE 'search-probe-%@example.invalid'");
+    $phraseSpot = $adult;
+    $phraseIds = [];
+    foreach (['The Juggler (1953)', 'The.Juggler.1953.1080p', 'The Proud Rebel', 'Juggler in the streets', 'Thesaurus collection', 'Theatre night'] as $n => $title) {
+        $phraseSpot['message_id'] = 'phrase-' . $n . '@example.invalid';
+        $phraseSpot['id'] = $phraseIds[$title] = hash('sha256', $phraseSpot['message_id']);
+        $phraseSpot['title'] = $title;
+        $phraseSpot['subcategories'] = $n < 2 ? ['1z00', '1a09'] : ['1z01'];
+        $phraseSpot['posted_at'] = gmdate('Y-m-d H:i:s', strtotime('2024-06-01 00:00:00 UTC') + $n);
+        $spots->saveSpot($phraseSpot, 'free.pt');
+    }
+    $found = static fn (string $search): array => array_column($spots->listSpots('Beeld', 50, 0, false, [], $search), 'title');
+    check(array_values(array_diff($found('The'), ['Thesaurus collection', 'Theatre night'])) === $found('The')
+        && in_array('The Proud Rebel', $found('The'), true) && in_array('Juggler in the streets', $found('the'), true),
+        'Zoeken op een los woord matcht hele woorden: "The" vindt geen Thesaurus of Theatre');
+    check($found('The Juggler') === ['The.Juggler.1953.1080p', 'The Juggler (1953)'] && $spots->countSpots('Beeld', false, [], 'the juggler') === 2,
+        'Zoeken op meerdere woorden vindt de exacte woordgroep, ook in release-namen met punten');
+    check($found('Thesaurus') === ['Thesaurus collection'] && $found('juggler streets') === [] && $found('Juggler 1953') === ['The.Juggler.1953.1080p', 'The Juggler (1953)'],
+        'Woordgroepen moeten aaneengesloten voorkomen');
+    $available = $spots->availableCodes('Beeld', false, ['0:z0'], '', null);
+    check(in_array('0:a9', $available, true) && in_array('0:z0', $available, true) && !in_array('0:z1', $available, true),
+        'Drill-down toont alleen filters die met de huidige selectie nog resultaten opleveren (Films sluit Series uit)');
+    check(!in_array('0:z0', $spots->availableCodes('Beeld', false, [], 'Proud Rebel', null), true)
+        && in_array('0:z1', $spots->availableCodes('Beeld', false, [], 'Proud Rebel', null), true),
+        'Beschikbare filters volgen ook de zoekterm');
+    $cachedBefore = $spots->availableCodes('Beeld', false, [], '', null);
+    check($cachedBefore === $spots->availableCodes('Beeld', false, [], '', null)
+        && (int) $pdo->query('SELECT COUNT(*) FROM spot_filter_cache')->fetchColumn() >= 1,
+        'Filterbeschikbaarheid zonder zoekterm wordt kort in de database gecachet');
+    $cacheSpot = $phraseSpot;
+    $cacheSpot['message_id'] = 'phrase-cache@example.invalid';
+    $cacheSpot['id'] = hash('sha256', $cacheSpot['message_id']);
+    $cacheSpot['title'] = 'Filter cache fixture';
+    $cacheSpot['subcategories'] = ['1z00', '1d22'];
+    $cacheSpot['posted_at'] = '2024-06-01 00:00:30';
+    $spots->saveSpot($cacheSpot, 'free.pt');
+    check(!in_array('0:d22', $cachedBefore, true) && in_array('0:d22', $spots->availableCodes('Beeld', false, [], '', null), true),
+        'Een nieuwe categoriecombinatie is direct zichtbaar ondanks de filtercache');
+    $comboCount = static fn (): int => (int) $pdo->query('SELECT COALESCE(SUM(spot_count), 0) FROM spot_combos')->fetchColumn();
+    $spots->refreshBrowseCounts();
+    $before = $comboCount();
+    $deleted = $spots->deleteExpiredSpots('2024-06-01 00:00:02', 1000);
+    $afterDelete = $comboCount();
+    $spots->refreshBrowseCounts();
+    check($deleted >= 2 && $afterDelete === $before - $deleted && $afterDelete === $comboCount()
+        && $spots->getSpot($phraseIds['The Juggler (1953)']) === null,
+        'Retentieverwijdering verlaagt de combinatietellers in dezelfde transactie');
+    $reclassified = $phraseSpot;
+    $reclassified['message_id'] = 'phrase-2@example.invalid';
+    $reclassified['id'] = $phraseIds['The Proud Rebel'];
+    $reclassified['title'] = 'The Proud Rebel';
+    $reclassified['subcategories'] = ['1z00'];
+    $spots->saveSpot($reclassified, 'free.pt', true);
+    $after = $comboCount();
+    $spots->refreshBrowseCounts();
+    check($after === $comboCount() && $spots->countSpots('Films', false, [], 'Proud Rebel') === 1
+        && $spots->countSpots('Series', false, [], 'Proud Rebel') === 0,
+        'Herclassificatie verplaatst de spot naar de nieuwe combinatie zonder tellerdrift');
+    $pdo->exec("DELETE FROM spotnet_spots WHERE message_id LIKE 'phrase-%@example.invalid'");
     $multi = $adult;
     $multi['message_id'] = 'multi-facet@example.invalid';
     $multi['id'] = hash('sha256', $multi['message_id']);

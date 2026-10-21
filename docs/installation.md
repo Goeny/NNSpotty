@@ -81,7 +81,7 @@ Optionele artiestachtergronden gebruiken wel een aparte fanart.tv-API-key. Migra
 - De oude exacte standaardinstelling met `comments:free.ptd` wordt gemigreerd naar `comments:free.usenet`.
 - Aangepaste groepsinstellingen worden niet overschreven; vervang generieke `category:group` configuratie door de rollen `spots` en `comments`.
 - Voer `php bin/console retrieve --days=30 --verbose` uit. Oude headers blijven bewaard, maar worden niet als spots weergegeven.
-- `db reindex-spots` is vervangen door opnieuw ophalen van de echte Spotnet-inhoud.
+- `db reindex-spots` bouwt sinds migratie 0024 de overzichtsindex van bestaande spots opnieuw op; het reconstrueert geen ontbrekende Spotnet-inhoud.
 
 ## Opslag
 - Alle runtime data wordt opgeslagen in MySQL/MariaDB tabellen.

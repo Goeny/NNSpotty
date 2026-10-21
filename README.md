@@ -55,9 +55,12 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 
 - Na inloggen direct het spotsoverzicht; geen tussenhomepage. De root-URL verwijst naar `/spots`.
 - Vaste header met de enige zoekbalk. De zoekterm blijft bij hoofdgroep- en subcategoriefilters behouden.
+- **Zoeken op hele woorden:** `The` vindt geen `Thesaurus`. Meerdere woorden worden als **exacte woordreeks** gezocht: `The Juggler` vindt `The Juggler (1953)` en `The.Juggler.1953`, maar niet `Juggler in the streets` of `The Proud Rebel`. Leestekens/punten tussen woorden tellen als scheiding; hoofdletters maken niet uit, accenten wel. Een FULLTEXT-index op titels doet de voorselectie; korte woorden (minder dan 3 tekens) worden alleen nagecontroleerd. Een extreem brede zoekopdracht valt na een tijdslimiet terug op een datumgestuurde doorloop, zodat de pagina niet blijft hangen. Newznab-zoeken volgt dezelfde regels.
 - Linker sidebar met eerst **Alle** en de hoofdgroepen **Beeld, Geluid, Spellen en Applicaties**, gevolgd door de volledige subcategorie-indeling van de gekozen hoofdgroep: type, formaat/platform, bron, taal/ondertiteling, bitrate en genre waar van toepassing.
 - Onder andere films, series, boeken, afbeeldingen, muziek, livesets, podcasts, luisterboeken, spellen en applicaties.
 - Subcategorieen als stapelbare **EN-filters**, ook binnen dezelfde dimensie; actieve filters zijn afzonderlijk verwijderbaar en staan naast de kolominstellingen. Zoektekst en filters blijven behouden bij bijladen.
+- **Drill-down:** zodra een filter of zoekterm actief is, toont de sidebar alleen subcategorieen die samen met de huidige selectie nog resultaten opleveren. Kies je **Films**, dan verdwijnt bijvoorbeeld **Series**. Gekozen filters blijven altijd zichtbaar om ze uit te zetten.
+- **Snelle overzichtsindex** (migratie `20261023_0024_spot_browse_index`): een smalle leestabel `spot_browse` met een rij per spot, gedeelde categoriecombinaties (`spot_combos`/`spot_combo_codes` met spotaantallen) en een titel-FULLTEXT-index. Filters, aantallen en drill-down lezen deze combinaties in plaats van miljoenen categorieregels; de lijst wandelt op datum door een index zonder sortering. Retrieve, herclassificatie en retentie houden de index bij. `php bin/console db reindex-spots` bouwt hem volledig opnieuw (met voortgang); `db cleanup` herstelt combinatieaantallen na handmatige SQL-wijzigingen.
 - Categorieaantallen volgen de zichtbaarheid van de gebruiker. Onbekende categoriecodes blijven bewaard en zichtbaar in technische details.
 - Achter subcategoriefilters staat **nieuw sinds je vorige bezoek**, niet het historische totaal. De grens is persoonlijk en blijft tijdens dezelfde browsersessie gelijk bij navigeren/herladen. Nieuwe imports tijdens het bezoek komen erbij; het overzicht berekent geen exacte totaaltelling over alle passende spots.
 - De eerste keer na installatie/upgrade wordt een bezoekgrens vastgelegd: bestaande historie begint niet als nieuw. Bij een volgende browsersessie (of uit-/inloggen) geldt je laatste overzicht-/detailbezoek als grens. Tabs delen de sessie; de browser kan sessiecookies bij sessieherstel behouden. Dit zijn geen individuele gelezen/ongelezen-markeringen.
@@ -443,7 +446,7 @@ php bin/console db migrate
 php bin/console db status
 php bin/console db health
 php bin/console db cleanup --days=90
-
+php bin/console db reindex-spots
 php bin/console user list
 php bin/console user create <username> <password>
 php bin/console user create <username> <password> --admin=1
@@ -455,7 +458,7 @@ php bin/console user delete <username>
 
 Vervang placeholders en quote echte argumenten waar nodig. De retrieve-commando's staan hierboven.
 
-`db cleanup` verwijdert oude **lokale reacties**, retrieve-runs, loginpogingen en auditregels volgens de dagengrens, plus verlopen TVDB-providercache onafhankelijk van die grens. Dit is geen algemene spotretentie-purge; voer het niet blind uit als je die historie wilt bewaren.
+`db cleanup` verwijdert oude **lokale reacties**, retrieve-runs, loginpogingen en auditregels volgens de dagengrens, plus verlopen TVDB-providercache onafhankelijk van die grens, en herberekent de combinatieaantallen van de overzichtsindex. Dit is geen algemene spotretentie-purge; voer het niet blind uit als je die historie wilt bewaren. `db reindex-spots` bouwt de overzichtsindex (leestabel, combinaties en titel-FULLTEXT) opnieuw op vanuit `spotnet_spots`; veilig te herhalen, duurt bij miljoenen spots tientallen minuten.
 
 Nieuwtellers gebruiken de **eerste importtijd** van een spot, niet de publicatiedatum: ook een nieuw geimporteerde oudere post kan nieuw voor je zijn. Refresh/duplicaten maken bestaande spots niet opnieuw nieuw. Alleen volledige overzicht-/detailbezoeken bewaren browseactiviteit; achtergrondbatches, Newznab, afbeeldingen, TVDB en SABnzbd-polling schuiven de bezoekgrens niet op. Zoektekst, actieve EN-filters en erotica-zichtbaarheid blijven van toepassing.
 
@@ -486,7 +489,9 @@ Hervat verkeer/jobs na geslaagde controles en herlaad met Ctrl+F5. Niet iedere p
 
 **Oude installaties:** `.env` en `vendor/` waren eerder gevolgd; de eenmalige opschoning kan die bestanden bij pull verwijderen. Volg eerst de [backup-/restoreprocedure](./docs/linux-server-testing.md#git-opruimen-inhoudsinstellingen-en-afbeeldingsvergroting). `.gitignore` verwijdert geen oude secrets uit Git-historie: roteer credentials die ooit zijn vastgelegd.
 
-Bij upgrade vanaf de oude generieke headerindex: migreer, controleer de Spotnet-groepsrollen en haal echte spots op met `retrieve --days=30 --verbose`. Oude headers blijven bewaard maar worden niet als spots getoond; `db reindex-spots` is vervallen. Categorie-/commentmigraties herstellen bestaande data waar mogelijk; `--refresh-spots` kan ontbrekende bronmetadata aanvullen.
+Bij upgrade vanaf de oude generieke headerindex: migreer, controleer de Spotnet-groepsrollen en haal echte spots op met `retrieve --days=30 --verbose`. Oude headers blijven bewaard maar worden niet als spots getoond. Categorie-/commentmigraties herstellen bestaande data waar mogelijk; `--refresh-spots` kan ontbrekende bronmetadata aanvullen.
+
+**Overzichtsindex (migratie 0024):** `db migrate` bouwt de leestabel voor alle bestaande spots op en toont voortgang. Reken bij miljoenen spots op tientallen minuten en extra schijfruimte (orde 1-2 GB per 4 miljoen spots inclusief FULLTEXT). Voer de migratie uit in `tmux`/`screen` en pauzeer cron-retrieves; tijdens het opbouwen is het overzicht onvolledig. Een afgebroken opbouw kan veilig worden hervat met `php bin/console db reindex-spots`.
 
 ## Spotter whitelist en blacklist
 
@@ -596,16 +601,16 @@ export NNSPOTTY_TEST_USER='nnspotty_test'
 read -rsp 'Wachtwoord testdatabase: ' NNSPOTTY_TEST_PASSWORD; echo
 export NNSPOTTY_TEST_PASSWORD
 php tests/run.php --integration
-# Optioneel: synthetische browsebenchmark (standaard 300.000 spots, 1.000-2.000.000 toegestaan).
-# Kan minuten duren en meerdere GiB opslag gebruiken. Alleen een aparte testserver gebruiken.
+# Optioneel: synthetische browsebenchmark (standaard 300.000 spots, 1.000-5.000.000 toegestaan).
+# Kan lang duren en meerdere GiB opslag gebruiken. Alleen een aparte testserver gebruiken.
 NNSPOTTY_PERF_SPOTS=300000 php tests/browse-performance.php
-# Grotere fixture, bijvoorbeeld:
-NNSPOTTY_PERF_SPOTS=1300000 php tests/browse-performance.php
+# Productieschaal, bijvoorbeeld:
+NNSPOTTY_PERF_SPOTS=4300000 php tests/browse-performance.php
 unset NNSPOTTY_TEST_DSN NNSPOTTY_TEST_USER NNSPOTTY_TEST_PASSWORD
 ```
 
 Gebruik **geen productiecredentials**: de testgebruiker moet tijdelijke testschema's kunnen maken/verwijderen. Zie [Linux-serverchecks](./docs/linux-server-testing.md) voor voorwaarden, asset-/routechecks en echte productieacceptatie.
-De benchmark verwijdert zijn eigen willekeurig benoemde testschema na afloop, vergelijkt oude/nieuwe zoekresultaten, controleert batchgrootte en keysetvolgorde, begrenst gewone eerste batches tot maximaal 512 gemeten indexstappen en bewaakt maximaal 32 MiB PHP-piekgeheugen. Looptijden zijn metingen, geen hardware-onafhankelijke SLA. De HTTP-suite controleert met twee echte PHP-workers dat een drie seconden vertraagde NNTP-afbeelding een batch en statusrequest van dezelfde sessie niet blokkeert (samen minder dan 1,5 seconde).
+De benchmark verwijdert zijn eigen willekeurig benoemde testschema na afloop. Hij zaait realistische subcategoriemixen en titels, bouwt de overzichtsindex via dezelfde code als de migratie (met opbouwtijd), meet eerste/vervolgbatch en drill-down voor alle-/categorie-/filter-/zoek-/zinscases, vergelijkt zoekresultaten met een volledige woordscan, controleert keysetvolgorde, onmogelijke filtercombinaties en het ontbreken van filesort, en rapporteert PHP-piekgeheugen. Looptijden zijn metingen, geen hardware-onafhankelijke SLA. De HTTP-suite controleert met twee echte PHP-workers dat een drie seconden vertraagde NNTP-afbeelding een batch en statusrequest van dezelfde sessie niet blokkeert (samen minder dan 1,5 seconde).
 
 Een fixturetest bewijst geen providerbeschikbaarheid. Controleer met je eigen accounts een echte spot, reacties, afbeelding, NZB-download, Prowlarr-zoekactie, SABnzbd-upload/wachtrij en TVDB-match. Test mobiel/desktop en donker/licht. Gedeelde VS Code-taken bieden syntaxcontrole en lokaal serveren; aanbevolen extensies staan in [extensions.json](./.vscode/extensions.json).
 

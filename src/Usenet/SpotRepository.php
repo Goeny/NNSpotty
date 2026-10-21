@@ -8,8 +8,13 @@ use PDO;
 
 final class SpotRepository
 {
+    private readonly SpotBrowseIndex $browse;
+    private readonly SpotBrowseQuery $query;
+
     public function __construct(private readonly PDO $pdo)
     {
+        $this->browse = new SpotBrowseIndex($pdo);
+        $this->query = new SpotBrowseQuery($pdo);
     }
 
     public function exists(string $id, string $role): bool
@@ -90,6 +95,7 @@ final class SpotRepository
             $nested ? $this->pdo->exec('RELEASE SAVEPOINT nnspotty_spot') : $this->pdo->commit();
         } catch (\Throwable $exception) {
             $nested ? $this->pdo->exec('ROLLBACK TO SAVEPOINT nnspotty_spot') : $this->pdo->rollBack();
+            $this->browse->reset();
             throw $exception;
         }
     }
@@ -196,6 +202,7 @@ final class SpotRepository
 
         $this->pdo->beginTransaction();
         try {
+            $this->browse->forget($ids);
             foreach ([
                 ['spotnet_comments', 'spot_id'],
                 ['post_comments', 'post_id'],
@@ -210,6 +217,7 @@ final class SpotRepository
             return $deleted;
         } catch (\Throwable $exception) {
             $this->pdo->rollBack();
+            $this->browse->reset();
             throw $exception;
         }
     }
@@ -217,60 +225,42 @@ final class SpotRepository
     /** @return list<array<string, mixed>> */
     public function listCategoriesWithCounts(bool $showErotica = true): array
     {
-        return $this->pdo->query('SELECT browse_type AS category, COUNT(*) AS total FROM spotnet_spots'
+        return $this->pdo->query('SELECT browse_type AS category, COUNT(*) AS total FROM spot_browse'
             . ($showErotica ? '' : ' WHERE is_erotica = 0') . ' GROUP BY browse_type ORDER BY browse_type')->fetchAll();
     }
 
     public function countSpots(?string $category, bool $showErotica = true, string|array|null $subcategory = null, string $search = ''): int
     {
-        [$where, $parameters] = $this->filter($category, $showErotica, $subcategory, $search);
-        $statement = $this->pdo->prepare('SELECT COUNT(*) FROM spotnet_spots s' . $where);
-        $statement->execute($parameters);
-        return (int) $statement->fetchColumn();
+        return $this->query->count($category, $showErotica, $this->codes($subcategory), $search);
     }
 
-    /** @return list<array<string, mixed>> */
+    /**
+     * Newest first. Search matches whole words and exact phrases ("The Juggler" never matches "Thesaurus").
+     *
+     * @param array{date: string, id: int}|null $after
+     * @return list<array<string, mixed>>
+     */
     public function listSpots(?string $category, int $limit, int $offset, bool $showErotica = true, string|array|null $subcategory = null, string $search = '', ?array $after = null, ?string $favoriteUser = null): array
     {
-        [$where, $parameters] = $this->filter($category, $showErotica, $subcategory, $search, $favoriteUser);
-        if ($after !== null) {
-            $where .= ($where === '' ? ' WHERE ' : ' AND ') . '(s.posted_at < :before_date OR (s.posted_at = :same_date AND s.id < :before_id))';
-            $parameters['before_date'] = $after['date'];
-            $parameters['same_date'] = $after['date'];
-            $parameters['before_id'] = $after['id'];
+        $page = $this->query->page($category, $limit, $offset, $showErotica, $this->codes($subcategory), $search, $after, $favoriteUser);
+        if ($page === []) {
+            return [];
         }
-        $columns = 's.id, title, category, browse_type, subcategories, poster, size, posted_at, image_url, image_segments, spotter_key, signature_state';
-        $fetch = function (string $sql) use ($parameters, $limit, $offset): array {
-            $statement = $this->pdo->prepare($sql);
-            foreach ($parameters as $key => $value) {
-                $statement->bindValue(':' . $key, $value);
-            }
-            $statement->bindValue(':limit', max(1, $limit), PDO::PARAM_INT);
-            $statement->bindValue(':offset', max(0, $offset), PDO::PARAM_INT);
-            $statement->execute();
-            return $this->withSpotterStatus(array_map($this->decode(...), $statement->fetchAll()));
-        };
-        if ($search !== '') {
-            $ordered = 'SELECT ' . $columns . ' FROM spotnet_spots s' . $where
-                . ' ORDER BY s.posted_at DESC, s.id DESC LIMIT :limit OFFSET :offset';
-            $timed = str_contains((string) $this->pdo->getAttribute(PDO::ATTR_SERVER_VERSION), 'MariaDB')
-                ? 'SET STATEMENT max_statement_time=0.5 FOR ' . $ordered
-                : 'SELECT /*+ MAX_EXECUTION_TIME(500) */ ' . substr($ordered, 7);
-            try {
-                return $fetch($timed);
-            } catch (\PDOException $exception) {
-                // Only an exhausted read budget switches plans; other database errors remain failures.
-                if (!in_array((int) ($exception->errorInfo[1] ?? 0), [1969, 3024], true)) {
-                    throw $exception;
-                }
+        $statement = $this->pdo->prepare('SELECT id, title, category, browse_type, subcategories, poster, size, posted_at,
+            image_url, image_segments, spotter_key, signature_state FROM spotnet_spots WHERE id IN ('
+            . implode(',', array_fill(0, count($page), '?')) . ')');
+        $statement->execute(array_column($page, 'spot_id'));
+        $spots = [];
+        foreach ($statement->fetchAll() as $row) {
+            $spots[$row['id']] = $row;
+        }
+        $rows = [];
+        foreach ($page as $entry) {
+            if (isset($spots[$entry['spot_id']])) {
+                $rows[] = ['browse_id' => $entry['browse_id']] + $this->decode($spots[$entry['spot_id']]);
             }
         }
-        $scan = $search === '' || $favoriteUser !== null ? '' : ' USE INDEX (PRIMARY)';
-        return $fetch('SELECT ' . $columns . '
-            FROM spotnet_spots s
-            JOIN (SELECT s.id FROM spotnet_spots s' . $scan . $where
-                . ' ORDER BY s.posted_at DESC, s.id DESC LIMIT :limit OFFSET :offset) page ON page.id = s.id
-            ORDER BY s.posted_at DESC, s.id DESC');
+        return $this->withSpotterStatus($rows);
     }
 
     /** @param list<string> $filters
@@ -281,14 +271,14 @@ final class SpotRepository
         $after = null;
         if ($cursor !== null) {
             $decoded = base64_decode(strtr($cursor, '-_', '+/'), true);
-            if ($decoded === false || !preg_match('/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\|([a-f0-9]{64})$/D', $decoded, $match)) {
+            if ($decoded === false || !preg_match('/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\|([1-9]\d{0,9})$/D', $decoded, $match)) {
                 throw new \InvalidArgumentException('Ongeldige vervolgpositie.');
             }
             $date = \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $match[1]);
             if ($date === false || $date->format('Y-m-d H:i:s') !== $match[1]) {
                 throw new \InvalidArgumentException('Ongeldige datum in vervolgpositie.');
             }
-            $after = ['date' => $match[1], 'id' => $match[2]];
+            $after = ['date' => $match[1], 'id' => (int) $match[2]];
         }
         $limit = max(10, min(200, $limit));
         $rows = $this->listSpots($category, $limit + 1, 0, $showErotica, $filters, $search, $after, $favoriteUser);
@@ -299,7 +289,8 @@ final class SpotRepository
         $last = $rows === [] ? null : $rows[count($rows) - 1];
         return [
             'spots' => $rows,
-            'next' => $more && $last !== null ? rtrim(strtr(base64_encode($last['posted_at'] . '|' . $last['id']), '+/', '-_'), '=') : null,
+            'next' => $more && $last !== null
+                ? rtrim(strtr(base64_encode($last['posted_at'] . '|' . $last['browse_id']), '+/', '-_'), '=') : null,
         ];
     }
 
@@ -312,21 +303,43 @@ final class SpotRepository
         return is_array($row) ? $this->withSpotterStatus([$this->decode($row)])[0] : null;
     }
 
-    /** @return list<array<string, mixed>> */
-    public function facets(?string $category, bool $showErotica, string $search = '', array $subcategories = [], ?string $newSince = null, ?string $favoriteUser = null): array
+    /**
+     * Subcategory codes that still yield results within the selection, for drill-down filtering.
+     * A search that exceeds its time budget falls back to availability without the search term.
+     *
+     * @param list<string> $filters
+     * @return list<string>
+     */
+    public function availableCodes(string $category, bool $showErotica, array $filters, string $search, ?string $favoriteUser): array
     {
-        [$where, $parameters] = $this->filter($category, $showErotica, $subcategories, $search, $favoriteUser);
-        if ($newSince !== null) {
-            $where .= ($where === '' ? ' WHERE ' : ' AND ') . 's.created_at > :new_since';
-            $parameters['new_since'] = $newSince;
+        $codes = $this->codes($filters);
+        if ($search === '' && $favoriteUser === null) {
+            return $this->query->available($category, $showErotica, $codes);
         }
-        $statement = $this->pdo->prepare('SELECT c.code, COUNT(*) AS total FROM spotnet_spot_categories c
-            JOIN spotnet_spots s ON s.id = c.spot_id' . $where . ' GROUP BY c.code ORDER BY c.code');
-        $statement->execute($parameters);
-        return $statement->fetchAll();
+        if ($favoriteUser === null && $this->query->broadSearch($category, $showErotica, $codes, $search)) {
+            return $this->query->available($category, $showErotica, $codes);
+        }
+        try {
+            $facets = $this->query->facets($category, $showErotica, $search, $filters, null, $favoriteUser, $search !== '');
+        } catch (\PDOException $exception) {
+            if ($search === '') {
+                throw $exception;
+            }
+            // A very broad search runs out of budget; availability without the search term is a safe superset.
+            return $favoriteUser === null ? $this->query->available($category, $showErotica, $codes)
+                : array_column($this->query->facets($category, $showErotica, '', $filters, null, $favoriteUser), 'code');
+        }
+        return array_column($facets, 'code');
     }
 
-    public function rebuildCategories(): int
+    /** @return list<array<string, mixed>> Codes with their number of matching spots; codes without matches are omitted. */
+    public function facets(?string $category, bool $showErotica, string $search = '', array $subcategories = [], ?string $newSince = null, ?string $favoriteUser = null): array
+    {
+        return $this->query->facets($category, $showErotica, $search, $this->codes($subcategories), $newSince, $favoriteUser);
+    }
+
+    /** Rebuilds the category tables; $browse also refreshes the overview read model. */
+    public function rebuildCategories(bool $browse = true): int
     {
         $newznab = $this->pdo->query("SHOW TABLES LIKE 'spotnet_newznab_categories'")->fetchColumn() !== false;
         $last = '';
@@ -340,21 +353,32 @@ final class SpotRepository
                 foreach ($rows as $row) {
                     $subcategories = json_decode($row['subcategories'], true, 512, JSON_THROW_ON_ERROR);
                     $classification = SpotCategories::classify($row['category'], $subcategories);
-                    $this->indexCategories($row['id'], $row['category'], $subcategories, $classification, $newznab);
+                    $this->indexCategories($row['id'], $row['category'], $subcategories, $classification, $newznab, $browse);
                     $last = $row['id'];
                     $total++;
                 }
                 $this->pdo->commit();
             } catch (\Throwable $exception) {
                 $this->pdo->rollBack();
+                $this->browse->reset();
                 throw $exception;
             }
         } while (count($rows) === 250);
         return $total;
     }
 
+    public function rebuildBrowseIndex(?callable $progress = null): int
+    {
+        return $this->browse->rebuild($progress);
+    }
+
+    public function refreshBrowseCounts(): void
+    {
+        $this->browse->refreshCounts();
+    }
+
     /** @param array{type: string, adult: bool, codes: list<string>} $classification */
-    private function indexCategories(string $id, string $category, array $subcategories, array $classification, bool $newznab = true): void
+    private function indexCategories(string $id, string $category, array $subcategories, array $classification, bool $newznab = true, bool $browse = true): void
     {
         $update = $this->pdo->prepare('UPDATE spotnet_spots SET browse_type = :type, is_erotica = :adult WHERE id = :id');
         $update->execute(['id' => $id, 'type' => $classification['type'], 'adult' => (int) $classification['adult']]);
@@ -373,45 +397,15 @@ final class SpotRepository
                 $insert->execute(['id' => $id, 'category' => $newznabCategory]);
             }
         }
+        if ($browse) {
+            $this->browse->index($id, $category, $classification);
+        }
     }
 
-    /** @return array{string, array<string, string>} */
-    private function filter(?string $category, bool $showErotica, string|array|null $subcategory, string $search, ?string $favoriteUser = null): array
+    /** @return list<string> */
+    private function codes(string|array|null $subcategory): array
     {
-        $conditions = [];
-        $parameters = [];
-        if ($favoriteUser !== null) {
-            $conditions[] = 's.id IN (SELECT spot_id FROM spot_favorites WHERE username = :favorite_user)';
-            $parameters['favorite_user'] = $favoriteUser;
-        }
-        if (!$showErotica) {
-            $conditions[] = 's.is_erotica = 0';
-        }
-        if ($category !== null) {
-            if (in_array($category, SpotCategories::HEADS, true)) {
-                $conditions[] = 's.category = :category';
-                $parameters['category'] = $category;
-            } elseif (SpotCategories::headForCategory($category) !== null) {
-                $conditions[] = 's.browse_type = :type';
-                $parameters['type'] = $category;
-            } else {
-                $conditions[] = '(s.browse_type = :type OR s.category = :head)';
-                $parameters['type'] = $category;
-                $parameters['head'] = $category;
-            }
-        }
-        $subcategories = is_array($subcategory) ? $subcategory : SpotFilters::parse($subcategory);
-        foreach ($subcategories as $index => $code) {
-            $key = 'code_' . $index;
-            $conditions[] = 'EXISTS (SELECT 1 FROM spotnet_spot_categories f WHERE f.spot_id = s.id AND f.code = :' . $key . ')';
-            $parameters[$key] = $code;
-        }
-        if ($search !== '') {
-            $conditions[] = 's.title LIKE :search';
-            $parameters['search'] = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $search) . '%';
-            $conditions[count($conditions) - 1] .= " ESCAPE '!'";
-        }
-        return [$conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions), $parameters];
+        return is_array($subcategory) ? array_values($subcategory) : SpotFilters::parse($subcategory);
     }
 
     /** @return list<array<string, mixed>> */

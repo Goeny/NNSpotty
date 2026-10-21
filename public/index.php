@@ -696,6 +696,17 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
         ]);
     }
 
+    $available = null;
+    if (SpotCategories::headForCategory($selectedCategory) !== null) {
+        try {
+            $available = $spots->availableCodes($selectedCategory, $showErotica, $filters, $search,
+                $favoritesOnly ? $currentUser['username'] : null);
+        } catch (Throwable $exception) {
+            // Without availability every filter stays visible; the overview itself still works.
+            error_log('Spot filter availability: ' . $exception->getMessage());
+        }
+    }
+
     $html = SpotsPageRenderer::render(
         username: $currentUser['username'],
         isAdmin: $auth->isAdmin(),
@@ -709,7 +720,8 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
         showErotica: $showErotica,
         columns: $columns,
         nextCursor: $batch['next'],
-        favoritesOnly: $favoritesOnly
+        favoritesOnly: $favoritesOnly,
+        available: $available
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);

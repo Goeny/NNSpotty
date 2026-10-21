@@ -2,6 +2,13 @@
 
 declare(strict_types=1);
 
+/*
+ * Browse benchmark on a disposable database. Seeds realistic Spotnet subcategory mixes and title vocabulary,
+ * builds the overview read model through the same code path as the migration and times overview queries.
+ *
+ *   NNSPOTTY_TEST_DSN='mysql:host=127.0.0.1;port=3306;charset=utf8mb4' NNSPOTTY_PERF_SPOTS=4300000 php tests/browse-performance.php
+ */
+
 require __DIR__ . '/../vendor/autoload.php';
 
 use NnSpotty\Database\Migrator;
@@ -12,133 +19,166 @@ if ($dsn === false || !str_starts_with($dsn, 'mysql:')) {
     throw new RuntimeException('Gebruik NNSPOTTY_TEST_DSN met een afzonderlijke MySQL/MariaDB-testserver.');
 }
 $size = filter_var(getenv('NNSPOTTY_PERF_SPOTS') ?: '300000', FILTER_VALIDATE_INT);
-if ($size === false || $size < 1000 || $size > 2000000) {
-    throw new InvalidArgumentException('NNSPOTTY_PERF_SPOTS moet tussen 1000 en 2000000 liggen.');
+if ($size === false || $size < 1000 || $size > 5000000) {
+    throw new InvalidArgumentException('NNSPOTTY_PERF_SPOTS moet tussen 1000 en 5000000 liggen.');
 }
 $pdo = new PDO($dsn, getenv('NNSPOTTY_TEST_USER') ?: 'root', getenv('NNSPOTTY_TEST_PASSWORD') ?: '', [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_EMULATE_PREPARES => false,
 ]);
-$database = 'nnspotty_perf_' . bin2hex(random_bytes(6));
-$pdo->exec('CREATE DATABASE `' . $database . '` CHARACTER SET utf8mb4');
+$pdo->exec('SET NAMES utf8mb4');
+// NNSPOTTY_PERF_KEEP=1 keeps the seeded schema; NNSPOTTY_PERF_REUSE=<name> times queries on a kept schema without reseeding.
+$reuse = getenv('NNSPOTTY_PERF_REUSE') ?: null;
+if ($reuse !== null && !preg_match('/^nnspotty_perf_[0-9a-f]{12}$/D', $reuse)) {
+    throw new InvalidArgumentException('NNSPOTTY_PERF_REUSE moet een bewaard nnspotty_perf_-schema zijn.');
+}
+$keep = $reuse !== null || getenv('NNSPOTTY_PERF_KEEP') === '1';
+$database = $reuse ?? 'nnspotty_perf_' . bin2hex(random_bytes(6));
+if ($reuse === null) {
+    $pdo->exec('CREATE DATABASE `' . $database . '` CHARACTER SET utf8mb4');
+}
 $pdo->exec('USE `' . $database . '`');
 
+$words = static fn (array $list): string => implode(',', array_map(static fn (string $word): string => $pdo->quote($word), $list));
+$first = $words(['Night', 'Love', 'Dark', 'Last', 'Man', 'City', 'Story', 'House', 'Blood', 'Star', 'War', 'King', 'Girl', 'Road',
+    'Dead', 'Life', 'World', 'Time', 'Lost', 'Black', 'Red', 'Wild', 'Secret', 'Power', 'Fire', 'Ocean', 'River', 'Winter',
+    'Summer', 'Ghost', 'Dream', 'Shadow', 'Heart', 'Game', 'Street', 'Moon', 'Storm']);
+$second = $words(['Rising', 'Returns', 'Chronicles', 'Legacy', 'Hunter', 'Empire', 'Mission', 'Escape', 'Promise', 'Kingdom',
+    'Island', 'Machine', 'Runner', 'Code', 'Edge', 'Hour', 'Signal', 'Valley', 'Garden', 'Station', 'Bridge', 'Frontier',
+    'Paradise', 'Protocol', 'Prophecy', 'Rebellion', 'Requiem', 'Symphony', 'Tales', 'Odyssey', 'Origins', 'Sanctuary',
+    'Horizon', 'Labyrinth', 'Voyage', 'Witness', 'Treasure', 'Zone', 'Theory', 'Thesaurus', 'Theatre']);
+$genre = static fn (string $a, string $b): string => "LPAD(LEAST(MOD(FLOOR(n/$a),23), MOD(FLOOR(n/$b),23)),2,'0')";
+
 try {
-    (new Migrator($pdo))->migrate();
-    printf("Seeding %d synthetic spots...\n", $size);
-    $pdo->exec('CREATE TEMPORARY TABLE perf_digits (n INT PRIMARY KEY)');
-    $pdo->exec('INSERT INTO perf_digits VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9)');
-    $pdo->exec('CREATE TEMPORARY TABLE perf_numbers (n INT PRIMARY KEY)
-        SELECT a.n + b.n*10 + c.n*100 + d.n*1000 + e.n*10000 + f.n*100000 + g.n*1000000 + 1 AS n
-        FROM perf_digits a CROSS JOIN perf_digits b CROSS JOIN perf_digits c
-        CROSS JOIN perf_digits d CROSS JOIN perf_digits e CROSS JOIN perf_digits f CROSS JOIN perf_digits g
-        WHERE a.n + b.n*10 + c.n*100 + d.n*1000 + e.n*10000 + f.n*100000 + g.n*1000000 < ' . $size);
-    $pdo->exec("INSERT INTO spotnet_spots
-        (id, message_id, group_name, title, description, poster, newsreader, category, subcategories, size,
-         posted_at, website, tag, image_url, image_segments, nzb_segments, full_xml, browse_type, is_erotica, created_at)
-        SELECT SHA2(CONCAT('performance-',n),256), CONCAT('performance-',n,'@example.invalid'), 'free.pt',
-            CONCAT('Performance film ',n), REPEAT('Synthetic description. ',12), 'Fixture', '',
-            CASE MOD(n,10) WHEN 7 THEN 'Geluid' WHEN 8 THEN 'Spellen' WHEN 9 THEN 'Applicaties' ELSE 'Beeld' END,
-            '[\"1a09\"]', 1000, DATE_SUB(UTC_TIMESTAMP(), INTERVAL n SECOND), '', '', '', '[]', '[]', '',
-            CASE MOD(n,10) WHEN 6 THEN 'Erotica' WHEN 7 THEN 'Muziek' WHEN 8 THEN 'Spellen'
-                WHEN 9 THEN 'Applicaties' WHEN 5 THEN 'Series' ELSE 'Films' END,
-            MOD(n,10)=6, DATE_SUB(UTC_TIMESTAMP(6), INTERVAL n SECOND)
-        FROM perf_numbers");
-    echo "Indexing synthetic facets...\n";
-    $pdo->exec("INSERT INTO spotnet_spot_categories (spot_id,code)
-        SELECT id, CONCAT(CASE category WHEN 'Beeld' THEN '0' WHEN 'Geluid' THEN '1' WHEN 'Spellen' THEN '2' ELSE '3' END, ':a9')
-        FROM spotnet_spots ORDER BY id");
-    foreach (['b3', 'c0', 'd0', 'z0'] as $code) {
-        $pdo->exec("INSERT INTO spotnet_spot_categories (spot_id,code)
-            SELECT id, '0:$code' FROM spotnet_spots WHERE category = 'Beeld' ORDER BY id");
-    }
-    $pdo->query('ANALYZE TABLE spotnet_spots, spotnet_spot_categories')->fetchAll();
-    echo 'Synthetic spots: ' . $pdo->query('SELECT COUNT(*) FROM spotnet_spots')->fetchColumn() . PHP_EOL;
     $spots = new SpotRepository($pdo);
-    $newSince = $pdo->query('SELECT DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 1 DAY)')->fetchColumn();
+    if ($reuse === null) {
+        (new Migrator($pdo))->migrate();
+        printf("Seeding %d synthetic spots...\n", $size);
+        $started = microtime(true);
+        $pdo->exec('CREATE TEMPORARY TABLE perf_digits (n INT PRIMARY KEY)');
+        $pdo->exec('INSERT INTO perf_digits VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9)');
+        $pdo->exec('CREATE TEMPORARY TABLE perf_numbers (n INT PRIMARY KEY)
+            SELECT a.n + b.n*10 + c.n*100 + d.n*1000 + e.n*10000 + f.n*100000 + g.n*1000000 + 1 AS n
+            FROM perf_digits a CROSS JOIN perf_digits b CROSS JOIN perf_digits c
+            CROSS JOIN perf_digits d CROSS JOIN perf_digits e CROSS JOIN perf_digits f CROSS JOIN perf_digits g
+            WHERE a.n + b.n*10 + c.n*100 + d.n*1000 + e.n*10000 + f.n*100000 + g.n*1000000 < ' . $size);
+        $title = "CASE MOD(n,100003)
+                WHEN 11 THEN 'The Juggler (1953)' WHEN 12 THEN 'Juggler in the streets' WHEN 13 THEN 'The.Juggler.1953.1080p'
+                WHEN 14 THEN 'The Proud Rebel 1958'
+                ELSE IF(MOD(n,4)=0, REPLACE(t,' ','.'), t) END";
+        $raw = "CONCAT_WS(' ', IF(MOD(n,3)=0,'The',NULL), ELT(1+MOD(n,37),$first), ELT(1+MOD(FLOOR(n/37),41),$second),
+                1950+MOD(n,75), ELT(1+MOD(n,4),'1080p','720p','2160p','DVDRip'))";
+        $beeld = "CONCAT('[\"', CASE WHEN MOD(n,20)=0 THEN '1z03' WHEN MOD(n,10) IN (1,2) THEN '1z01' WHEN MOD(n,10)=3 THEN '1z02'
+                    WHEN MOD(n,31)=5 THEN '1z04' ELSE '1z00' END,
+                '\",\"', ELT(1+MOD(FLOOR(n/3),6),'1a09','1a00','1a06','1a15','1a04','1a10'),
+                '\",\"', ELT(1+MOD(FLOOR(n/7),5),'1b11','1b12','1b04','1b03','1b13'), '\"',
+                ELT(1+MOD(FLOOR(n/11),4),'',',\"1c03\"',',\"1c02\",\"1c03\"',',\"1c11\"'),
+                ',\"1d', " . $genre('13', '17') . ", '\"',
+                IF(MOD(n,3)>0, CONCAT(',\"1d', " . $genre('19', '29') . ", '\"'), ''),
+                IF(MOD(n,7)=0, CONCAT(',\"1d', " . $genre('31', '37') . ", '\"'), ''), ']')";
+        $pdo->exec("INSERT INTO spotnet_spots
+            (id, message_id, group_name, title, description, poster, newsreader, category, subcategories, size,
+             posted_at, website, tag, image_url, image_segments, nzb_segments, full_xml, created_at)
+            SELECT SHA2(CONCAT('performance-',n),256), CONCAT('performance-',n,'@example.invalid'), 'free.pt',
+                $title, REPEAT('Synthetic description. ',12), 'Fixture', '',
+                CASE MOD(n,10) WHEN 7 THEN 'Geluid' WHEN 8 THEN 'Spellen' WHEN 9 THEN 'Applicaties' ELSE 'Beeld' END,
+                CASE MOD(n,10)
+                    WHEN 7 THEN CONCAT('[\"1a0', MOD(n,9), '\",\"1b00\",\"1c07\",\"1d', LPAD(MOD(FLOOR(n/3),39),2,'0'), '\",\"1z00\"]')
+                    WHEN 8 THEN CONCAT('[\"2a0', MOD(n,9), '\",\"2b01\",\"2c', LPAD(MOD(FLOOR(n/3),18),2,'0'), '\"]')
+                    WHEN 9 THEN CONCAT('[\"3a0', MOD(n,8), '\",\"3b', LPAD(MOD(FLOOR(n/3),32),2,'0'), '\"]')
+                    ELSE $beeld END,
+                1000, DATE_SUB('2026-10-01 00:00:00', INTERVAL n * 7 SECOND), '', '', '', '[]', '[]', '',
+                DATE_SUB('2026-10-01 00:00:00.000000', INTERVAL n * 7 SECOND)
+            FROM (SELECT n, $raw AS t FROM perf_numbers) source");
+        printf("Seeded in %.0f s\n", microtime(true) - $started);
+        $started = microtime(true);
+        $spots->rebuildBrowseIndex(static fn (string $line) => print($line . PHP_EOL));
+        printf("Read model rebuild: %.0f s\n", microtime(true) - $started);
+    }
+    $pdo->query('ANALYZE TABLE spot_browse, spot_combos, spot_combo_codes')->fetchAll();
+    printf("Combinations: %d; with codes: %d rows\n", $pdo->query('SELECT COUNT(*) FROM spot_combos')->fetchColumn(),
+        $pdo->query('SELECT COUNT(*) FROM spot_combo_codes')->fetchColumn());
+
+    $newSince = $pdo->query("SELECT '2026-09-30 00:00:00.000000'")->fetchColumn();
     $cases = [
-        'all' => static fn (): array => $spots->batch(null, 50, false, [], ''),
-        'head' => static fn (): array => $spots->batch('Beeld', 50, false, [], ''),
-        'type' => static fn (): array => $spots->batch('Films', 50, false, [], ''),
-        'filters' => static fn (): array => $spots->batch('Beeld', 50, false, ['0:a9', '0:d0'], ''),
-        'title-search' => static fn (): array => $spots->batch('Beeld', 50, false, [], 'film 123'),
-        'dense-search' => static fn (): array => $spots->batch('Beeld', 50, false, [], 'Performance'),
-        'empty-search' => static fn (): array => $spots->batch('Beeld', 50, false, [], 'absent-title'),
-        'new-facets' => static fn (): array => $spots->facets('Beeld', false, '', [], $newSince),
+        'all' => [null, [], ''],
+        'head' => ['Beeld', [], ''],
+        'type' => ['Films', [], ''],
+        'common-filters' => ['Beeld', ['0:a9', '0:d0'], ''],
+        'rare-filters' => ['Beeld', ['0:a10', '0:b13', '0:c11', '0:d20'], ''],
+        'impossible-filters' => ['Beeld', ['0:z0', '0:z1'], ''],
+        'rare-search' => [null, [], 'Juggler'],
+        'phrase-search' => ['Beeld', [], 'The Juggler'],
+        'common-search' => ['Beeld', [], 'The'],
+        'two-word-search' => ['Beeld', [], 'Ocean Odyssey'],
+        'search-filter' => ['Beeld', ['0:a9', '0:d1'], 'Night Code'],
+        'no-match-search' => ['Beeld', [], 'absentword'],
     ];
-    foreach ($cases as $name => $query) {
-        $before = $pdo->query("SHOW SESSION STATUS WHERE Variable_name IN ('Handler_read_next','Handler_read_prev','Sort_rows')")->fetchAll(PDO::FETCH_KEY_PAIR);
+    $slowest = 0.0;
+    foreach ($cases as $name => [$category, $filters, $search]) {
         $started = hrtime(true);
-        $result = $query();
-        $milliseconds = (hrtime(true) - $started) / 1000000;
-        if (isset($result['spots'])) {
-            if (count($result['spots']) > 50 || ($name === 'empty-search' && $result['spots'] !== [])) {
-                throw new RuntimeException('Onjuiste batchgrootte voor ' . $name);
-            }
-            if ($name !== 'empty-search' && $name !== 'title-search' && count($result['spots']) !== 50) {
-                throw new RuntimeException('Onvolledige eerste batch voor ' . $name);
-            }
-            foreach ($result['spots'] as $row) {
-                if (array_key_exists('description', $row) || array_key_exists('full_xml', $row)
-                    || $row['browse_type'] === 'Erotica'
-                    || ($name !== 'all' && $row['category'] !== 'Beeld')) {
-                    throw new RuntimeException('Onjuiste projectie of zichtbaarheid voor ' . $name);
-                }
-            }
-        }
-        $after = $pdo->query("SHOW SESSION STATUS WHERE Variable_name IN ('Handler_read_next','Handler_read_prev','Sort_rows')")->fetchAll(PDO::FETCH_KEY_PAIR);
-        $reads = (int) $after['Handler_read_next'] + (int) $after['Handler_read_prev']
-            - (int) $before['Handler_read_next'] - (int) $before['Handler_read_prev'];
-        $sorts = (int) $after['Sort_rows'] - (int) $before['Sort_rows'];
-        if (in_array($name, ['all', 'head', 'type'], true) && $reads > 512) {
-            throw new RuntimeException('Gewone eerste batch leest meer dan 512 indexstappen: ' . $name);
-        }
-        if ($name === 'new-facets') {
-            $expectedQuery = $pdo->prepare("SELECT COUNT(*) FROM spotnet_spots
-                WHERE category = 'Beeld' AND is_erotica = 0 AND created_at > :new_since");
-            $expectedQuery->execute(['new_since' => $newSince]);
-            $expectedTotal = (int) $expectedQuery->fetchColumn();
-            $counts = array_map('intval', array_column($result, 'total', 'code'));
-            if ($counts !== array_fill_keys(['0:a9', '0:b3', '0:c0', '0:d0', '0:z0'], $expectedTotal)) {
-                throw new RuntimeException('Nieuwtellers komen niet overeen met de synthetische index.');
-            }
-        }
-        printf("%s: %.1f ms; index_steps=%d; sorted_rows=%d; results=%d\n",
-            $name, $milliseconds, $reads, $sorts, count($result['spots'] ?? $result));
-        if (isset($result['next'])) {
+        $result = $spots->batch($category, 50, false, $filters, $search);
+        $first = (hrtime(true) - $started) / 1e6;
+        $nextTime = 0.0;
+        $rows = $result['spots'];
+        if ($result['next'] !== null) {
             $started = hrtime(true);
-            $next = $spots->batch($name === 'all' ? null : ($name === 'type' ? 'Films' : 'Beeld'),
-                50, false, $name === 'filters' ? ['0:a9', '0:d0'] : [],
-                $name === 'title-search' ? 'film 123' : ($name === 'dense-search' ? 'Performance' : ''), $result['next']);
-            printf("%s-next: %.1f ms; results=%d\n", $name, (hrtime(true) - $started) / 1000000, count($next['spots']));
-            $rows = array_merge($result['spots'], $next['spots']);
-            $ids = array_column($rows, 'id');
-            $sorted = $rows;
-            usort($sorted, static fn (array $a, array $b): int => strcmp($b['posted_at'], $a['posted_at']) ?: strcmp($b['id'], $a['id']));
-            if (count($ids) !== count(array_unique($ids)) || array_column($sorted, 'id') !== $ids) {
-                throw new RuntimeException('Onjuiste keysetvolgorde voor ' . $name);
-            }
+            $rows = array_merge($rows, $spots->batch($category, 50, false, $filters, $search, $result['next'])['spots']);
+            $nextTime = (hrtime(true) - $started) / 1e6;
+        }
+        $availability = 0.0;
+        $warm = 0.0;
+        $available = [];
+        if ($category !== null) {
+            $started = hrtime(true);
+            $available = $spots->availableCodes($category, false, $filters, $search, null);
+            $availability = (hrtime(true) - $started) / 1e6;
+            $started = hrtime(true);
+            $spots->availableCodes($category, false, $filters, $search, null);
+            $warm = (hrtime(true) - $started) / 1e6;
+        }
+        $ids = array_column($rows, 'browse_id');
+        $sorted = $rows;
+        usort($sorted, static fn (array $a, array $b): int => strcmp($b['posted_at'], $a['posted_at']) ?: $b['browse_id'] <=> $a['browse_id']);
+        if (count($ids) !== count(array_unique($ids)) || array_column($sorted, 'browse_id') !== $ids) {
+            throw new RuntimeException('Onjuiste keysetvolgorde voor ' . $name);
+        }
+        if ($name === 'impossible-filters' && ($rows !== [] || in_array('0:z1', $spots->availableCodes('Beeld', false, ['0:z0'], '', null), true))) {
+            throw new RuntimeException('Drill-down laat een onmogelijke combinatie toe.');
+        }
+        if ($name === 'no-match-search' && $rows !== []) {
+            throw new RuntimeException('Zoekterm zonder treffers levert resultaten op.');
+        }
+        printf("%-18s first=%7.1f ms  next=%7.1f ms  filters=%7.1f ms (warm %6.1f)  rows=%3d  available=%d\n",
+            $name, $first, $nextTime, $availability, $warm, count($rows), count($available));
+        $slowest = max($slowest, $first, $nextTime, $availability);
+    }
+    foreach (['Juggler' => null, 'The Juggler' => 'Beeld'] as $term => $category) {
+        $expected = $pdo->prepare('SELECT title FROM spot_browse b WHERE b.is_erotica = 0' . ($category === null ? '' : ' AND b.category = :category')
+            . ' AND b.title REGEXP :pattern ORDER BY b.posted_at DESC, b.id DESC');
+        $expected->execute(($category === null ? [] : ['category' => $category])
+            + ['pattern' => \NnSpotty\Usenet\SearchTerms::parse($term)->phrasePattern()]);
+        $titles = $expected->fetchAll(PDO::FETCH_COLUMN);
+        if ($titles !== array_column($spots->listSpots($category, 500, 0, false, [], $term), 'title')
+            || $titles === [] || in_array('Juggler in the streets', $term === 'The Juggler' ? $titles : [], true)) {
+            throw new RuntimeException('Zoekresultaat wijkt af van een volledige scan voor ' . $term);
+        }
+        printf("verified %-12s %d whole-word matches\n", $term, count($titles));
+    }
+    foreach (['idx_browse_date' => '', 'idx_browse_category' => "b.category = 'Beeld' AND "] as $index => $scope) {
+        $plan = $pdo->query('EXPLAIN SELECT STRAIGHT_JOIN b.id FROM spot_browse b FORCE INDEX (' . $index . ')
+            JOIN spot_combo_codes x0 ON x0.combo_id = b.combo_id AND x0.code = \'0:a9\'
+            WHERE ' . $scope . 'b.is_erotica = 0 ORDER BY b.posted_at DESC, b.id DESC LIMIT 51')->fetchAll();
+        if (str_contains(json_encode($plan, JSON_THROW_ON_ERROR), 'filesort')) {
+            throw new RuntimeException('Datumwandeling via ' . $index . ' gebruikt een filesort.');
         }
     }
-    foreach (['film 123', 'absent-title', 'Performance'] as $term) {
-        $query = $pdo->prepare('SELECT s.id, title, category, browse_type, subcategories, poster, size, posted_at, image_url, image_segments
-            FROM spotnet_spots s
-            WHERE s.is_erotica = 0 AND (s.browse_type = :type OR s.category = :category) AND s.title LIKE :search
-            ORDER BY s.posted_at DESC, s.id DESC LIMIT 51');
-        $started = hrtime(true);
-        $query->execute(['type' => 'Beeld', 'category' => 'Beeld', 'search' => '%' . $term . '%']);
-        $result = $query->fetchAll();
-        printf("legacy-query %s: %.1f ms; results=%d\n", $term, (hrtime(true) - $started) / 1000000, count($result));
-        if (array_column($result, 'id') !== array_column($spots->listSpots('Beeld', 51, 0, false, [], $term), 'id')) {
-            throw new RuntimeException('Zoekoptimalisatie wijzigt de resultaten voor ' . $term);
-        }
-    }
-    $peak = memory_get_peak_usage(true);
-    printf("PHP peak memory: %.1f MiB\n", $peak / 1048576);
-    if ($peak > 32 * 1048576) {
-        throw new RuntimeException('Browsefixture overschrijdt de geheugenlimiet van 32 MiB.');
-    }
+    printf("Slowest step: %.1f ms\nPHP peak memory: %.1f MiB\n", $slowest, memory_get_peak_usage(true) / 1048576);
 } finally {
-    $pdo->exec('DROP DATABASE `' . $database . '`');
+    if ($keep) {
+        printf("Schema bewaard: %s (verwijderen: DROP DATABASE `%s`)\n", $database, $database);
+    } else {
+        $pdo->exec('DROP DATABASE `' . $database . '`');
+    }
 }

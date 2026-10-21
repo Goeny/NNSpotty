@@ -31,6 +31,8 @@ for ($i = 0; $i < 102; $i++) {
 $pdo->exec("UPDATE spotnet_spots SET created_at = '2090-01-01 12:00:00.500001' WHERE title = 'Visit Counter Fixture'");
 $atBoundary = $pdo->prepare('UPDATE spotnet_spots SET created_at = :date WHERE id = :id');
 $atBoundary->execute(['date' => $boundary, 'id' => $visitIds[0]]);
+// Direct SQL bypasses the overview read model; mirror the import times there.
+$pdo->exec('UPDATE spot_browse b JOIN spotnet_spots s ON s.id = b.spot_id SET b.created_at = s.created_at WHERE s.title = \'Visit Counter Fixture\'');
 $newFacets = array_column($spots->facets('Beeld', false, 'Visit Counter Fixture', [], $boundary), 'total', 'code');
 check((int) $newFacets['0:z0'] === 100 && $spots->countSpots('Beeld', false, [], 'Visit Counter Fixture') === 101,
     'Filterbadge telt exact 100 nieuwe films terwijl overzicht alle 101 films blijft tonen');

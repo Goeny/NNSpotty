@@ -81,7 +81,9 @@ function handleDbCommand(array $argv, Migrator $migrator, PDO $pdo): void
 {
     $action = $argv[2] ?? 'status';
     if ($action === 'migrate') {
-        $migrator->migrate();
+        $migrator->migrate(static function (string $line): void {
+            fwrite(STDOUT, $line . PHP_EOL);
+        });
         fwrite(STDOUT, "Migrations uitgevoerd.\n");
         return;
     }
@@ -110,7 +112,11 @@ function handleDbCommand(array $argv, Migrator $migrator, PDO $pdo): void
     }
 
     if ($action === 'reindex-spots') {
-        throw new RuntimeException('Headergroepering is vervangen door Spotnet. Gebruik db migrate en retrieve --days=30 om echte spots opnieuw op te halen; oude headers blijven bewaard.');
+        $total = (new \NnSpotty\Usenet\SpotRepository($pdo))->rebuildBrowseIndex(static function (string $line): void {
+            fwrite(STDOUT, $line . PHP_EOL);
+        });
+        fwrite(STDOUT, 'Overzichtsindex herbouwd voor ' . $total . " spots.\n");
+        return;
     }
 
     throw new RuntimeException('Onbekende db actie: ' . $action);
@@ -284,7 +290,7 @@ function showHelp(): void
 {
     fwrite(STDOUT, "NNSpotty console\n");
     fwrite(STDOUT, "Gebruik:\n");
-    fwrite(STDOUT, "  bin/console db migrate|status|health|cleanup [--days=90]\n");
+    fwrite(STDOUT, "  bin/console db migrate|status|health|cleanup [--days=90]|reindex-spots\n");
     fwrite(STDOUT, "  bin/console user list|groups\n");
     fwrite(STDOUT, "  bin/console user edit <username> [--admin=1|0] [--active=1|0] [--groups=<id,id>]\n");
     fwrite(STDOUT, "  bin/console user create <username> <password> [--admin=1]\n");
