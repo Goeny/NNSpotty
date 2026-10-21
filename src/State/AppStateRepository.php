@@ -195,6 +195,29 @@ final class AppStateRepository
         $this->saveSetting('admin.spot_content', $settings);
     }
 
+    /** @return array{mode: string, retention: int} Retention 0 follows the spot retention. */
+    public function commentRetrievalSettings(): array
+    {
+        $stored = $this->decodeSetting('admin.comment_retrieval');
+        $settings = ['mode' => $stored['mode'] ?? 'lazy', 'retention' => $stored['retention'] ?? 0];
+        if (!in_array($settings['mode'], ['lazy', 'full'], true) || !is_int($settings['retention']) || $settings['retention'] < 0) {
+            throw new \RuntimeException('Ongeldige opgeslagen reactie-instelling.');
+        }
+        return $settings;
+    }
+
+    /** @param array{mode: string, retention: int} $settings */
+    public function saveCommentRetrievalSettings(array $settings): void
+    {
+        if (count($settings) !== 2 || !in_array($settings['mode'] ?? null, ['lazy', 'full'], true)) {
+            throw new \InvalidArgumentException('Kies reacties volledig vooraf of op aanvraag ophalen.');
+        }
+        if (!is_int($settings['retention'] ?? null) || $settings['retention'] < 0 || $settings['retention'] > 36500) {
+            throw new \InvalidArgumentException('Reactie-retentie moet tussen 0 en 36500 dagen liggen (0 = spot-retentie).');
+        }
+        $this->saveSetting('admin.comment_retrieval', $settings);
+    }
+
     /** @return array<int, list<string>> */
     public function globalSpotColumns(): array
     {

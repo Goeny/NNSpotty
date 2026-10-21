@@ -31,7 +31,7 @@ final class AdminPageRenderer
      * @param array<int, array{post_id: string, username: string, comment: string, created_at: string}> $comments
      * @param array<int, array{actor_username: string, action: string, target_type: string, target_id: string, details_json: string, ip_address: string, created_at: string}> $auditLogs
      */
-    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = [], array $spotContent = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true], bool $apiEnabled = false, string $sabSettings = '', string $metadataSettings = '', string $spotterSettings = '', string $musicSettings = ''): string
+    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = [], array $spotContent = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true], bool $apiEnabled = false, string $sabSettings = '', string $metadataSettings = '',     string $spotterSettings = '', string $musicSettings = '', array $commentRetrieval = ['mode' => 'lazy', 'retention' => 0]): string
     {
         $retention = (int) $settings['retention'];
         $retrieveAfter = h($settings['retrieve_after'] ?? '');
@@ -68,6 +68,26 @@ final class AdminPageRenderer
             $contentOptions .= '<div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="' . $key
                 . '" name="' . $key . '" value="1"' . ($spotContent[$key] ? ' checked' : '') . '><label class="form-check-label" for="' . $key . '">' . h($label) . '</label></div>';
         }
+        $lazySelected = self::selectedAttr($commentRetrieval['mode'], 'lazy');
+        $fullSelected = self::selectedAttr($commentRetrieval['mode'], 'full');
+        $commentRetention = (int) $commentRetrieval['retention'];
+        $contentOptions .= <<<HTML
+<div class="row g-3 mb-2">
+  <div class="col-md-6">
+    <label class="form-label" for="comment_mode">Usenet-reacties ophalen</label>
+    <select class="form-select" id="comment_mode" name="comment_mode" aria-describedby="comment-mode-help">
+      <option value="lazy" {$lazySelected}>Op aanvraag: retrieve indexeert alleen headers, tekst bij openen spot (snel)</option>
+      <option value="full" {$fullSelected}>Volledig vooraf: retrieve haalt elke reactietekst op (traag)</option>
+    </select>
+    <div class="form-text" id="comment-mode-help">Op aanvraag laden vereist het recht "Reacties van Usenet laden" (comments.load).</div>
+  </div>
+  <div class="col-md-6">
+    <label class="form-label" for="comment_retention">Reactie-retentie (dagen)</label>
+    <input class="form-control" id="comment_retention" name="comment_retention" type="number" min="0" max="36500" value="{$commentRetention}" aria-describedby="comment-retention-help">
+    <div class="form-text" id="comment-retention-help">0 = gelijk aan de spot-retentie. Oudere reacties worden niet opgehaald en na elke retrieve opgeruimd.</div>
+  </div>
+</div>
+HTML;
 
         $whitelistItems = self::renderSimpleList($spotterLists['whitelist']);
         $blacklistItems = self::renderSimpleList($spotterLists['blacklist']);

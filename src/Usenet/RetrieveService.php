@@ -138,7 +138,20 @@ final class RetrieveService
                 }
             }
             $repository = new SpotRepository($this->pdo);
+            $commentSettings = $this->state->commentRetrievalSettings();
+            $lazyComments = $commentSettings['mode'] === 'lazy';
+            $commentRetentionCutoff = $commentSettings['retention'] > 0
+                ? $now->modify('-' . $commentSettings['retention'] . ' days')
+                : null;
+            if ($verbose && in_array('comments', $groups, true)) {
+                $log('Reacties: ' . ($lazyComments ? 'alleen headers indexeren, tekst op aanvraag' : 'volledig vooraf ophalen')
+                    . '; retentie=' . ($commentSettings['retention'] > 0 ? $commentSettings['retention'] . ' dagen' : 'gelijk aan spots') . '.');
+            }
             foreach ($groups as $groupName => $role) {
+                $groupCutoff = $cutoff;
+                if ($role === 'comments' && $commentRetentionCutoff !== null && ($groupCutoff === null || $commentRetentionCutoff > $groupCutoff)) {
+                    $groupCutoff = $commentRetentionCutoff;
+                }
                 $group = $client->group($groupName);
                 $first = (int) $group['first'];
                 $last = (int) $group['last'];
@@ -153,7 +166,7 @@ final class RetrieveService
                 if ($verbose) {
                     $log($role . ' ' . $groupName . ': ' . $start . '-' . $end
                         . ($newestFirst ? ' (hoogste artikelnummers eerst)' : ' (laagste artikelnummers eerst)')
-                        . '; datumgrens=' . ($cutoff?->format('Y-m-d H:i:s') ?? 'geen') . ' UTC');
+                        . '; datumgrens=' . ($groupCutoff?->format('Y-m-d H:i:s') ?? 'geen') . ' UTC');
                 }
                 for (
                     $position = $newestFirst ? $end : $start;
@@ -166,9 +179,10 @@ final class RetrieveService
                     if (!is_array($rows)) {
                         throw new \RuntimeException('NNTP XOVER retourneerde geen overzicht.');
                     }
-                    $counts = ['te_oud' => 0, 'bestaand' => 0, 'geen_spot' => 0, 'ongeldig' => 0, 'verdwenen' => 0, 'opgeslagen' => 0, 'vernieuwd' => 0, 'blacklist' => 0, 'onbevestigd' => 0];
+                    $counts = ['te_oud' => 0, 'bestaand' => 0, 'geen_spot' => 0, 'ongeldig' => 0, 'verdwenen' => 0, 'opgeslagen' => 0, 'vernieuwd' => 0, 'blacklist' => 0, 'onbevestigd' => 0, 'tekst_later' => 0];
                     $oldestDate = null;
                     $newestDate = null;
+                    $candidates = [];
                     $pending = [];
                     foreach ($rows as $row) {
                         $overview = array_change_key_case($row, CASE_LOWER);
@@ -193,69 +207,114 @@ final class RetrieveService
                             $dateLabel = $postedAt->format('Y-m-d H:i:s');
                             $oldestDate = $oldestDate === null ? $dateLabel : min($oldestDate, $dateLabel);
                             $newestDate = $newestDate === null ? $dateLabel : max($newestDate, $dateLabel);
-                            if ($cutoff !== null && $postedAt < $cutoff) {
+                            if ($groupCutoff !== null && $postedAt < $groupCutoff) {
                                 $counts['te_oud']++;
                                 continue;
                             }
-                            $exists = $repository->exists(hash('sha256', $messageId), $role);
-                            if (!$refreshSpots && $exists) {
-                                $counts['bestaand']++;
+                            $candidates[hash('sha256', $messageId)] = [
+                                'message_id' => $messageId, 'number' => $number, 'date' => $date,
+                                'references' => (string) ($overview['references'] ?? ''), 'from' => (string) ($overview['from'] ?? ''),
+                            ];
+                        } catch (UnexpectedValueException $exception) {
+                            $skipped++;
+                            $counts['ongeldig']++;
+                            $log($groupName . ' artikel ' . $number . ' overgeslagen: ' . $exception->getMessage());
+                        }
+                    }
+                    // One lookup per batch instead of one query per header.
+                    $known = $repository->existing(array_keys($candidates), $role);
+                    $commentRows = [];
+                    foreach ($candidates as $id => $candidate) {
+                        $status = $known[$id] ?? null;
+                        if ($role === 'spots' ? ($status !== null && !$refreshSpots) : ($status !== null && ($status !== 'pending' || $lazyComments))) {
+                            $counts['bestaand']++;
+                            continue;
+                        }
+                        if ($role === 'comments' && $lazyComments) {
+                            try {
+                                $stub = SpotnetParser::commentStub($candidate['message_id'], $candidate['references'], $candidate['from'], $candidate['date']);
+                            } catch (UnexpectedValueException $exception) {
+                                $skipped++;
+                                $counts['ongeldig']++;
+                                $log($groupName . ' artikel ' . $candidate['number'] . ' overgeslagen: ' . $exception->getMessage());
                                 continue;
                             }
-                            $pending[] = ['message_id' => $messageId, 'number' => $number, 'exists' => $exists];
-                        } catch (UnexpectedValueException $exception) {
-                            $skipped++;
-                            $counts['ongeldig']++;
-                            $log($groupName . ' artikel ' . $number . ' overgeslagen: ' . $exception->getMessage());
-                        }
-                    }
-                    foreach ($connection->articles(array_column($pending, 'message_id'), $role === 'spots', $settings['pipeline_depth']) as $index => $article) {
-                        $messageId = $pending[$index]['message_id'];
-                        $number = $pending[$index]['number'];
-                        $exists = $pending[$index]['exists'];
-                        try {
-                            if ($article instanceof NntpException) throw $article;
-                            if ($role === 'spots') {
-                                $spot = SpotnetParser::spot($messageId, $article);
-                                if ($spot === null) {
-                                    $skipped++;
-                                    $counts['geen_spot']++;
-                                    continue;
-                                }
-                                if ($spot['signature_state'] !== 'verified') $counts['onbevestigd']++;
-                                if ($spot['spotter_key'] !== null && ($spotterKeys[$spot['spotter_key']] ?? null) === 'blacklist') {
-                                    $skipped++;
-                                    $blacklisted++;
-                                    $counts['blacklist']++;
-                                    continue;
-                                }
-                                $repository->saveSpot($spot, $groupName, $refreshSpots);
-                            } else {
-                                $repository->saveComment(SpotnetParser::comment($messageId, $article));
-                            }
-                            if ($exists) {
-                                $refreshed++;
-                                $counts['vernieuwd']++;
-                            } else {
+                            // Without a derivable spot reference the article itself must be read now.
+                            if ($stub !== null) {
+                                $commentRows[] = $stub;
                                 $inserted++;
                                 $counts['opgeslagen']++;
+                                $counts['tekst_later']++;
+                                continue;
                             }
-                        } catch (UnexpectedValueException $exception) {
-                            $skipped++;
-                            $counts['ongeldig']++;
-                            $log($groupName . ' artikel ' . $number . ' overgeslagen: ' . $exception->getMessage());
-                        } catch (NntpException $exception) {
-                            if (!in_array($exception->getCode(), [423, 430], true)) {
-                                throw $exception;
-                            }
-                            $skipped++;
-                            $counts['verdwenen']++;
-                            $log($groupName . ' artikel ' . $number . ' niet meer beschikbaar: ' . $exception->getMessage());
                         }
+                        $pending[] = ['message_id' => $candidate['message_id'], 'number' => $candidate['number'], 'exists' => $role === 'spots' && $status !== null];
                     }
-                    // Backfills do not move the incremental cursor past unprocessed articles.
-                    if ($mode === 'since-last') {
-                        $this->saveCursor($cursorKey, $to);
+                    $this->pdo->beginTransaction();
+                    try {
+                        foreach ($connection->articles(array_column($pending, 'message_id'), $role === 'spots', $settings['pipeline_depth']) as $index => $article) {
+                            $messageId = $pending[$index]['message_id'];
+                            $number = $pending[$index]['number'];
+                            $exists = $pending[$index]['exists'];
+                            try {
+                                if ($article instanceof NntpException) throw $article;
+                                if ($role === 'spots') {
+                                    $spot = SpotnetParser::spot($messageId, $article);
+                                    if ($spot === null) {
+                                        $skipped++;
+                                        $counts['geen_spot']++;
+                                        continue;
+                                    }
+                                    if ($spot['signature_state'] !== 'verified') $counts['onbevestigd']++;
+                                    if ($spot['spotter_key'] !== null && ($spotterKeys[$spot['spotter_key']] ?? null) === 'blacklist') {
+                                        $skipped++;
+                                        $blacklisted++;
+                                        $counts['blacklist']++;
+                                        continue;
+                                    }
+                                    $repository->saveSpot($spot, $groupName, $refreshSpots);
+                                } else {
+                                    $commentRows[] = SpotnetParser::comment($messageId, $article);
+                                }
+                                if ($exists) {
+                                    $refreshed++;
+                                    $counts['vernieuwd']++;
+                                } else {
+                                    $inserted++;
+                                    $counts['opgeslagen']++;
+                                }
+                            } catch (UnexpectedValueException $exception) {
+                                $skipped++;
+                                $counts['ongeldig']++;
+                                $log($groupName . ' artikel ' . $number . ' overgeslagen: ' . $exception->getMessage());
+                            } catch (NntpException $exception) {
+                                if (!in_array($exception->getCode(), [423, 430], true)) {
+                                    throw $exception;
+                                }
+                                $skipped++;
+                                $counts['verdwenen']++;
+                                $log($groupName . ' artikel ' . $number . ' niet meer beschikbaar: ' . $exception->getMessage());
+                            }
+                        }
+                        $repository->saveComments($commentRows);
+                        // Backfills do not move the incremental cursor past unprocessed articles.
+                        if ($mode === 'since-last') {
+                            $this->saveCursor($cursorKey, $to);
+                        }
+                        $this->pdo->commit();
+                    } catch (Throwable $exception) {
+                        // A transport failure keeps already processed articles (without moving the cursor); database errors roll back.
+                        if ($exception instanceof \PDOException) {
+                            $this->pdo->rollBack();
+                            throw $exception;
+                        }
+                        try {
+                            $repository->saveComments($commentRows);
+                            $this->pdo->commit();
+                        } catch (Throwable) {
+                            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+                        }
+                        throw $exception;
                     }
                     if ($verbose) {
                         $statistics = [];
@@ -267,10 +326,10 @@ final class RetrieveService
                             . ' UTC; ' . implode(' ', $statistics) . '; totaal opgeslagen=' . $inserted);
                     }
                     // One old article is not a reliable boundary: require three entirely old, nonempty batches.
-                    $oldBatches = $newestFirst && $cutoff !== null && $rows !== [] && $counts['te_oud'] === count($rows)
+                    $oldBatches = $newestFirst && $groupCutoff !== null && $rows !== [] && $counts['te_oud'] === count($rows)
                         ? $oldBatches + 1 : 0;
                     if ($oldBatches === 3) {
-                        $log($groupName . ': datumgrens ' . $cutoff->format('Y-m-d H:i:s')
+                        $log($groupName . ': datumgrens ' . $groupCutoff->format('Y-m-d H:i:s')
                             . ' UTC bereikt; gestopt na 3 opeenvolgende volledig oude batches. Oudere artikelranges worden niet gescand.');
                         break;
                     }
@@ -287,11 +346,21 @@ final class RetrieveService
                     $expiredDeleted += $deleted;
                 } while ($deleted > 0);
             }
+            $expiredComments = 0;
+            if ($commentRetentionCutoff !== null) {
+                do {
+                    $deleted = $repository->deleteExpiredComments($commentRetentionCutoff->format('Y-m-d H:i:s'));
+                    $expiredComments += $deleted;
+                } while ($deleted > 0);
+            }
             $message = 'Spotnet retrieve voltooid: ' . $inserted . ' nieuwe spots/reacties opgeslagen; '
                 . $refreshed . ' spots vernieuwd; ' . $skipped . ' berichten overgeslagen; '
                 . $blacklisted . ' wegens blacklist.' . $moderationWarning;
             if ($expiredDeleted > 0) {
                 $message .= ' ' . $expiredDeleted . ' spots ouder dan de retentie verwijderd.';
+            }
+            if ($expiredComments > 0) {
+                $message .= ' ' . $expiredComments . ' reacties ouder dan de reactie-retentie verwijderd.';
             }
             $this->finishRun($runId, 'completed', $message);
             return ['mode' => $mode, 'days' => $days, 'status' => 'completed', 'message' => $message, 'inserted' => $inserted, 'refreshed' => $refreshed, 'groups' => $processedGroups];

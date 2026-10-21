@@ -49,11 +49,12 @@ if (!is_resource($httpServer)) {
 }
 
 /** @return array{status: int, body: string, headers: list<string>} */
-function httpFixture(int $port, string $path, string &$cookie, ?array $form = null): array
+function httpFixture(int $port, string $path, string &$cookie, ?array $form = null, string $accept = ''): array
 {
     $context = stream_context_create(['http' => [
         'method' => $form === null ? 'GET' : 'POST',
-        'header' => "Cookie: " . $cookie . "\r\nContent-Type: application/x-www-form-urlencoded\r\n",
+        'header' => "Cookie: " . $cookie . "\r\nContent-Type: application/x-www-form-urlencoded\r\n"
+            . ($accept !== '' ? 'Accept: ' . $accept . "\r\n" : ''),
         'content' => $form === null ? '' : http_build_query($form),
         'ignore_errors' => true,
         'follow_location' => 0,
@@ -198,7 +199,7 @@ try {
     check($stylesheet['status'] === 200 && str_contains($stylesheet['body'], '.browse-grid')
         && count(array_filter($stylesheet['headers'], static fn (string $header): bool => stripos($header, 'Content-Type: text/css') === 0)) === 1, 'Lokale stylesheet wordt met CSS MIME-type geserveerd');
     $detail = httpFixture($httpPort, '/spots/view?key=' . $spotId, $cookie);
-    check($detail['status'] === 200 && str_contains($detail['body'], 'Reacties (3)') && str_contains($detail['body'], 'Een omschrijving'), 'HTTP-detail toont omschrijving en gekoppelde reacties');
+    check($detail['status'] === 200 && str_contains($detail['body'], 'Reacties (<span data-comment-count>3</span>)') && str_contains($detail['body'], 'Een omschrijving'), 'HTTP-detail toont omschrijving en gekoppelde reacties');
     check(str_contains($detail['body'], '<dt>Gepost met</dt><dd>Spotnet 1.9.0.8</dd>')
         && str_contains($detail['body'], '<dt>Hoofdcategorie</dt><dd>Beeld</dd>'), 'Extra detailmetadata blijft zichtbaar via echte HTTP-route');
     $remoteComment = $pdo->prepare('SELECT id, body FROM spotnet_comments WHERE spot_id = :id LIMIT 1');
@@ -218,6 +219,25 @@ try {
         'Echte detailroute vertaalt oude emoticoncodes in lokale en Usenet-reacties zonder GIF-verzoeken');
     $updateComment->execute(['body' => $remoteComment['body'], 'id' => $remoteComment['id']]);
     $pdo->prepare('DELETE FROM post_comments WHERE id = :id')->execute(['id' => $localMarkupId]);
+    $setPending = $pdo->prepare("UPDATE spotnet_comments SET body = NULL, body_status = 'pending' WHERE message_id = 'spot-one.1.2.3@example.invalid'");
+    $setPending->execute();
+    $lazyDetail = httpFixture($httpPort, '/spots/view?key=' . $spotId, $cookie);
+    preg_match('/name="_csrf" value="([^"]+)"/', $lazyDetail['body'], $lazyToken);
+    check(str_contains($lazyDetail['body'], 'action="/spots/comments/load"') && str_contains($lazyDetail['body'], '1 reactie van Usenet laden')
+        && str_contains($lazyDetail['body'], 'Reacties (<span data-comment-count>2</span>)'),
+        'Detail toont alleen geladen reacties plus een laadknop voor headers zonder tekst');
+    $lazyForbidden = httpFixture($httpPort, '/spots/comments/load', $cookie, ['spot_id' => $spotId], 'application/json');
+    check($lazyForbidden['status'] === 403 && $spots->pendingCommentCount($spotId) === 1, 'Reacties laden vereist CSRF');
+    $lazyLoad = httpFixture($httpPort, '/spots/comments/load', $cookie, ['_csrf' => $lazyToken[1], 'spot_id' => $spotId], 'application/json');
+    $lazyJson = json_decode($lazyLoad['body'], true);
+    check($lazyLoad['status'] === 200 && $lazyJson['count'] === 3 && $lazyJson['remaining'] === 0 && $lazyJson['loader'] === ''
+        && str_contains($lazyJson['html'], 'Begint') && $spots->pendingCommentCount($spotId) === 0,
+        'JSON-route haalt reactietekst via NNTP op, cachet hem en levert bijgewerkte lijst');
+    $setPending->execute();
+    $lazyRedirect = httpFixture($httpPort, '/spots/comments/load', $cookie, ['_csrf' => $lazyToken[1], 'spot_id' => $spotId]);
+    check($lazyRedirect['status'] === 302 && $spots->pendingCommentCount($spotId) === 0
+        && count(array_filter($lazyRedirect['headers'], static fn (string $h): bool => str_starts_with($h, 'Location:') && str_contains($h, '#comments'))) === 1,
+        'Zonder JavaScript laadt het formulier reacties en keert terug naar de spot');
     $imageResponse = httpFixture($httpPort, '/spots/image?key=' . $spotId, $cookie);
     check($imageResponse['status'] === 200 && $imageResponse['body'] === Fixtures::image()
         && in_array('Content-Type: image/png', $imageResponse['headers'], true), 'HTTP-afbeelding levert de juiste bytes en MIME');
@@ -553,11 +573,21 @@ try {
         && str_contains($pausedDetail['body'], 'Via de echte route')
         && str_contains($pausedDetail['body'], 'data-image-lightbox'), 'Reacties tonen staat los van ophalen; eerder opgeslagen inhoud blijft bruikbaar');
     httpFixture($httpPort, '/admin/spot-content', $cookie, ['_csrf' => $token[1], 'retrieve_comments' => '1', 'show_comments' => '1', 'images_enabled' => '1']);
+    $commentDefaults = $state->commentRetrievalSettings();
+    check(str_contains($hiddenAdmin['body'], 'name="comment_mode"') && str_contains($hiddenAdmin['body'], 'name="comment_retention"'),
+        'Admin toont reactiemodus en reactie-retentie');
+    foreach ([['comment_mode' => 'headers', 'comment_retention' => '0'], ['comment_mode' => 'lazy', 'comment_retention' => '-1'], ['comment_mode' => 'lazy', 'comment_retention' => '99999']] as $invalidComment) {
+        $result = httpFixture($httpPort, '/admin/spot-content', $cookie, ['_csrf' => $token[1], 'retrieve_comments' => '1', 'show_comments' => '1', 'images_enabled' => '1'] + $invalidComment);
+        check($result['status'] === 302 && $state->commentRetrievalSettings() === $commentDefaults, 'Ongeldige reactie-instelling wordt geweigerd zonder opslag');
+    }
+    httpFixture($httpPort, '/admin/spot-content', $cookie, ['_csrf' => $token[1], 'retrieve_comments' => '1', 'show_comments' => '1', 'images_enabled' => '1', 'comment_mode' => 'lazy', 'comment_retention' => '365']);
+    check($state->commentRetrievalSettings() === ['mode' => 'lazy', 'retention' => 365], 'Admin slaat reactiemodus en reactie-retentie op');
+    $state->saveCommentRetrievalSettings($commentDefaults);
     check($state->spotContentSettings() === $contentDefaults
         && httpFixture($httpPort, '/spots/image?key=' . $spotId, $cookie)['body'] === $savedImage['image_data'], 'Opnieuw inschakelen herstelt toegang tot de bestaande afbeeldingcache');
     $presentationScript = httpFixture($httpPort, '/assets/presentation.js', $cookie);
     check($presentationScript['status'] === 200 && str_contains($presentationScript['body'], 'showModal'), 'Gedeelde lightbox-JavaScript wordt door de HTTP-server geleverd');
-    check((int) $pdo->query("SELECT COUNT(*) FROM admin_audit_logs WHERE action = 'admin.spot_content.updated'")->fetchColumn() === 3, 'Inhoudsinstellingen hebben auditregistratie, ongeldige wijzigingen niet');
+    check((int) $pdo->query("SELECT COUNT(*) FROM admin_audit_logs WHERE action = 'admin.spot_content.updated'")->fetchColumn() === 4, 'Inhoudsinstellingen hebben auditregistratie, ongeldige wijzigingen niet');
     httpFixture($httpPort, '/admin/content', $cookie, ['_csrf' => $token[1], 'allow_erotica' => '1']);
     check(!str_contains(httpFixture($httpPort, '/spots', $readerCookie)['body'], 'Verborgen HTTP-testspot'), 'Opt-in van admin lekt niet naar tweede gebruiker');
     httpFixture($httpPort, '/preferences', $readerCookie, ['_csrf' => $readerToken[1], 'theme' => 'default', 'items_per_page' => '10', 'show_erotica' => '1', 'username' => 'http-tester']);

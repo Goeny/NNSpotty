@@ -539,6 +539,14 @@ final class Migrator
                     ADD COLUMN IF NOT EXISTS poster VARCHAR(191) NULL,
                     ADD COLUMN IF NOT EXISTS source_body TEXT NULL',
             ],
+            '20261021_0022_lazy_comments' => [
+                'ALTER TABLE spotnet_comments
+                    MODIFY body MEDIUMTEXT NULL,
+                    ADD COLUMN IF NOT EXISTS body_status ENUM(\'loaded\', \'pending\', \'unavailable\', \'invalid\') NOT NULL DEFAULT \'loaded\',
+                    ADD INDEX IF NOT EXISTS idx_spotnet_comments_date (posted_at)',
+                'INSERT IGNORE INTO group_permissions (group_id, permission)
+                    SELECT id, \'comments.load\' FROM user_groups',
+            ],
         ];
     }
 }

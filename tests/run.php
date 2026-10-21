@@ -187,7 +187,7 @@ try {
     $unsafeReader['newsreader'] = '<script>reader()</script>';
     check(!str_contains(SpotDetailPageRenderer::summary($unsafeReader, true), '<script>reader()'), 'Newsreader is ook in preview geescapete tekst');
     check(!str_contains($html, '<script>') && !str_contains($html, '<img src=x') && str_contains($html, '&lt;script&gt;'), 'Onbetrouwbare inhoud wordt geescaped');
-    check(str_contains($html, 'Omschrijving') && str_contains($html, 'Reacties (1)') && !str_contains($html, 'Onderdelen (headers)'), 'Spotdetail toont inhoud en reacties, geen headerdelen');
+    check(str_contains($html, 'Omschrijving') && str_contains($html, 'Reacties (<span data-comment-count>1</span>)') && !str_contains($html, 'Onderdelen (headers)'), 'Spotdetail toont inhoud en reacties, geen headerdelen');
     $overview = SpotsPageRenderer::render('tester', false, [$spot, $other], null, '');
     check(substr_count($overview, 'data-preview=') === 2 && !str_contains($overview, 'Onderdelen'), 'Overzicht behoudt individuele spots');
     check(str_contains($overview, 'data-bs-theme="dark"') && str_contains($overview, 'class="sidebar"')

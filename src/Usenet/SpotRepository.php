@@ -14,17 +14,33 @@ final class SpotRepository
 
     public function exists(string $id, string $role): bool
     {
-        $table = $role === 'spots' ? 'spotnet_spots' : 'spotnet_comments';
-        $statement = $this->pdo->prepare('SELECT 1 FROM ' . $table . ' WHERE id = :id');
-        $statement->execute(['id' => $id]);
-        return $statement->fetchColumn() !== false;
+        return $this->existing([$id], $role) !== [];
+    }
+
+    /**
+     * @param list<string> $ids
+     * @return array<string, string> Existing ids mapped to their comment body status ('loaded' for spots).
+     */
+    public function existing(array $ids, string $role): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+        $placeholders = implode(', ', array_fill(0, count($ids), '?'));
+        $statement = $this->pdo->prepare($role === 'spots'
+            ? 'SELECT id, \'loaded\' FROM spotnet_spots WHERE id IN (' . $placeholders . ')'
+            : 'SELECT id, body_status FROM spotnet_comments WHERE id IN (' . $placeholders . ')');
+        $statement->execute(array_values($ids));
+        return $statement->fetchAll(PDO::FETCH_KEY_PAIR);
     }
 
     /** @param array<string, mixed> $spot */
     public function saveSpot(array $spot, string $group, bool $refresh = false): void
     {
         $classification = SpotCategories::classify($spot['category'], $spot['subcategories']);
-        $this->pdo->beginTransaction();
+        // Retrieve batches wrap many spots in one transaction; a savepoint keeps a failed spot isolated.
+        $nested = $this->pdo->inTransaction();
+        $nested ? $this->pdo->exec('SAVEPOINT nnspotty_spot') : $this->pdo->beginTransaction();
         try {
             if ($refresh) {
                 $existing = $this->pdo->prepare('SELECT image_url, image_segments, nzb_segments FROM spotnet_spots WHERE id = :id FOR UPDATE');
@@ -71,9 +87,9 @@ final class SpotRepository
             if ($statement->rowCount() > 0) {
                 $this->indexCategories($spot['id'], $spot['category'], $spot['subcategories'], $classification);
             }
-            $this->pdo->commit();
+            $nested ? $this->pdo->exec('RELEASE SAVEPOINT nnspotty_spot') : $this->pdo->commit();
         } catch (\Throwable $exception) {
-            $this->pdo->rollBack();
+            $nested ? $this->pdo->exec('ROLLBACK TO SAVEPOINT nnspotty_spot') : $this->pdo->rollBack();
             throw $exception;
         }
     }
@@ -81,12 +97,74 @@ final class SpotRepository
     /** @param array<string, mixed> $comment */
     public function saveComment(array $comment): void
     {
+        $this->saveComments([$comment]);
+    }
+
+    /**
+     * Multi-row upsert. Header-only entries (body_status pending) never overwrite a stored body;
+     * loaded entries complete pending rows.
+     *
+     * @param list<array<string, mixed>> $comments
+     */
+    public function saveComments(array $comments): void
+    {
+        foreach (array_chunk($comments, 100) as $chunk) {
+            $rows = [];
+            $parameters = [];
+            foreach ($chunk as $comment) {
+                $rows[] = '(?, ?, ?, ?, ?, ?, ?)';
+                array_push($parameters, $comment['id'], $comment['message_id'], $comment['spot_id'], $comment['poster'],
+                    $comment['body'], $comment['body_status'] ?? 'loaded', $comment['posted_at']);
+            }
+            $statement = $this->pdo->prepare(
+                'INSERT INTO spotnet_comments (id, message_id, spot_id, poster, body, body_status, posted_at)
+                 VALUES ' . implode(', ', $rows) . '
+                 ON DUPLICATE KEY UPDATE
+                    spot_id = IF(VALUES(body_status) = \'loaded\', VALUES(spot_id), spot_id),
+                    poster = IF(VALUES(body_status) = \'loaded\', VALUES(poster), poster),
+                    body = IF(VALUES(body_status) = \'loaded\', VALUES(body), body),
+                    body_status = IF(VALUES(body_status) = \'loaded\', \'loaded\', body_status)'
+            );
+            $statement->execute($parameters);
+        }
+    }
+
+    /** @return list<string> Newest pending message IDs first. */
+    public function pendingCommentMessageIds(string $spotId, int $limit): array
+    {
         $statement = $this->pdo->prepare(
-            'INSERT INTO spotnet_comments (id, message_id, spot_id, poster, body, posted_at)
-             VALUES (:id, :message_id, :spot_id, :poster, :body, :posted_at)
-             ON DUPLICATE KEY UPDATE id = VALUES(id)'
+            'SELECT message_id FROM spotnet_comments WHERE spot_id = :spot_id AND body_status = \'pending\'
+             ORDER BY posted_at DESC LIMIT ' . max(1, $limit)
         );
-        $statement->execute($comment);
+        $statement->execute(['spot_id' => $spotId]);
+        return $statement->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    public function pendingCommentCount(string $spotId): int
+    {
+        $statement = $this->pdo->prepare('SELECT COUNT(*) FROM spotnet_comments WHERE spot_id = :spot_id AND body_status = \'pending\'');
+        $statement->execute(['spot_id' => $spotId]);
+        return (int) $statement->fetchColumn();
+    }
+
+    /** @param list<string> $messageIds */
+    public function markComments(array $messageIds, string $status): void
+    {
+        if (!in_array($status, ['unavailable', 'invalid'], true)) {
+            throw new \InvalidArgumentException('Ongeldige reactiestatus.');
+        }
+        foreach (array_chunk($messageIds, 100) as $chunk) {
+            $statement = $this->pdo->prepare('UPDATE spotnet_comments SET body_status = ?
+                WHERE body_status = \'pending\' AND message_id IN (' . implode(', ', array_fill(0, count($chunk), '?')) . ')');
+            $statement->execute([$status, ...$chunk]);
+        }
+    }
+
+    public function deleteExpiredComments(string $cutoff, int $limit = 5000): int
+    {
+        $statement = $this->pdo->prepare('DELETE FROM spotnet_comments WHERE posted_at < :cutoff LIMIT ' . max(1, $limit));
+        $statement->execute(['cutoff' => $cutoff]);
+        return $statement->rowCount();
     }
 
     public function deleteExpiredSpots(string $cutoff, int $limit = 1000): int
@@ -340,7 +418,7 @@ final class SpotRepository
     public function comments(string $id): array
     {
         $statement = $this->pdo->prepare(
-            'SELECT poster, body, posted_at, \'Usenet\' AS source FROM spotnet_comments WHERE spot_id = :spot_id
+            'SELECT poster, body, posted_at, \'Usenet\' AS source FROM spotnet_comments WHERE spot_id = :spot_id AND body_status = \'loaded\'
              UNION ALL
              SELECT username AS poster, comment AS body, created_at AS posted_at, \'NNSpotty\' AS source
              FROM post_comments WHERE post_id = :local_id

@@ -42,6 +42,9 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 - Instelbare NNTP-pipelining voor bulk-`HEAD` (spots) en `ARTICLE` (reacties), op dezelfde verbinding via een eigen php-nntp-uitbreiding: **1-128**, standaard **32**, **1 = uitgeschakeld**. Retentie/dubbele artikelen worden voor transport gefilterd; geen extra verbindingen, provider of dependency.
 - Dubbele berichten overslaan, verdwenen/ongeldige artikelen afzonderlijk verwerken, diagnostische batchoutput en opgeslagen retrieve-runstatussen. Transportfouten worden expliciet gemeld; cursors worden niet voorbij ongelezen ranges geschoven.
 - Afbeeldingen en NZB-inhoud worden op aanvraag opgehaald, gevalideerd en in de database gecachet, niet massaal tijdens indexing gedownload.
+- **Reacties standaard op aanvraag (lazy):** de retriever slaat voor reacties alleen de XOVER-header op (message-ID, spotkoppeling, afzender, datum) en downloadt geen artikelen. De tekst wordt pas opgehaald zodra iemand de spot opent, in pipelined batches van maximaal 100 en daarna in de database gecachet. Reacties waarvan de spot niet uit de header af te leiden is, worden alsnog direct volledig opgehaald. Instelbaar via **Beheerpanel > Inhoud en weergave > Op te halen inhoud** (`Op aanvraag` of `Volledig vooraf`).
+- **Aparte reactie-retentie** in dagen (0 = gelijk aan de spotretentie). Reacties ouder dan deze grens worden niet meer gescand en na een geslaagde run opgeruimd; spots blijven staan.
+- Opslag per XOVER-batch in een transactie met een enkele bestaat-query en multi-row inserts voor reacties. Een transportfout bewaart reeds verwerkte artikelen maar schuift de cursor niet op; een databasefout rolt de batch terug.
 - Refresh bewaart reacties en vernieuwt metadata/categorie-index atomair; afbeelding-/NZB-caches vervallen alleen bij gewijzigde segmentbron.
 
 ### Overzicht, zoeken en navigatie
@@ -94,6 +97,7 @@ Dit is een nieuwe, modulaire PHP-applicatie met een eigen codebasis, geen aangep
 - Kleur-, font-, grootte- en uitlijningstags behouden de tekst zonder externe stijlen uit te voeren. Scripts, embeds, eventhandlers en remote CSS worden niet uitgevoerd; afbeeldingen in omschrijvingen/reacties worden niet geladen.
 - Usenet-reacties uit `free.usenet`, gekoppeld aan de oorspronkelijke spot. Een volledige `References` die exact overeenkomt met de reactie-ID-structuur bewaart ook spot-IDs met punten; anders gaat de gecodeerde reactie-ID voor een eventueel foutief `References`-veld. Bestaande oudere koppelingen worden via migratie hersteld.
 - Reacties tonen auteur, datum en bron. **Nieuwe reacties worden altijd op Usenet gepubliceerd**, via het formulier onder de volledige spot; geen lokale plaatsingsoptie of terugval. Bestaande lokale reacties blijven leesbaar. Het oude lokale adminformulier is vervallen; `/admin/comments` accepteert geen nieuwe reacties meer.
+- In lazy-modus laadt de detailpagina openstaande reactieteksten automatisch (met spinner, maximaal 5 batches achter elkaar) of via de knop **Reacties van Usenet laden**; zonder JavaScript werkt dezelfde knop als formulier. Hiervoor is het recht **Reacties van Usenet laden** (`comments.load`) nodig; migratie `20261021_0022_lazy_comments` kent het toe aan alle bestaande groepen. Zonder dit recht zie je alleen reeds geladen reacties en een melding. Niet meer beschikbare of ongeldige artikelen worden gemarkeerd en niet opnieuw opgevraagd. Het reactieaantal telt alleen geladen reacties.
 - Bij het tekstveld staan 28 klikbare emoticonknoppen (dubbele aliassen weggelaten). Ze voegen compatibele `[img=...]-codes` op de cursorpositie in of vervangen de geselecteerde tekst. Knoppen werken met toetsenbord; geen externe afbeeldingen. Zonder JavaScript kun je codes zelf typen en het formulier gewoon verzenden.
 - Alle 30 bekende Spotweb-emoticoncodes uit de reactieknoppen worden hoofdletterongevoelig herkend, met moderne statische emoji's/tekstbadges in plaats van animated GIF's.
 - Onder andere `[img=buigen]`, `[img=klappen]`, `[img=respekt]`, alias `[img=respect]` en `[img=knipoog]`/`[img=wink]`. Codeblokken blijven letterlijk; onbekende codes en afbeelding-URLs laden geen beelden.
@@ -311,7 +315,8 @@ php bin/console retrieve --refresh-spots --days=7 --verbose
 - `--refresh-spots` verwerkt alleen spots en vereist `--days`, `--all` of `--full`; normale runs slaan reeds opgeslagen spots over.
 - Na het ophalen verwijdert de retriever alle spots ouder dan de ingestelde retentie, inclusief gekoppelde reacties en lokale reacties. Dat gebeurt in transactiebatches van maximaal 1000 spots, zonder maximum per run: ook 10.000 verlopen spots worden in dezelfde retrieve opgeruimd. De run is pas geslaagd als de opruiming klaar is; databasefouten laten de run expliciet mislukken. Bij retentie `0` wordt niets verwijderd. Maak voor de eerste run of een retentieverlaging een databasebackup; een grote achterstand kan de run verlengen.
 - Beide opties zijn niet combineerbaar.
-- `--verbose` toont ranges/datums en onder andere `te_oud`, `bestaand`, `geen_spot`, `ongeldig`, `verdwenen` en `opgeslagen`.
+- `--verbose` toont ranges/datums en onder andere `te_oud`, `bestaand`, `geen_spot`, `ongeldig`, `verdwenen`, `opgeslagen` en `tekst_later` (reactie-headers zonder tekst, lazy-modus), plus de actieve reactiemodus en -retentie.
+- Na upgrade naar migratie `20261021_0022_lazy_comments` staat de reactiemodus op **Op aanvraag**. De migratie wijzigt `spotnet_comments` (kolom `body_status`, datumindex); bij ruim een miljoen reacties kan dat enkele minuten duren en tijdelijk extra schijfruimte vragen. Maak vooraf een backup en draai de migratie niet tijdens een retrieve.
 
 Ontbreken reacties? Controleer de juiste groep, beide reactieschakelaars en providerbeschikbaarheid. Geen opgehaalde reacties betekent niet dat er op Usenet geen reacties zijn. Bij een poort/encryptiemismatch kan bijvoorbeeld `SSL routines::wrong version number` verschijnen.
 
@@ -516,7 +521,7 @@ Open **Gebruikers en groepen** in het gebruikersmenu of beheerpanel (`/manage`).
 
 - Standaardgroepen **Beheerders**, **Moderators**, **Gebruikers**; extra groepen en de rechten van niet-beheerdersgroepen zijn aanpasbaar. Meerdere groepen combineren hun toegekende rechten; geen ontzeggingen of groepshierarchie.
 - Beheerders is beschermd en heeft alle rechten. De laatste actieve beheerder kan niet worden verwijderd, gedeactiveerd of gedegradeerd, ook niet via CLI. Eigen account verwijderen vanuit de beheersessie wordt geweigerd.
-- Gebruikers: reacties publiceren, NZB downloaden/doorsturen en Newznab gebruiken (API blijft ook globaal inschakelen en een key vereisen).
+- Gebruikers: reacties publiceren, reacties van Usenet laden, NZB downloaden/doorsturen en Newznab gebruiken (API blijft ook globaal inschakelen en een key vereisen).
 - Moderators krijgen daarnaast metadata corrigeren, spotterlijsten beheren, handmatige retrieve starten en auditacties bekijken. Geen standaardrechten voor systeeminstellingen, gebruikers of groepen. Geen nieuwe lokale verberg-/verwijderfunctie voor spots/reacties.
 - Rechtenmatrix bevat deze functies plus gebruikersbeheer, groepen/rechtenbeheer en systeeminstellingenbeheer. Groepsbeheer is een vertrouwd hoogprivilegereerd recht: hiermee kunnen rechten worden toegekend. Alleen echte beheerders mogen de beschermde beheerdersgroep toewijzen of beheerdersaccounts beheren. Een niet-admin mag geen account met ruimere rechten beheren.
 - De centrale SABnzbd-koppeling, interne netwerktoegang en gedeelde categorietoewijzing blijven uitsluitend voor echte beheerders; systeeminstellingenrecht alleen geeft deze aanvullende netwerkprivileges niet.
@@ -598,6 +603,7 @@ Een fixturetest bewijst geen providerbeschikbaarheid. Controleer met je eigen ac
 ## Beperkingen en vervolgwerk
 
 - Nog geen installatiewizard, ingebouwde scheduler/jobqueue of begin-/einddatumkalender voor historische retrieve; gebruik voorlopig console/cron en retentie in dagen.
+- Een retrieve gebruikt een enkele NNTP-verbinding en heeft nog geen hervatpunt voor backfills (`--days`/`--all`); een afgebroken backfill begint opnieuw bovenaan, maar slaat reeds opgeslagen artikelen zonder download over. In lazy-modus wordt reactietekst pas bij openen opgehaald; verdwijnt het artikel intussen bij de provider, dan blijft alleen de header bekend.
 - Spottercontrole ondersteunt RSA/SHA1 over message-ID met exponent 65537, geen volledige header-/XML-/commenthandtekeningverificatie of echte-persoonsidentificatie. Ontbrekende/ongeldige handtekeningen blijven toegestaan. De externe Spotlist-inhoud is een moderatiebron, geen garantie voor betrouwbare of veilige inhoud.
 - Niet alle exotische Spotnet-tags/legacy-XML, dagelijkse/absolute afleveringscodes of multi-episodevarianten worden volledig ondersteund.
 - Bestaande lokale reacties worden niet alsnog op Usenet gepubliceerd. Geen playback, reviews of verzonnen verificatie-/beoordelingsbadges.

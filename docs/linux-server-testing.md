@@ -10,6 +10,32 @@ cp .env.example .env
 # vul daarna .env met jouw basis app + DB gegevens
 ```
 
+## Retrieverperformance: lazy reacties accepteren
+
+Migratie `20261021_0022_lazy_comments` wijzigt de tabel `spotnet_comments` (circa 1,5 miljoen rijen): reken op enkele minuten en tijdelijk extra schijfruimte. Stop eerst cron en lopende retrieves en maak een backup. Als deploygebruiker `hopseflop`:
+
+```bash
+cd /home/hopseflop/domains/nnspotty.hopseflop.nl/public_html
+pgrep -af 'bin/console retrieve' || echo "geen retrieve actief"
+git pull --ff-only origin main
+/opt/remi/php84/root/usr/bin/php bin/console db status
+time /opt/remi/php84/root/usr/bin/php bin/console db migrate
+/opt/remi/php84/root/usr/bin/php bin/console db status
+/opt/remi/php84/root/usr/bin/php bin/console db health
+```
+
+Als root daarna `systemctl reload nnspotty-php84-fpm.service`. Controleer in **Beheerpanel > Inhoud en weergave > Op te halen inhoud** dat reacties op **Op aanvraag** staan en stel eventueel een reactie-retentie in. Daarna als `hopseflop`:
+
+```bash
+cd /home/hopseflop/domains/nnspotty.hopseflop.nl/public_html
+time OPENSSL_CONF=/home/hopseflop/.config/nnspotty/openssl.cnf \
+    /opt/remi/php84/root/usr/bin/php bin/console retrieve --since-last --verbose 2>&1 | tail -n 40
+mysql -e "SELECT body_status, COUNT(*) FROM spotnet_comments GROUP BY body_status" <database>
+mysql -e "SELECT id, mode, status, started_at, completed_at, message FROM retrieval_runs ORDER BY id DESC LIMIT 5" <database>
+```
+
+De verbose regel `Reacties: alleen headers indexeren...` en de teller `tekst_later` bevestigen de lazy-modus. Open daarna een spot met reacties: de spinner laadt de teksten automatisch; het aantal reacties loopt op en `pending` daalt. Een account zonder recht **Reacties van Usenet laden** ziet alleen een melding. Fouten bij laden staan in `/home/hopseflop/domains/nnspotty.hopseflop.nl/logs/php_log` (`Usenet-reacties laden`).
+
 ## Gebruikers, groepen en profielen accepteren
 
 Plan een onderhoudsmoment: laat web-/cron-retrieves afronden, pauzeer cron, maak een databasebackup en werk niet tijdens actieve publicaties bij. Nieuwe code vereist migratie 0021 voordat webverkeer hervat wordt. Als deploygebruiker `hopseflop`:

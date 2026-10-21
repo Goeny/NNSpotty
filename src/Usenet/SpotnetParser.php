@@ -151,31 +151,8 @@ final class SpotnetParser
             throw new UnexpectedValueException('Reactie mist een body of is te groot.');
         }
         $headers = self::headers($parts[0]);
-        $references = $headers['references'][0] ?? '';
-        preg_match_all('/<([^<>]+)>/', $references, $matches);
-        $encodedReference = self::commentReference($messageId);
-        $matchingReference = null;
-        foreach ($matches[1] as $candidate) {
-            if (!str_contains($candidate, '@')) continue;
-            [$referenceLocal, $referenceDomain] = explode('@', $candidate, 2);
-            // A consistent full reference disambiguates original IDs containing dots.
-            if (preg_match('/^' . preg_quote($referenceLocal, '/') . '\.\d{1,2}\.[a-zA-Z0-9]+\.[a-zA-Z0-9]+@'
-                . preg_quote($referenceDomain, '/') . '$/D', $messageId) === 1) {
-                $matchingReference = self::messageId($candidate);
-                break;
-            }
-        }
-        if ($matchingReference !== null) {
-            $spotMessageId = $matchingReference;
-        } elseif ($encodedReference !== null) {
-            $spotMessageId = $encodedReference;
-        } elseif ($matches[1] !== []) {
-            $spotMessageId = self::messageId($matches[1][0]);
-        } elseif (trim($references) !== '') {
-            $spotMessageId = self::messageId($references);
-        } else {
-            throw new UnexpectedValueException('Reactie mist een verwijzing naar een spot.');
-        }
+        $spotMessageId = self::commentSpot($messageId, $headers['references'][0] ?? '')
+            ?? throw new UnexpectedValueException('Reactie mist een verwijzing naar een spot.');
         if (isset($headers['message-id'][0]) && self::messageId($headers['message-id'][0]) !== self::messageId($messageId)) {
             throw new UnexpectedValueException('Reactie verwijst naar een ander message-ID.');
         }
@@ -200,20 +177,70 @@ final class SpotnetParser
         if (trim($body) === '') {
             throw new UnexpectedValueException('Lege Spotnet reactie.');
         }
-        $from = $headers['from'][0] ?? '';
-        $decodedFrom = @iconv_mime_decode($from, ICONV_MIME_DECODE_CONTINUE_ON_ERROR, 'UTF-8');
-        if ($decodedFrom === false) {
-            throw new UnexpectedValueException('Ongeldige auteur-encoding.');
+        return [
+            'id' => hash('sha256', self::messageId($messageId)),
+            'message_id' => self::messageId($messageId),
+            'spot_id' => hash('sha256', $spotMessageId),
+            'poster' => self::commentPoster($headers['from'][0] ?? ''),
+            'body' => $body,
+            'posted_at' => self::date($headers['date'][0] ?? ''),
+            'body_status' => 'loaded',
+        ];
+    }
+
+    /**
+     * Builds a comment index entry from XOVER fields only; the body is fetched later on demand.
+     * Returns null when the spot cannot be derived without reading the article itself.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function commentStub(string $messageId, string $references, string $from, string $date): ?array
+    {
+        $spotMessageId = self::commentSpot($messageId, $references);
+        if ($spotMessageId === null) {
+            return null;
         }
 
         return [
             'id' => hash('sha256', self::messageId($messageId)),
             'message_id' => self::messageId($messageId),
             'spot_id' => hash('sha256', $spotMessageId),
-            'poster' => trim(explode('<', self::text($decodedFrom), 2)[0], " \t\""),
-            'body' => $body,
-            'posted_at' => self::date($headers['date'][0] ?? ''),
+            'poster' => self::commentPoster($from),
+            'body' => null,
+            'posted_at' => self::date($date),
+            'body_status' => 'pending',
         ];
+    }
+
+    private static function commentSpot(string $messageId, string $references): ?string
+    {
+        preg_match_all('/<([^<>]+)>/', $references, $matches);
+        foreach ($matches[1] as $candidate) {
+            if (!str_contains($candidate, '@')) continue;
+            [$referenceLocal, $referenceDomain] = explode('@', $candidate, 2);
+            // A consistent full reference disambiguates original IDs containing dots.
+            if (preg_match('/^' . preg_quote($referenceLocal, '/') . '\.\d{1,2}\.[a-zA-Z0-9]+\.[a-zA-Z0-9]+@'
+                . preg_quote($referenceDomain, '/') . '$/D', $messageId) === 1) {
+                return self::messageId($candidate);
+            }
+        }
+        $encodedReference = self::commentReference($messageId);
+        if ($encodedReference !== null) {
+            return $encodedReference;
+        }
+        if ($matches[1] !== []) {
+            return self::messageId($matches[1][0]);
+        }
+        return trim($references) !== '' ? self::messageId($references) : null;
+    }
+
+    private static function commentPoster(string $from): string
+    {
+        $decodedFrom = @iconv_mime_decode($from, ICONV_MIME_DECODE_CONTINUE_ON_ERROR, 'UTF-8');
+        if ($decodedFrom === false) {
+            throw new UnexpectedValueException('Ongeldige auteur-encoding.');
+        }
+        return trim(explode('<', self::text($decodedFrom), 2)[0], " \t\"");
     }
 
     public static function binary(string $body): string

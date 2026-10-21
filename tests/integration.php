@@ -53,6 +53,13 @@ try {
         $log[] = $message;
     };
     $service = new RetrieveService($pdo, $state);
+    check($state->commentRetrievalSettings() === ['mode' => 'lazy', 'retention' => 0], 'Reacties standaard lazy en met spotretentie');
+    rejects(static fn () => $state->saveCommentRetrievalSettings(['mode' => 'headers', 'retention' => 0]), 'Onbekende reactiemodus geweigerd');
+    rejects(static fn () => $state->saveCommentRetrievalSettings(['mode' => 'lazy', 'retention' => -1]), 'Negatieve reactie-retentie geweigerd');
+    rejects(static fn () => $state->saveCommentRetrievalSettings(['mode' => 'lazy', 'retention' => '30']), 'Niet-numerieke reactie-retentie geweigerd');
+    check((int) $pdo->query("SELECT COUNT(*) FROM user_groups g LEFT JOIN group_permissions p ON p.group_id = g.id AND p.permission = 'comments.load' WHERE p.group_id IS NULL")->fetchColumn() === 0,
+        'Migratie geeft alle bestaande groepen het recht om reacties te laden');
+    $state->saveCommentRetrievalSettings(['mode' => 'full', 'retention' => 0]);
     $contentDefaults = $state->spotContentSettings();
     check($contentDefaults === ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true], 'Nieuwe inhoudsinstellingen behouden bestaand gedrag standaard');
     $state->saveSpotContentSettings(['retrieve_comments' => false, 'show_comments' => true, 'images_enabled' => true]);
@@ -141,6 +148,50 @@ try {
         && count(array_filter($log, static fn (string $line): bool => str_starts_with($line, 'spots free.pt:'))) === 0
         && $pdo->query("SELECT last_article FROM retrieval_cursors WHERE group_name = 'spotnet:spots:free.pt'")->fetchColumn() === $spotCursorBefore,
         'Gerichte reactierun haalt echte reacties op zonder spotgroep of spotcursor te benaderen');
+    $state->saveCommentRetrievalSettings(['mode' => 'lazy', 'retention' => 0]);
+    $pdo->exec("DELETE FROM spotnet_comments WHERE message_id = 'spot-one.1.2.3@example.invalid'");
+    $log = [];
+    $lazyRun = $service->run('days', 7, true, $logger, commentsOnly: true);
+    $lazyRow = $pdo->query("SELECT spot_id, body, body_status FROM spotnet_comments WHERE message_id = 'spot-one.1.2.3@example.invalid'")->fetch();
+    check($lazyRun['inserted'] === 1 && $lazyRow === ['spot_id' => $spotId, 'body' => null, 'body_status' => 'pending']
+        && count($spots->comments($spotId)) === 1 && $spots->pendingCommentCount($spotId) === 1
+        && count(array_filter($log, static fn (string $line): bool => str_contains($line, 'tekst_later=1') && str_contains($line, 'bestaand=1'))) === 1
+        && count(array_filter($log, static fn (string $line): bool => str_contains($line, 'alleen headers indexeren'))) === 1,
+        'Lazy retrieve slaat alleen een header-stub op zonder artikel te downloaden');
+    $service->run('days', 7, true, $logger, commentsOnly: true);
+    check($spots->pendingCommentCount($spotId) === 1 && (int) $pdo->query('SELECT COUNT(*) FROM spotnet_comments')->fetchColumn() === 2,
+        'Herhaalde lazy retrieve dupliceert stubs niet');
+    $loader = new \NnSpotty\Comments\BodyLoader($pdo, $state);
+    $loadedBodies = $loader->load($spotId);
+    $loadedRow = $pdo->query("SELECT body_status, body FROM spotnet_comments WHERE message_id = 'spot-one.1.2.3@example.invalid'")->fetch();
+    check($loadedBodies === ['loaded' => 1, 'unavailable' => 0, 'invalid' => 0, 'remaining' => 0]
+        && $loadedRow['body_status'] === 'loaded' && str_contains($loadedRow['body'], 'Begint met een punt')
+        && count($spots->comments($spotId)) === 2, 'BodyLoader haalt reactietekst via NNTP op en cachet die');
+    check($loader->load($spotId) === ['loaded' => 0, 'unavailable' => 0, 'invalid' => 0, 'remaining' => 0], 'BodyLoader zonder openstaande reacties maakt geen verbinding');
+    $service->run('days', 7, true, $logger, commentsOnly: true);
+    check($pdo->query("SELECT body_status FROM spotnet_comments WHERE message_id = 'spot-one.1.2.3@example.invalid'")->fetchColumn() === 'loaded',
+        'Lazy retrieve overschrijft geladen reactietekst niet met een stub');
+    $stubs = [];
+    foreach (['gone', 'broken'] as $suffix) {
+        $stubs[] = SpotnetParser::commentStub($suffix . '.1.2.3@example.invalid', '', 'X <x@example.invalid>', gmdate('r'));
+    }
+    $spots->saveComments($stubs);
+    $spots->markComments(['gone.1.2.3@example.invalid'], 'unavailable');
+    $spots->markComments(['broken.1.2.3@example.invalid'], 'invalid');
+    $spots->markComments(['spot-one.1.2.3@example.invalid'], 'invalid');
+    check($pdo->query("SELECT GROUP_CONCAT(body_status ORDER BY message_id) FROM spotnet_comments WHERE message_id IN ('gone.1.2.3@example.invalid', 'broken.1.2.3@example.invalid', 'spot-one.1.2.3@example.invalid')")->fetchColumn() === 'invalid,unavailable,loaded',
+        'Markeren raakt alleen openstaande stubs, nooit geladen reacties');
+    $pdo->exec("DELETE FROM spotnet_comments WHERE message_id IN ('gone.1.2.3@example.invalid', 'broken.1.2.3@example.invalid')");
+    $oldStub = SpotnetParser::commentStub('old-comment.1.2.3@example.invalid', '', 'X <x@example.invalid>', '1 Jan 2000 00:00:00 +0000');
+    $spots->saveComments([$oldStub]);
+    $state->saveCommentRetrievalSettings(['mode' => 'lazy', 'retention' => 30]);
+    $log = [];
+    $commentRetentionRun = $service->run('days', 7, true, $logger, commentsOnly: true);
+    check(str_contains($commentRetentionRun['message'], '1 reacties ouder dan de reactie-retentie verwijderd')
+        && (int) $pdo->query('SELECT COUNT(*) FROM spotnet_comments')->fetchColumn() === 2
+        && count(array_filter($log, static fn (string $line): bool => str_contains($line, 'retentie=30 dagen'))) === 1,
+        'Reactie-retentie ruimt oude reacties op zonder recente reacties te raken');
+    $state->saveCommentRetrievalSettings(['mode' => 'full', 'retention' => 0]);
     rejects(static fn () => $service->run('since-last', null, true, $logger, refreshSpots: true), 'Metadata vernieuwen vereist expliciete backfillperiode');
     rejects(static fn () => $service->run('days', 7, true, $logger, commentsOnly: true, refreshSpots: true), 'Conflicterende retrievalselectie wordt afgewezen');
     $pdo->exec("UPDATE spotnet_spots SET newsreader = ''");

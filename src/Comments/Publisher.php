@@ -50,7 +50,7 @@ final class Publisher
                     throw new PublicationException('Dit publicatieformulier is al gebruikt voor een andere reactie. Herlaad de spot.');
                 }
                 if ($previous['status'] === 'posted') return;
-                $retrieved = $this->pdo->prepare('SELECT spot_id, poster, body FROM spotnet_comments WHERE message_id = :message');
+                $retrieved = $this->pdo->prepare('SELECT spot_id, poster, body FROM spotnet_comments WHERE message_id = :message AND body_status = \'loaded\'');
                 $retrieved->execute(['message' => $previous['message_id']]);
                 $retrievedComment = $retrieved->fetch();
                 if (is_array($retrievedComment) && $retrievedComment['spot_id'] === $spot['id']

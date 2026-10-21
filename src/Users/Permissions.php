@@ -8,6 +8,7 @@ final class Permissions
 {
     public const LABELS = [
         'comments.publish' => 'Reacties publiceren',
+        'comments.load' => 'Reacties van Usenet laden',
         'nzb.download' => 'NZB downloaden',
         'nzb.forward' => 'NZB doorsturen',
         'api.use' => 'Newznab API gebruiken',

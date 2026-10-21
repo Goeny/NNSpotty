@@ -226,7 +226,8 @@ $router->get('/admin', static function (Request $request) use ($state, $auth, $c
             : '<p>De centrale SABnzbd-koppeling en categorietoewijzing zijn uitsluitend voor beheerders.</p>',
         metadataSettings: \NnSpotty\Metadata\View::settings(new \NnSpotty\Metadata\Repository($pdo), $csrf->field()),
         musicSettings: \NnSpotty\Music\View::settings(new \NnSpotty\Music\Repository($pdo), $csrf->field()),
-        spotterSettings: $auth->can('spotters.manage') ? \NnSpotty\Moderation\View::settings(new \NnSpotty\Moderation\SpotterLists($pdo), $csrf->field()) : ''
+        spotterSettings: $auth->can('spotters.manage') ? \NnSpotty\Moderation\View::settings(new \NnSpotty\Moderation\SpotterLists($pdo), $csrf->field()) : '',
+        commentRetrieval: $state->commentRetrievalSettings()
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
@@ -289,11 +290,20 @@ $router->post('/admin/spot-content', static function (Request $request) use ($st
             }
             $settings[$key] = $value === '1';
         }
+        $commentRetrieval = $state->commentRetrievalSettings();
+        if ($request->hasInput('comment_mode') || $request->hasInput('comment_retention')) {
+            $retention = trim($request->inputScalar('comment_retention') ?? '');
+            if (preg_match('/^\d{1,5}$/D', $retention) !== 1) {
+                throw new InvalidArgumentException('Reactie-retentie moet een geheel aantal dagen zijn (0 = spot-retentie).');
+            }
+            $commentRetrieval = ['mode' => $request->inputScalar('comment_mode') ?? '', 'retention' => (int) $retention];
+            $state->saveCommentRetrievalSettings($commentRetrieval);
+        }
         $state->saveSpotContentSettings($settings);
     } catch (InvalidArgumentException $exception) {
         return Response::redirect('/admin?status=' . rawurlencode($exception->getMessage()) . '#spot-content');
     }
-    $auditLogs->log($auth->user()['username'], 'admin.spot_content.updated', 'settings', 'spot_content', $settings, $request->clientIp());
+    $auditLogs->log($auth->user()['username'], 'admin.spot_content.updated', 'settings', 'spot_content', $settings + ['comment_retrieval' => $commentRetrieval], $request->clientIp());
     return Response::redirect('/admin?status=' . rawurlencode('Inhoudsinstellingen opgeslagen.') . '#spot-content');
 });
 
@@ -800,7 +810,8 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
                 ? \NnSpotty\Music\View::controls($spot, $auth->can('metadata.manage'), $csrfField) : '')
             : ((new \NnSpotty\Metadata\Repository($pdo))->allowed($currentUser['username'])
                 ? \NnSpotty\Metadata\View::controls($spot, $auth->can('metadata.manage'), $csrfField) : ''),
-        facets: null
+        facets: null,
+        pendingComments: $content['show_comments'] ? $spots->pendingCommentCount($spotId) : 0
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
@@ -916,9 +927,52 @@ $router->post('/spots/comment', static function (Request $request) use ($auth, $
         facets: null,
         commentDraft: strlen($body) <= 10000 && preg_match('//u', $body) === 1 ? $body : '',
         commentRequestId: $publicationId !== null && preg_match('/^[a-f0-9]{64}$/D', $publicationId) ? $publicationId : null,
-        commentError: true
+        commentError: true,
+        pendingComments: $content['show_comments'] ? $spots->pendingCommentCount($id) : 0
     );
     return new Response($status, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
+});
+
+$router->post('/spots/comments/load', static function (Request $request) use ($auth, $csrf, $spots, $state, $pdo): Response {
+    $wantsJson = str_contains((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json');
+    $user = $auth->user();
+    if ($user === null) {
+        return $wantsJson ? Response::privateJson(['error' => 'Login vereist.'], 401) : Response::redirect('/login?status=' . rawurlencode('Login vereist.'));
+    }
+    $id = $request->inputScalar('spot_id') ?? '';
+    $location = '/spots/view?key=' . rawurlencode($id);
+    $reply = static fn (string $message, int $status) => $wantsJson
+        ? Response::privateJson(['error' => $message], $status)
+        : Response::redirect($location . '&status=' . rawurlencode($message) . '#comments');
+    if (!$csrf->verify($request->input('_csrf'))) return $reply('Ongeldige CSRF token.', 403);
+    $csrfField = $csrf->field();
+    session_write_close();
+    if (!$auth->can('comments.load')) return $reply('Je account heeft geen recht om reacties van Usenet te laden.', 403);
+    $content = $state->spotContentSettings();
+    if (!$content['show_comments']) return $reply('Reacties zijn door de beheerder uitgeschakeld.', 403);
+    if (preg_match('/^[a-f0-9]{64}$/D', $id) !== 1 || $spots->getSpot($id, $state->canViewErotica($user['username'])) === null) {
+        return $wantsJson ? Response::privateJson(['error' => 'Spot niet gevonden.'], 404) : Response::notFound();
+    }
+    try {
+        $result = (new \NnSpotty\Comments\BodyLoader($pdo, $state))->load($id);
+    } catch (Throwable $exception) {
+        error_log('Usenet-reacties laden (' . $id . '): ' . $exception::class . ': ' . $exception->getMessage());
+        return $reply('Reacties konden niet van Usenet worden geladen. Controleer de Usenet-instellingen en serverlog.', 502);
+    }
+    $message = $result['loaded'] . ' reacties geladen.'
+        . ($result['unavailable'] + $result['invalid'] > 0 ? ' ' . ($result['unavailable'] + $result['invalid']) . ' niet meer beschikbaar of ongeldig.' : '')
+        . ($result['remaining'] > 0 ? ' Nog ' . $result['remaining'] . ' te laden.' : '');
+    if (!$wantsJson) {
+        return Response::redirect($location . '&status=' . rawurlencode($message) . '#comments');
+    }
+    $comments = $spots->comments($id);
+    return Response::privateJson([
+        'message' => $message,
+        'count' => count($comments),
+        'remaining' => $result['remaining'],
+        'html' => SpotDetailPageRenderer::commentList($comments, $user['is_admin'], $content['retrieve_comments'], $result['remaining']),
+        'loader' => SpotDetailPageRenderer::commentLoader($id, $result['remaining'], $csrfField),
+    ]);
 });
 
 $router->post('/preferences', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {

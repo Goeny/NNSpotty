@@ -30,27 +30,16 @@ final class SpotDetailPageRenderer
         ?array $facets = [],
         string $commentDraft = '',
         ?string $commentRequestId = null,
-        bool $commentError = false
+        bool $commentError = false,
+        int $pendingComments = 0
     ): string {
         $id = h($spot['id']);
         $summary = self::summary($spot, false, $imagesEnabled, $showComments, metadataLink: $metadataControls !== '');
         $statusClass = $commentError ? 'warning' : 'info';
         $statusRole = $commentError ? 'alert' : 'status';
         $status = $statusMessage !== null ? '<div class="alert alert-' . $statusClass . '" role="' . $statusRole . '">' . h($statusMessage) . '</div>' : '';
-        $commentHtml = '';
-        foreach ($showComments ? $comments : [] as $comment) {
-            $commentHtml .= '<article class="border-bottom py-3"><div class="fw-semibold">' . h($comment['poster'])
-                . '</div><small class="text-body-secondary">' . h($comment['posted_at']) . ' UTC &middot; ' . h($comment['source'])
-                . '</small><div class="comment-body spot-description mt-2">' . ($comment['source'] === 'Usenet'
-                    ? SpotDescription::render($comment['body']) : SpotEmoticons::plainText($comment['body'])) . '</div></article>';
-        }
-        if ($commentHtml === '') {
-            $commentHtml = '<p class="text-body-secondary">Nog geen reacties opgehaald of geplaatst. Dit betekent niet dat er op Usenet geen reacties zijn.</p>';
-            if ($isAdmin && $retrieveComments) {
-                $commentHtml .= '<p class="small text-body-secondary">Controleer of comments:free.usenet is ingesteld. Haal reacties afzonderlijk op met '
-                    . '<code>php bin/console retrieve --comments-only --days=7 --verbose</code>. Een normale run verwerkt eerst de spotgroep.</p>';
-            }
-        }
+        $commentHtml = '<div data-comment-list>' . self::commentList($showComments ? $comments : [], $isAdmin, $retrieveComments, $pendingComments) . '</div>'
+            . self::commentLoader($spot['id'], $pendingComments, $csrfField);
         $count = count($comments);
         $emoticons = SpotEmoticons::toolbar('comment');
         $draft = h($commentDraft);
@@ -64,7 +53,7 @@ final class SpotDetailPageRenderer
         $profileRevision = hash('sha256', ($profile !== null && $profile['username'] === $username ? $profile['display_name'] : $username) . "\0" . $signatureText);
         $commentsSection = !$showComments ? '<section class="card mt-4"><div class="card-body text-body-secondary">Reacties zijn door de beheerder uitgeschakeld.</div></section>' : <<<HTML
 <section class="card mt-4" id="comments">
-  <div class="card-header">Reacties ({$count})</div>
+  <div class="card-header">Reacties (<span data-comment-count>{$count}</span>)</div>
   <div class="card-body">
     {$retrievalNotice}
     {$commentHtml}
@@ -99,6 +88,47 @@ HTML;
 {$metadataControls}
 HTML;
         return SpotLayout::render($spot['title'], $username, $isAdmin, $csrfField, $content, $categories, $spot['category'], $theme, facets: $facets, showErotica: $showErotica);
+    }
+
+    /** @param list<array<string, mixed>> $comments */
+    public static function commentList(array $comments, bool $isAdmin, bool $retrieveComments, int $pendingComments = 0): string
+    {
+        $html = '';
+        foreach ($comments as $comment) {
+            $html .= '<article class="border-bottom py-3"><div class="fw-semibold">' . h($comment['poster'])
+                . '</div><small class="text-body-secondary">' . h($comment['posted_at']) . ' UTC &middot; ' . h($comment['source'])
+                . '</small><div class="comment-body spot-description mt-2">' . ($comment['source'] === 'Usenet'
+                    ? SpotDescription::render($comment['body']) : SpotEmoticons::plainText($comment['body'])) . '</div></article>';
+        }
+        if ($html === '' && $pendingComments === 0) {
+            $html = '<p class="text-body-secondary">Nog geen reacties opgehaald of geplaatst. Dit betekent niet dat er op Usenet geen reacties zijn.</p>';
+            if ($isAdmin && $retrieveComments) {
+                $html .= '<p class="small text-body-secondary">Controleer of comments:free.usenet is ingesteld. Haal reacties afzonderlijk op met '
+                    . '<code>php bin/console retrieve --comments-only --days=7 --verbose</code>. Een normale run verwerkt eerst de spotgroep.</p>';
+            }
+        }
+        return $html;
+    }
+
+    public static function commentLoader(string $spotId, int $pendingComments, string $csrfField): string
+    {
+        if ($pendingComments < 1) {
+            return '';
+        }
+        $label = $pendingComments === 1 ? '1 reactie' : $pendingComments . ' reacties';
+        if (!SpotLayout::can('comments.load')) {
+            return '<p class="text-body-secondary small mt-3" data-comment-loader>' . $label
+                . ' van Usenet nog niet geladen. Je account heeft geen recht om reacties van Usenet te laden.</p>';
+        }
+        $id = h($spotId);
+        return <<<HTML
+<form method="post" action="/spots/comments/load" class="mt-3" data-comment-loader>
+  {$csrfField}<input type="hidden" name="spot_id" value="{$id}">
+  <button class="btn btn-outline-primary btn-sm" type="submit" data-comment-load-button>{$label} van Usenet laden</button>
+  <div class="alert alert-info small mt-2 mb-0" role="status" data-comment-load-progress hidden><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Reacties worden van Usenet geladen...</div>
+  <div class="alert alert-warning small mt-2 mb-0" role="alert" data-comment-load-error hidden></div>
+</form>
+HTML;
     }
 
     /** @param array<string, mixed> $spot */
