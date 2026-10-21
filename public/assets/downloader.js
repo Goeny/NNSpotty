@@ -285,12 +285,28 @@
         const accounts = navigation.hasAttribute('data-account-navigation');
         const attribute = accounts ? 'data-account-panel' : (admin ? 'data-admin-panel' : 'data-preferences-panel');
         const panels = [...document.querySelectorAll('[' + attribute + ']')];
-        const aliases = admin ? {'spot-content': 'appearance', columns: 'appearance'} : {};
+        const subAliases = {'music-metadata': 'metadata-music', fanart: 'metadata-providers', 'tvdb-settings': 'metadata-providers', 'tmdb-settings': 'metadata-providers'};
+        const aliases = admin ? {'spot-content': 'appearance', columns: 'appearance', 'music-metadata': 'metadata', fanart: 'metadata',
+            'tvdb-settings': 'metadata', 'tmdb-settings': 'metadata', 'metadata-providers': 'metadata', 'metadata-movies': 'metadata',
+            'metadata-series': 'metadata', 'metadata-music': 'metadata'} : {};
         function select() {
             const hash = location.hash.slice(1);
             const selected = panels.find(panel => panel.getAttribute(attribute) === (aliases[hash] || hash))?.getAttribute(attribute)
                 || (accounts ? panels[0]?.getAttribute(attribute) : (admin ? 'usenet' : 'general'));
             for (const panel of panels) panel.hidden = panel.getAttribute(attribute) !== selected;
+            for (const sub of document.querySelectorAll('[' + attribute + '="' + selected + '"] [data-admin-subnavigation]')) {
+                const subpanels = [...sub.parentElement.querySelectorAll('[data-admin-subpanel]')];
+                const wanted = subAliases[hash] || hash;
+                const current = subpanels.find(panel => panel.getAttribute('data-admin-subpanel') === wanted)?.getAttribute('data-admin-subpanel')
+                    || subpanels[0]?.getAttribute('data-admin-subpanel');
+                for (const panel of subpanels) panel.hidden = panel.getAttribute('data-admin-subpanel') !== current;
+                for (const link of sub.querySelectorAll('a')) {
+                    const active = link.hash === '#' + current;
+                    link.classList.toggle('active', active);
+                    if (active) link.setAttribute('aria-current', 'true');
+                    else link.removeAttribute('aria-current');
+                }
+            }
             for (const link of navigation.querySelectorAll('a')) {
                 const active = link.hash === '#' + selected;
                 link.classList.toggle('active', active);

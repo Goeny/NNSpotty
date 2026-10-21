@@ -60,7 +60,12 @@ final class Service
             $parameters = ['query' => trim($query), 'dismax' => 'true', 'limit' => 25];
         }
         $data = $this->cached($type, null, $parameters);
-        $rows = $data[match ($type) { 'artist' => 'artists', 'release' => 'releases', default => 'release-groups' }] ?? null;
+        $key = match ($type) { 'artist' => 'artists', 'release' => 'releases', default => 'release-groups' };
+        if (isset($terms) && ($data[$key] ?? null) === []) {
+            // Strict field search misses slightly different credits/titles; identity is still checked by select().
+            $data = $this->cached($type, null, ['query' => $parsed['artist'] . ' ' . $title, 'dismax' => 'true', 'limit' => 25]);
+        }
+        $rows = $data[$key] ?? null;
         if (!is_array($rows) || !array_is_list($rows)) throw new RuntimeException('MusicBrainz gaf geen geldige zoekresultaten.');
         $results = [];
         foreach ($rows as $row) {

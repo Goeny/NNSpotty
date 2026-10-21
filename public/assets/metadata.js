@@ -1,5 +1,27 @@
 (() => {
     'use strict';
+    // Trailers load only after an explicit click (privacy-friendly youtube-nocookie / Vimeo embed).
+    document.addEventListener('click', event => {
+        const link = event.target.closest('[data-trailer-key]');
+        if (!link) return;
+        const site = link.dataset.trailerSite;
+        const key = link.dataset.trailerKey;
+        const frame = document.querySelector('[data-trailer-frame]');
+        if (!frame || !((site === 'YouTube' && /^[A-Za-z0-9_-]{6,20}$/.test(key)) || (site === 'Vimeo' && /^\d{1,12}$/.test(key)))) return;
+        event.preventDefault();
+        const iframe = document.createElement('iframe');
+        iframe.src = site === 'YouTube'
+            ? `https://www.youtube-nocookie.com/embed/${encodeURIComponent(key)}?autoplay=1`
+            : `https://player.vimeo.com/video/${encodeURIComponent(key)}?autoplay=1`;
+        iframe.title = link.textContent.trim() || 'Trailer';
+        iframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+        iframe.allowFullscreen = true;
+        iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+        frame.replaceChildren(iframe);
+        frame.hidden = false;
+        document.querySelectorAll('[data-trailer-key]').forEach(item => item.classList.toggle('active', item === link));
+        frame.scrollIntoView({block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+    });
     const panel = document.querySelector('[data-tvdb]');
     const content = document.querySelector('[data-tvdb-content]');
     if (!panel || !content) return;
@@ -94,9 +116,10 @@
                     input.name = 'candidate';
                     input.value = String(candidate.id);
                     input.dataset.type = candidate.type;
+                    if (candidate.provider) input.dataset.provider = candidate.provider;
                     input.required = true;
                     input.className = 'form-check-input me-2';
-                    label.append(input, document.createTextNode(`${candidate.artist ? candidate.artist + ' — ' : ''}${candidate.name} (${candidate.year || 'jaar onbekend'})${candidate.note ? ' — ' + candidate.note : ''}${candidate.kind ? ' — ' + candidate.kind : ''} — ${provider} ${candidate.id}`));
+                    label.append(input, document.createTextNode(`${candidate.artist ? candidate.artist + ' — ' : ''}${candidate.name} (${candidate.year || 'jaar onbekend'})${candidate.note ? ' — ' + candidate.note : ''}${candidate.kind ? ' — ' + candidate.kind : ''} — ${candidate.provider ? candidate.provider.toUpperCase() : provider} ${candidate.id}`));
                     list.append(label);
                 }
                 status.textContent = data.candidates.length ? 'Kies een resultaat en sla de gedeelde match op.' : 'Geen resultaten gevonden. Pas de zoekterm aan.';
@@ -138,7 +161,8 @@
             status.textContent = `Zoek en selecteer eerst een ${provider}-resultaat.`;
             return;
         }
-        request('choose', {...Object.fromEntries(new FormData(event.currentTarget)), type: chosen.dataset.type, [choiceId]: chosen.value});
+        request('choose', {...Object.fromEntries(new FormData(event.currentTarget)), type: chosen.dataset.type, [choiceId]: chosen.value,
+            ...(chosen.dataset.provider ? {provider: chosen.dataset.provider} : {})});
     });
     panel.querySelector('[data-tvdb-reset]')?.addEventListener('click', () => request('reset'));
     panel.querySelector('[data-tvdb-block]')?.addEventListener('click', () => request('block'));

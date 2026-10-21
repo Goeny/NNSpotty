@@ -20,7 +20,7 @@ final class Release
 
     public static function matchSignature(array $spot): string
     {
-        return hash('sha256', self::signature($spot) . ':discovery-v2:artist-id-v1');
+        return hash('sha256', self::signature($spot) . ':discovery-v3:artist-id-v1');
     }
 
     public static function parse(array $spot): ?array
@@ -39,6 +39,12 @@ final class Release
         if (preg_match('/^((?:19|20)\d{2})\s*-\s*(.+\s+-\s+.+)$/u', $title, $prefix)) {
             $sourceYear = $prefix[1];
             $title = $prefix[2];
+        }
+        // "Artist - YEAR - Album" carries the release year between artist and album.
+        $middleYear = null;
+        if (preg_match('/^(.+?\S)\s+-\s+((?:19|20)\d{2})\s+-\s+(\S.*)$/u', $title, $middle)) {
+            $middleYear = $middle[2];
+            $title = $middle[1] . ' - ' . $middle[3];
         }
         $title = preg_replace('/^\s*\d{1,2}\.\s+(?=\S)/', '', $title);
         $physical = preg_match('/[\[(][^)\]]*\b(?:Vinyl|LP)\b|\bCDRIP\b|\b(?:Vinyl|LP)\b(?=\s*(?:$|[-)\]]|\d+\s*[-.]?\s*bit\b|FLAC\b|WAVPACK\b))/i', $title) === 1;
@@ -63,7 +69,7 @@ final class Release
         if ($artistOnly) $title = preg_split('/\b(?:discography|discografie|discographie)\b/i', $title, 2)[0];
         if ($artistOnly) $title = preg_replace('/[ .(-]*(?:19|20)\d{2}\s*-\s*(?:19|20)\d{2}[ .)-]*$/', '', $title);
         $title = self::cleanEdges($title);
-        $year = $sceneYear;
+        $year = $sceneYear ?? $middleYear;
         if (preg_match('/(?:[\s.(-]+)((?:19|20)\d{2})(?:[)\]\s.-]*)$/', $title, $match, PREG_OFFSET_CAPTURE)) {
             $before = substr($title, 0, $match[0][1]);
             $beforeParts = preg_split('/\s+-\s+/', $before, 2);
@@ -118,6 +124,11 @@ final class Release
                 if ($release['year'] !== null && $candidate['year'] !== $release['year']) continue;
             }
             $matches[$candidate['id']] = $candidate;
+        }
+        if (count($matches) > 1 && $release['type'] === 'release-group') {
+            // Same artist/title as album plus single/EP: the album is the intended release group.
+            $albums = array_filter($matches, static fn (array $candidate): bool => strcasecmp($candidate['kind'] ?? '', 'Album') === 0);
+            if (count($albums) === 1) return array_values($albums)[0];
         }
         return count($matches) === 1 ? array_values($matches)[0] : null;
     }

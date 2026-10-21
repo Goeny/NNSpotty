@@ -57,6 +57,8 @@ foreach ([
     'Kansas - Vinyl Confessions (1982) FLAC' => ['Kansas', 'Vinyl Confessions', '1982'],
     'Fixture Artist - MP3' => ['Fixture Artist', 'MP3', null],
     'Fixture Artist - Album (DTS Live In London) FLAC' => ['Fixture Artist', 'Album (DTS Live In London)', null],
+    'Beck - 2026 - Ride Lonesome (16-bit Flac MP3 Covers Lyrics )...' => ['Beck', 'Ride Lonesome', '2026'],
+    'Fixture Artist - 1999 - Fixture Album FLAC' => ['Fixture Artist', 'Fixture Album', '1999'],
 ] as $musicTitle => [$expectedArtist, $expectedAlbum, $expectedYear]) {
     $musicSpot['title'] = $musicTitle;
     $musicParsed = MusicRelease::parse($musicSpot);
@@ -95,6 +97,14 @@ check(MusicRelease::select($liveMusic, [$studioCandidate, $liveCandidate]) === $
 $duplicateLive = array_replace($liveCandidate, ['id' => $otherMusic['id']]);
 check(MusicRelease::select($liveMusic, [$liveCandidate, $duplicateLive]) === null,
     'Ook livekandidaten vereisen unieke identiteit');
+$musicSpot['title'] = 'Beck - 2026 - Ride Lonesome (16-bit Flac MP3 Covers Lyrics )...';
+$beckAlbum = ['type' => 'release-group', 'id' => 'cae645e3-675a-4a07-82e3-9336d70fd57d', 'artist' => 'Beck',
+    'names' => ['Ride Lonesome'], 'year' => '2026', 'kind' => 'Album'];
+$beckSingle = array_replace($beckAlbum, ['id' => 'cee132ee-4104-4584-8765-080b60037824', 'kind' => 'Single']);
+check(MusicRelease::select(MusicRelease::parse($musicSpot), [$beckSingle, $beckAlbum]) === $beckAlbum,
+    'Gelijknamig album wint van single met dezelfde artiest/titel/jaar');
+check(MusicRelease::select(MusicRelease::parse($musicSpot), [$beckAlbum, array_replace($beckAlbum, ['id' => $otherMusic['id']])]) === null,
+    'Twee gelijke albums blijven ambigu');
 $fanartUrl = 'https://assets.fanart.tv/fanart/music/11111111-1111-4111-8111-111111111111/artistbackground/fixture.jpg';
 check(\NnSpotty\Music\Fanart::imageUrl(str_replace('https:', 'http:', $fanartUrl)) === $fanartUrl,
     'Fanart-afbeeldingen worden uitsluitend via HTTPS gepubliceerd');

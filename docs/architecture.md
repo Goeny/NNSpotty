@@ -243,6 +243,13 @@ De compacte trigger "TVDB link" staat links in de hero-actierij, overige acties 
 
 De oude homepage-renderer is verwijderd. Root verwijst naar `/spots`; geslaagde login en een al ingelogde bezoeker op `/login` gaan daar direct heen. De normale login-/zichtbaarheidscontrole van het overzicht blijft leidend.
 
+## TMDB en providerorkestratie
+`Metadata/TmdbClient` (gateway, vast HTTPS-origin `api.themoviedb.org`, endpointallowlist, zelfde TLS/timeout/responsegrenzen als TVDB) en `Metadata/Tmdb` (zoeken, details, afleveringen, normalisatie naar het gedeelde metadataformaat) staan naast de TVDB-client. Een 32-hex key gaat als v3 `api_key`, andere tokens als v4 Bearer. Migratie `20261022_0023_tmdb_metadata` voegt TMDB-instellingen en primaire provider per type toe; geheimen worden nooit teruggerenderd.
+
+`Metadata/Service` kiest via `Repository::effectiveProvider` de primaire provider per type (standaard films TMDB, series TVDB; uitgeschakelde primaire provider valt terug op de andere). Na een primaire match zoekt `complement()` het record bij de secundaire provider uitsluitend via externe ID's (TMDB external_ids/find, TVDB `/search/remoteid`); `merge()` vult alleen lege velden en episode-niveauvelden alleen bij gelijk niveau. `links[provider]` wordt alleen gezet als die provider daadwerkelijk bijdroeg en stuurt de attributie. Fouten bij de secundaire provider worden gelogd en laten het primaire resultaat intact. De matchsignature bevat het providerprofiel en `:release-v3`, zodat provider-/sleutel-/taalwijzigingen automatische matches opnieuw laten bepalen; handmatige keuzes bewaren provider+ID.
+
+`Controller` biedt admin-acties `tmdb-settings`, `tmdb-test` en `provider` (recht `settings.manage`); zoeken/kiezen accepteert `provider`. `View` rendert scorebadges, classificatie, trailerknoppen (iframe pas na klik via youtube-nocookie/Vimeo, overige hosts genegeerd) en per provider een bronvermelding. `AdminPageRenderer::metadataPanel` bundelt Providers/Films/Series/Muziek als subtabs; `downloader.js` mapt oude ankers naar de juiste subtab.
+
 ## Reacties publiceren
 
 `Comments\Article` verzorgt gevalideerde ISO-8859-1/8bit-tekst, een uniek reactie-message-ID met 16-bit SHA1-proof-of-work, XML-publieke sleutels en RSA/SHA1-handtekeningen. De gebruikershandtekening omvat `<message-ID>` + body + CRLF + de exacte From-header; de serverhandtekening omvat alleen `<message-ID>`. Rating is expliciet 0. Er wordt geen waardering of externe zichtbaarheid gefingeerd. Gebruikersnaam en titel zijn beschermd tegen headerinjectie, niet-representeerbare tekens en te lange regels geven een expliciete fout.

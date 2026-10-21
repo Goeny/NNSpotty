@@ -8,12 +8,12 @@ use NnSpotty\UI\SpotPresentation;
 
 final class View
 {
-    public static function settings(Repository $repo, string $csrf, ?string $username = null): string
+    public static function settings(Repository $repo, string $csrf, ?string $username = null, bool $includeFanart = true): string
     {
         $personal = $username !== null;
         $enabled = $personal ? $repo->preference($username) : $repo->enabled();
         $html = '<section class="card my-4" id="music-metadata"><div class="card-header">Muziekmetadata: MusicBrainz</div><div class="card-body">'
-            . '<p>Artiesten, albums, singles/EPs en specifieke uitgaven met beschikbare tracklists. Voor MusicBrainz geen API-key nodig. Bij openen van muziekdetails wordt de zoekterm gedeeld met MusicBrainz; hoezen laden via Cover Art Archive/Internet Archive. Optionele artiestachtergronden via fanart.tv stel je hieronder apart in.</p>'
+            . '<p>Artiesten, albums, singles/EPs en specifieke uitgaven met beschikbare tracklists. Voor MusicBrainz geen API-key nodig. Bij openen van muziekdetails wordt de zoekterm gedeeld met MusicBrainz; hoezen laden via Cover Art Archive/Internet Archive. Optionele artiestachtergronden via fanart.tv stel je ' . ($includeFanart ? 'hieronder' : 'in onder Providers') . ' apart in.</p>'
             . '<p>' . ($repo->enabled() ? 'Muziekmetadata is globaal ingeschakeld.' : 'Muziekmetadata is globaal uitgeschakeld; persoonlijke keuzes blijven bewaard.') . '</p>'
             . '<form method="post" action="/music-metadata">' . $csrf . '<input type="hidden" name="action" value="' . ($personal ? 'preference' : 'settings') . '">'
             . '<div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="enabled" id="music-' . ($personal ? 'personal' : 'global')
@@ -22,9 +22,22 @@ final class View
             . '<button class="btn btn-primary mt-3" type="submit">' . ($personal ? 'Muziekmetadatavoorkeur opslaan' : 'Muziekmetadata-instellingen opslaan') . '</button></form>';
         if (!$personal) $html .= '<p class="form-text mt-3">Iedere gebruiker, ook admins, schakelt persoonlijk in onder Voorkeuren. APP_URL wordt als publieke contact-URL meegestuurd in de User-Agent; gebruik geen URL met geheimen. Maximaal een MusicBrainz-aanvraag per 1,1 seconde voor deze installatie. Data zeven dagen, zoekacties/negatieve matches een dag, fouten vijf minuten in de database. Geen massale retrieve-backfill.</p>'
             . '<p class="form-text">Automatisch alleen een unieke exacte artiest-/albumtitelmatch; afzonderlijk slotjaar moet overeenkomen, bronjaar vooraan of bij LP/vinyl/CDRIP niet. Live-/concertdetails worden niet aan een studioversie gekoppeld. Albumgroep is geen specifieke remaster/persing. Kies voor een exacte tracklist handmatig een uitgave. Alleen admins zoeken/corrigeren/blokkeren gedeelde matches. Controleer API-, data- en artworkvoorwaarden bij commercieel gebruik.</p>';
+        if ($includeFanart) $html .= '<hr>' . self::fanart($repo, $csrf, $username);
+        return $html . '</div></section>';
+    }
+
+    public static function fanartCard(Repository $repo, string $csrf): string
+    {
+        return '<section class="card my-4" id="fanart"><div class="card-header">fanart.tv (artiestachtergronden voor muziek)</div><div class="card-body">'
+            . self::fanart($repo, $csrf, null) . '</div></section>';
+    }
+
+    private static function fanart(Repository $repo, string $csrf, ?string $username): string
+    {
+        $personal = $username !== null;
         $fanart = $repo->fanartSettings();
         $fanartEnabled = $personal ? $repo->fanartPreference($username) : $fanart['enabled'];
-        $html .= '<hr><h3 class="h5">Artiest-fanart: fanart.tv</h3>'
+        $html = '<h3 class="h5">Artiest-fanart: fanart.tv</h3>'
             . '<p>Optionele artiestachtergronden via de MusicBrainz-artiest-ID. Bij openen van muziekdetails wordt deze ID met fanart.tv gedeeld; afbeeldingen laden rechtstreeks van assets.fanart.tv. Beide muziekschakelaars en beide fanart-schakelaars moeten aan staan. Afbeeldingen uit blokkeert ophalen en tonen. Geen garantie dat iedere artiest artwork heeft; geen willekeurige artiest bij compilaties of meerdere artiesten.</p>'
             . '<form method="post" action="/music-metadata">' . $csrf . '<input type="hidden" name="action" value="' . ($personal ? 'fanart-preference' : 'fanart-settings') . '">'
             . '<div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="enabled" value="1" id="fanart-' . ($personal ? 'personal' : 'global') . '"'
@@ -36,7 +49,7 @@ final class View
             . '<div class="form-check"><input class="form-check-input" type="checkbox" name="clear_key" value="1" id="fanart-clear"><label class="form-check-label" for="fanart-clear">Opgeslagen key wissen (schakel fanart ook uit)</label></div>';
         $html .= '<button class="btn btn-primary mt-3">Fanartinstelling opslaan</button></form>'
             . '<p class="form-text mt-3">Artwork-URLs zeven dagen, ontbrekend artwork een dag en fouten vijf minuten in de database. Preview gebruikt uitsluitend cache. Beschikbare achtergrond met de meeste stemmen; geen afbeeldingsbestanden lokaal opgeslagen. Bronvermelding bij de afbeelding. Controleer de <a href="https://fanart.tv/api-info/" target="_blank" rel="noopener noreferrer">fanart.tv-voorwaarden</a> en de rechten op artwork.</p>';
-        return $html . '</div></section>';
+        return $html;
     }
 
     public static function controls(array $spot, bool $admin, string $csrf): string

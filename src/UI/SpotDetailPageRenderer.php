@@ -166,7 +166,7 @@ HTML;
                 $hero = \NnSpotty\Music\View::summary($spot, $metadata, $action, $imagesEnabled, $preview);
             } else {
                 $hero = \NnSpotty\Metadata\View::hero($spot, $metadata, $action, $imagesEnabled, $preview);
-                $people = \NnSpotty\Metadata\View::people($metadata, $imagesEnabled);
+                $people = ($preview ? '' : \NnSpotty\Metadata\View::trailers($metadata)) . \NnSpotty\Metadata\View::people($metadata, $imagesEnabled);
             }
         }
         $spotMetadata = '<div class="metadata-strip"><div><small>Spotter</small>' . h($spot['poster']) . \NnSpotty\Moderation\View::badge($spot)

@@ -50,6 +50,10 @@ $favoriteRepo->set('http-reader', $adultKey, true);
 check(!str_contains(httpFixture($httpPort, '/spots?favorites=1', $readerCookie)['body'], 'data-spot-id="' . $adultKey . '"'),
     'Reeds opgeslagen favoriet omzeilt latere zichtbaarheid/opt-out niet');
 $favoriteRepo->set('http-reader', $adultKey, false);
+$favoriteNavigation = httpFixture($httpPort, '/spots?favorites=1', $cookie)['body'];
+check(str_contains($favoriteNavigation, 'href="/spots?category=Beeld&amp;q="') && !str_contains($favoriteNavigation, 'favorites=1&amp;category=')
+    && str_contains($favoriteNavigation, 'href="/spots">Alle</a>'),
+    'Hoofdcategorieen vanuit favorieten openen het reguliere overzicht');
 foreach (['/spots?favorites[]=1', '/spots?favorites=other', '/spots/facets?category=Beeld&favorites[]=1'] as $invalidFavoriteUrl) {
     check(httpFixture($httpPort, $invalidFavoriteUrl, $cookie)['status'] === 400, 'Ongeldige favorietenscope geweigerd');
 }

@@ -29,9 +29,16 @@ $favoriteLinksScoped = true;
 foreach ($favoriteLinks[1] as $favoriteLink) {
     $url = html_entity_decode($favoriteLink, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     if (!str_starts_with($url, '/spots?') || str_contains($url, 'key=')) continue;
+    // Main category links intentionally leave favorites for the regular overview.
+    if (preg_match('/^\/spots\?(?:category=[^&]+&)?q=[^&]*$/D', $url)) {
+        $mainCategoryLinks[] = $url;
+        continue;
+    }
     $favoriteLinksScoped = $favoriteLinksScoped && str_contains($url, 'favorites=1');
 }
-check($favoriteLinksScoped, 'Categorie-, filter-, verwijder- en vervolg-URLs behouden favorietenscope');
+check($favoriteLinksScoped, 'Subcategorie-, filter-, verwijder- en vervolg-URLs behouden favorietenscope');
+check(count($mainCategoryLinks ?? []) === count(\NnSpotty\Usenet\SpotCategories::HEADS) + 1 && str_contains($favoritePage, 'href="/spots?q=Example">Alle</a>'),
+    'Hoofdcategorieen en Alle vanuit favorieten openen het reguliere overzicht');
 check(str_contains(\NnSpotty\UI\SpotsPageRenderer::rows([], ['title'], true), 'Markeer spots via de bladwijzer'),
     'Lege favorieten geven persoonlijke uitleg in plaats van onterechte indexingwaarschuwing');
 check(str_contains(\NnSpotty\UI\SpotDetailPageRenderer::summary($favoriteSpot, true), 'aria-pressed="true"')

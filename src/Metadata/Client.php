@@ -17,7 +17,7 @@ final class Client implements Gateway
 
     public function get(string $path, array $query = []): ?array
     {
-        if (!preg_match('~^/(search|artwork/types|(?:movies|series|episodes)/[1-9][0-9]*(?:/extended|/translations/(?:nld|eng)|/episodes/official)?)$~D', $path)) {
+        if (!preg_match('~^/(search|search/remoteid/tt[0-9]{5,10}|artwork/types|(?:movies|series|episodes)/[1-9][0-9]*(?:/extended|/translations/(?:nld|eng)|/episodes/official)?)$~D', $path)) {
             throw new RuntimeException('Ongeldig TVDB-endpoint.');
         }
         $settings = $this->repo->settings();

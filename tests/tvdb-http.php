@@ -90,7 +90,8 @@ check(!str_contains(httpFixture($httpPort, '/admin', $cookie)['body'], 'fixture-
     && !str_contains(httpFixture($httpPort, '/preferences', $readerCookie)['body'], 'fixture-http-tvdb-key')
     && !str_contains($loaded['body'], 'fixture-http-tvdb-key'), 'TVDB-key lekt niet via beheer, voorkeuren of metadata-JSON');
 $searched = json_decode($tvdbPost(['action' => 'search', 'id' => $httpMetaSpot['id'], 'query' => 'Fixture Movie', 'type' => 'movie'])['body'], true);
-check(count($searched['candidates']) === 1 && array_keys($searched['candidates'][0]) === ['id', 'type', 'name', 'year'],
+check(count($searched['candidates']) === 1 && array_keys($searched['candidates'][0]) === ['id', 'type', 'provider', 'name', 'year']
+    && $searched['candidates'][0]['provider'] === 'tvdb',
     'Handmatige zoekresultaten bevatten alleen benodigde publieke keuzevelden');
 $chosen = $tvdbPost(['action' => 'choose', 'id' => $httpMetaSpot['id'], 'tvdb_id' => '1', 'type' => 'movie']);
 check($chosen['status'] === 200 && $tvdbRepo->match($httpMetaSpot['id'])['result_json']['manual'], 'Admin kan gedeelde match via CSRF-route opslaan');

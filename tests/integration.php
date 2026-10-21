@@ -309,6 +309,7 @@ try {
     $pdo->exec('DELETE FROM spotnet_images');
     require __DIR__ . '/browse-visits-integration.php';
     require __DIR__ . '/tvdb-integration.php';
+    require __DIR__ . '/tmdb-integration.php';
     require __DIR__ . '/music-integration.php';
     require __DIR__ . '/http.php';
     $adult = SpotnetParser::spot('adult@example.invalid', Fixtures::headers('adult@example.invalid',

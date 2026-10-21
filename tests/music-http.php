@@ -14,9 +14,27 @@ check(httpFixture($httpPort, '/music-metadata', $anonymousMusicCookie, ['action'
 foreach (['settings', 'fanart-settings', 'search', 'choose', 'reset', 'block'] as $musicAction) {
     check($musicPost(['action' => $musicAction], true)['status'] === 403, 'Muziek-adminactie afgeschermd: ' . $musicAction);
 }
-check(str_contains(httpFixture($httpPort, '/admin', $cookie)['body'], 'data-admin-panel="music-metadata"')
+$musicAdminPage = httpFixture($httpPort, '/admin', $cookie)['body'];
+check(str_contains($musicAdminPage, 'data-admin-panel="metadata"') && str_contains($musicAdminPage, 'data-admin-subpanel="metadata-music"')
+    && str_contains($musicAdminPage, 'href="#metadata-providers"') && str_contains($musicAdminPage, 'href="#metadata-movies"')
+    && str_contains($musicAdminPage, 'href="#metadata-series"') && str_contains($musicAdminPage, 'id="tmdb-settings"')
+    && str_contains($musicAdminPage, 'id="fanart"') && str_contains($musicAdminPage, 'Applicaties, boeken en games volgen later')
+    && substr_count($musicAdminPage, 'name="action" value="fanart-settings"') === 1
     && str_contains(httpFixture($httpPort, '/preferences', $readerCookie)['body'], 'Muziekmetadata voor mij'),
-    'Admin en voorkeuren bieden aparte muziekmetadatafunctie');
+    'Admin Metadata-tab met subtabs Providers/Films/Series/Muziek; voorkeuren bieden aparte muziekmetadatafunctie');
+$tmdbHttpPost = static fn (array $form): array => httpFixture($httpPort, '/metadata', $cookie, $form + ['_csrf' => $token[1]]);
+foreach (['tmdb-settings', 'tmdb-test', 'provider'] as $metadataAction) {
+    check(httpFixture($httpPort, '/metadata', $readerCookie, ['action' => $metadataAction, '_csrf' => $readerToken[1]])['status'] === 403,
+        'Metadata-adminactie afgeschermd: ' . $metadataAction);
+}
+$providerSaved = $tmdbHttpPost(['action' => 'provider', 'type' => 'series', 'provider' => 'tmdb']);
+check($providerSaved['status'] === 302 && count(array_filter($providerSaved['headers'], static fn (string $h): bool => str_starts_with($h, 'Location:') && str_ends_with($h, '#metadata-series'))) === 1
+    && (new \NnSpotty\Metadata\Repository($pdo))->providers()['series'] === 'tmdb', 'Primaire seriesprovider via admin opslaan');
+$tmdbHttpPost(['action' => 'provider', 'type' => 'series', 'provider' => 'tvdb']);
+$tmdbHttpSaved = $tmdbHttpPost(['action' => 'tmdb-settings', 'token' => 'httpfixturetoken', 'language' => 'en-US']);
+check($tmdbHttpSaved['status'] === 302 && (new \NnSpotty\Metadata\Repository($pdo))->tmdbSettings()['language'] === 'en-US'
+    && !str_contains(httpFixture($httpPort, '/admin', $cookie)['body'], 'httpfixturetoken'), 'TMDB-instellingen via admin opslaan zonder sleutel terug te tonen');
+$tmdbHttpPost(['action' => 'tmdb-settings', 'language' => 'nl-NL', 'clear_token' => '1']);
 $musicPost(['action' => 'settings', 'enabled' => '1']);
 $musicPost(['action' => 'preference', 'enabled' => '1', 'username' => 'http-reader']);
 check($musicHttpRepo->allowed('http-tester') && !$musicHttpRepo->preference('http-reader'), 'Muziekvoorkeur is sessiegebonden, geen vervalste username');

@@ -547,6 +547,17 @@ final class Migrator
                 'INSERT IGNORE INTO group_permissions (group_id, permission)
                     SELECT id, \'comments.load\' FROM user_groups',
             ],
+            '20261022_0023_tmdb_metadata' => [
+                'CREATE TABLE IF NOT EXISTS tmdb_settings (
+                    id TINYINT PRIMARY KEY, enabled BOOLEAN NOT NULL DEFAULT 0,
+                    token TEXT NOT NULL, language VARCHAR(5) NOT NULL DEFAULT \'nl-NL\'
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS metadata_providers (
+                    media_type VARCHAR(10) CHARACTER SET ascii PRIMARY KEY,
+                    provider VARCHAR(10) CHARACTER SET ascii NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'INSERT IGNORE INTO metadata_providers (media_type, provider) VALUES (\'movie\', \'tmdb\'), (\'series\', \'tvdb\')',
+            ],
         ];
     }
 }

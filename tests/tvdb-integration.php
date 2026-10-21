@@ -153,7 +153,7 @@ check($bondgenoten['metadata']['type'] === 'series' && $bondgenoten['metadata'][
     && $bondgenoten['metadata']['requested_episode'] === 1 && $bondgenoten['metadata']['season'] === 4,
     'Bondgenoten S04E01 wordt correct geparsed maar nooit vervangen door ander seizoen, nummer of andere serie');
 $missingHtml = MetadataView::hero($seriesSpot, $bondgenoten['metadata'], '', false);
-check(str_contains($missingHtml, 'seizoen 4, aflevering 1') && str_contains($missingHtml, 'niet door TVDB bevestigd')
+check(str_contains($missingHtml, 'seizoen 4, aflevering 1') && str_contains($missingHtml, 'niet door TheTVDB bevestigd')
     && !str_contains($missingHtml, '<p>Seizoen 4'), 'Ontbrekend officieel seizoen/aflevering wordt niet als bevestigde TVDB-data gepresenteerd');
 $metaRepo->cache($fourthSeasonKey, ['episodes' => [['id' => 100, 'seriesId' => 10, 'seasonNumber' => 4, 'number' => 1]]], 86400);
 $metaRepo->cache('/episodes/100/extended?', ['id' => 100, 'seriesId' => 10, 'seasonNumber' => 4, 'number' => 1,

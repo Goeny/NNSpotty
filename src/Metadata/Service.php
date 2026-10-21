@@ -10,7 +10,7 @@ use Throwable;
 
 final class Service
 {
-    public function __construct(private readonly Repository $repo, private readonly Gateway $api)
+    public function __construct(private readonly Repository $repo, private readonly Gateway $api, private readonly ?Gateway $tmdbApi = null)
     {
     }
 
@@ -19,17 +19,21 @@ final class Service
         return hash('sha256', json_encode([$spot['title'], $spot['category'], $spot['subcategories'], $language], JSON_THROW_ON_ERROR));
     }
 
-    public static function matchSignature(array $spot, string $language): string
+    public static function matchSignature(array $spot, string $profile): string
     {
-        return self::signature($spot, $language . ':release-v2');
+        return self::signature($spot, $profile . ':release-v3');
     }
 
-    public function search(string $query, string $type): array
+    public function search(string $query, string $type, ?string $provider = null): array
     {
         $query = trim($query);
         if (strlen($query) < 2 || strlen($query) > 200 || !in_array($type, ['movie', 'series'], true)) {
             throw new InvalidArgumentException('Gebruik een titel van 2 tot 200 tekens en kies film of serie.');
         }
+        $provider ??= $this->repo->effectiveProvider($type) ?? 'tvdb';
+        if (!in_array($provider, ['tvdb', 'tmdb'], true)) throw new InvalidArgumentException('Kies TMDB of TVDB.');
+        if (!$this->repo->providerEnabled($provider)) throw new InvalidArgumentException(strtoupper($provider) . ' is niet ingeschakeld.');
+        if ($provider === 'tmdb') return $this->tmdb()->search($query, $type);
         $rows = $this->cached('/search', ['query' => $query, 'type' => $type, 'limit' => 20]);
         if (!array_is_list($rows)) throw new RuntimeException('TVDB gaf geen geldige zoekresultaten.');
         $results = [];
@@ -46,7 +50,7 @@ final class Service
                     foreach ($translations as $name) if (is_string($name)) $names[] = $name;
                 }
             }
-            $results[] = ['id' => (int) $id, 'type' => $type, 'name' => self::text($row['name']),
+            $results[] = ['id' => (int) $id, 'type' => $type, 'provider' => 'tvdb', 'name' => self::text($row['name']),
                 'names' => array_slice($names, 0, 100), 'year' => self::text($row['year'] ?? '', 4)];
         }
         return $results;
@@ -56,8 +60,7 @@ final class Service
     {
         $release = Release::parse($spot);
         if ($release === null) return ['state' => 'unsupported'];
-        $language = $this->repo->settings()['language'];
-        $hash = self::matchSignature($spot, $language);
+        $hash = self::matchSignature($spot, $this->repo->profile());
         $old = $this->repo->match($spot['id']);
         if ($old !== null && $old['input_hash'] === $hash && $old['fresh'] && $old['result_json'] !== null) return $old['result_json'];
         if (!$this->repo->lock($spot['id'])) return ['state' => 'busy'];
@@ -67,26 +70,32 @@ final class Service
             // A manual choice survives language changes, but not changed spot input.
             $choice = $old !== null ? $old['choice_json'] : null;
             if ($choice !== null && ($choice['input'] ?? '') !== self::signature($spot, '')) $choice = null;
+            // A manual choice for a provider that is no longer enabled falls back to automatic matching.
+            if ($choice !== null && !($choice['blocked'] ?? false) && !$this->repo->providerEnabled($choice['provider'] ?? 'tvdb')) $choice = null;
             if (($choice['blocked'] ?? false) === true) {
                 $result = ['state' => 'blocked'];
             } else {
+                $provider = $choice !== null ? ($choice['provider'] ?? 'tvdb') : $this->repo->effectiveProvider($release['type']);
+                if ($provider === null) throw new RuntimeException('Geen film-/seriemetadataprovider ingeschakeld.');
                 $selected = $choice;
+                $candidates = [];
                 if ($selected === null) {
-                    $candidates = $this->search($release['query'], $release['type']);
+                    $candidates = $this->search($release['query'], $release['type'], $provider);
                     $selected = Release::select($release, $candidates);
                 }
                 if ($selected === null) {
-                    $result = ['state' => empty($candidates) ? 'unmatched' : 'ambiguous', 'query' => $release['query']];
+                    $result = ['state' => $candidates === [] ? 'unmatched' : 'ambiguous', 'query' => $release['query'], 'provider' => $provider];
                 } else {
+                    $metadata = $this->details($provider, $selected['type'], $selected['id'], $choice ?? $release);
                     $result = ['state' => 'matched', 'manual' => $choice !== null,
-                        'metadata' => $this->details($selected['type'], $selected['id'], $language, $choice ?? $release)];
+                        'metadata' => $this->complement($provider, $metadata)];
                 }
             }
             $this->repo->result($spot['id'], $hash, $result, $result['state'] === 'matched' ? 604800 : 86400);
             return $result;
         } catch (Throwable $exception) {
-            error_log('TVDB metadata: ' . $exception->getMessage());
-            $result = ['state' => 'error', 'message' => 'TVDB kon niet worden opgehaald. De oorspronkelijke spot blijft beschikbaar. Probeer over vijf minuten opnieuw.'];
+            error_log('Film-/seriemetadata: ' . $exception->getMessage());
+            $result = ['state' => 'error', 'message' => 'Metadata kon niet worden opgehaald. De oorspronkelijke spot blijft beschikbaar. Probeer over vijf minuten opnieuw.'];
             $this->repo->result($spot['id'], $hash, $result, 300);
             return $result;
         } finally {
@@ -98,20 +107,91 @@ final class Service
     {
         if (Release::parse($spot) === null) throw new InvalidArgumentException('Alleen films en series kunnen worden gekoppeld.');
         if ($choice !== null && !($choice['blocked'] ?? false)) {
-            if (!in_array($choice['type'] ?? '', ['movie', 'series'], true) || !is_int($choice['id'] ?? null) || $choice['id'] < 1) {
-                throw new InvalidArgumentException('Ongeldige TVDB-keuze.');
+            $choice['provider'] ??= 'tvdb';
+            if (!in_array($choice['type'] ?? '', ['movie', 'series'], true) || !is_int($choice['id'] ?? null) || $choice['id'] < 1
+                || !in_array($choice['provider'], ['tvdb', 'tmdb'], true)) {
+                throw new InvalidArgumentException('Ongeldige metadatakeuze.');
             }
+            if (!$this->repo->providerEnabled($choice['provider'])) throw new InvalidArgumentException(strtoupper($choice['provider']) . ' is niet ingeschakeld.');
             // Validate the selected record (and episode, if supplied) before replacing a shared match.
             $choice['strict_episode'] = true;
-            $this->details($choice['type'], $choice['id'], $this->repo->settings()['language'], $choice);
+            $this->details($choice['provider'], $choice['type'], $choice['id'], $choice);
         }
         if ($choice !== null) $choice['input'] = self::signature($spot, '');
-        if (!$this->repo->lock($spot['id'])) throw new RuntimeException('De TVDB-match wordt al verwerkt. Probeer opnieuw.');
+        if (!$this->repo->lock($spot['id'])) throw new RuntimeException('De metadatamatch wordt al verwerkt. Probeer opnieuw.');
         try {
-            $this->repo->choose($spot['id'], self::matchSignature($spot, $this->repo->settings()['language']), $choice);
+            $this->repo->choose($spot['id'], self::matchSignature($spot, $this->repo->profile()), $choice);
         } finally {
             $this->repo->unlock($spot['id']);
         }
+    }
+
+    private function tmdb(): Tmdb
+    {
+        return new Tmdb($this->repo, $this->tmdbApi ?? new TmdbClient($this->repo));
+    }
+
+    private function details(string $provider, string $type, int $id, array $release): array
+    {
+        return $provider === 'tmdb'
+            ? $this->tmdb()->details($type, $id, $release, $this->repo->tmdbSettings()['language'], ($release['strict_episode'] ?? false) === true)
+            : $this->tvdbDetails($type, $id, $this->repo->settings()['language'], $release);
+    }
+
+    /** Fill gaps from the other enabled provider, linked via external IDs only (never by title). */
+    private function complement(string $primary, array $metadata): array
+    {
+        $secondary = $primary === 'tvdb' ? 'tmdb' : 'tvdb';
+        if (!$this->repo->providerEnabled($secondary)) return $metadata;
+        try {
+            $kind = $metadata['type'] === 'movie' ? 'movie' : 'series';
+            $context = $metadata['type'] === 'episode' ? ['season' => $metadata['season'], 'episode' => $metadata['episode']] : [];
+            $imdb = $metadata['imdb_id'] ?? '';
+            $id = null;
+            if ($secondary === 'tmdb') {
+                if ($kind === 'series') $id = $this->tmdb()->find('tvdb_id', (string) $metadata['parent_id'], 'series');
+                if ($id === null && $imdb !== '') $id = $this->tmdb()->find('imdb_id', $imdb, $kind);
+                if ($id === null) return $metadata;
+                $other = $this->tmdb()->details($kind, $id, $context, $this->repo->tmdbSettings()['language']);
+            } else {
+                $id = $kind === 'series' ? ($metadata['tvdb_id'] ?? null) : null;
+                if ($id === null && $imdb !== '') $id = $this->tvdbRemote($imdb, $kind);
+                if ($id === null) return $metadata;
+                $other = $this->tvdbDetails($kind, $id, $this->repo->settings()['language'], $context);
+            }
+            return self::merge($metadata, $other);
+        } catch (Throwable $exception) {
+            error_log('Metadata aanvullen via ' . strtoupper($secondary) . ': ' . $exception->getMessage());
+            return $metadata;
+        }
+    }
+
+    private static function merge(array $primary, array $other): array
+    {
+        $used = false;
+        $fields = ['poster', 'fanart', 'genres', 'companies', 'score', 'certification', 'trailers'];
+        // Episode-level data only complements the very same episode.
+        if ($primary['type'] === $other['type']) array_push($fields, 'overview', 'date', 'runtime', 'people', 'still', 'episode_title', 'episode_score');
+        foreach ($fields as $field) {
+            if (empty($primary[$field]) && !empty($other[$field])) {
+                $primary[$field] = $other[$field];
+                $used = true;
+            }
+        }
+        if (($primary['imdb_id'] ?? '') === '') $primary['imdb_id'] = $other['imdb_id'] ?? '';
+        if ($used) $primary['links'] = ($primary['links'] ?? []) + ($other['links'] ?? []);
+        return $primary;
+    }
+
+    private function tvdbRemote(string $imdb, string $type): ?int
+    {
+        if (!preg_match('/^tt\d{5,10}$/D', $imdb)) return null;
+        $found = [];
+        foreach ($this->cached('/search/remoteid/' . $imdb, optional: true) as $row) {
+            $id = is_array($row) ? ($row[$type]['id'] ?? null) : null;
+            if (is_int($id) && $id > 0) $found[$id] = true;
+        }
+        return count($found) === 1 ? array_key_first($found) : null;
     }
 
     private function cached(string $path, array $query = [], bool $optional = false): array
@@ -151,7 +231,7 @@ final class Service
         return $data;
     }
 
-    private function details(string $type, int $id, string $language, array $release): array
+    private function tvdbDetails(string $type, int $id, string $language, array $release): array
     {
         $base = $this->record($type, $id, $language);
         $data = $base;
@@ -213,7 +293,16 @@ final class Service
         $companies = array_values(array_column($companies, null, 'id'));
         $date = $episode !== null ? ($data['aired'] ?? '') : ($type === 'movie' ? ($base['first_release']['date'] ?? '') : ($base['firstAired'] ?? ''));
         $runtime = $episode !== null || $type === 'movie' ? ($data['runtime'] ?? null) : ($base['averageRuntime'] ?? null);
+        $imdb = '';
+        foreach ($base['remoteIds'] ?? [] as $remote) {
+            if (is_array($remote) && is_string($remote['id'] ?? null) && preg_match('/^tt\d{5,10}$/D', $remote['id'])
+                && stripos((string) ($remote['sourceName'] ?? ''), 'imdb') !== false) {
+                $imdb = $remote['id'];
+                break;
+            }
+        }
         return [
+            'provider' => 'tvdb',
             'type' => $episode === null ? $type : 'episode', 'id' => $data['id'], 'parent_id' => $id,
             'title' => self::text($base['_translated_name'] ?? $base['name']),
             'episode_title' => $episode === null ? '' : self::text($data['_translated_name'] ?? $data['name']),
@@ -226,6 +315,9 @@ final class Service
             'poster' => $art['poster'], 'fanart' => $art['fanart'], 'still' => $episode === null ? '' : self::imageUrl($episode['image'] ?? ''),
             'people' => array_values($cast), 'companies' => array_slice($companies, 0, 20),
             'remote_ids' => $base['remoteIds'] ?? [],
+            'imdb_id' => $imdb, 'tvdb_id' => $type === 'series' ? $id : null,
+            'score' => null, 'episode_score' => null, 'certification' => [], 'trailers' => [],
+            'links' => ['tvdb' => ($episode !== null ? 'episodes/' : ($type === 'movie' ? 'movies/' : 'series/')) . (int) $data['id']],
         ];
     }
 

@@ -224,8 +224,14 @@ $router->get('/admin', static function (Request $request) use ($state, $auth, $c
         sabSettings: $auth->isAdmin()
             ? \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('central'), $csrf->field(), true, true)
             : '<p>De centrale SABnzbd-koppeling en categorietoewijzing zijn uitsluitend voor beheerders.</p>',
-        metadataSettings: \NnSpotty\Metadata\View::settings(new \NnSpotty\Metadata\Repository($pdo), $csrf->field()),
-        musicSettings: \NnSpotty\Music\View::settings(new \NnSpotty\Music\Repository($pdo), $csrf->field()),
+        metadataSettings: AdminPageRenderer::metadataPanel(
+            \NnSpotty\Metadata\View::settings($metadataRepo = new \NnSpotty\Metadata\Repository($pdo), $csrf->field())
+                . \NnSpotty\Metadata\View::tmdbSettings($metadataRepo, $csrf->field())
+                . \NnSpotty\Music\View::fanartCard($musicRepo = new \NnSpotty\Music\Repository($pdo), $csrf->field()),
+            \NnSpotty\Metadata\View::providerForm($metadataRepo, $csrf->field(), 'movie'),
+            \NnSpotty\Metadata\View::providerForm($metadataRepo, $csrf->field(), 'series'),
+            \NnSpotty\Music\View::settings($musicRepo, $csrf->field(), includeFanart: false)),
+        musicSettings: '',
         spotterSettings: $auth->can('spotters.manage') ? \NnSpotty\Moderation\View::settings(new \NnSpotty\Moderation\SpotterLists($pdo), $csrf->field()) : '',
         commentRetrieval: $state->commentRetrievalSettings()
     );
@@ -809,7 +815,7 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
             ? ((new \NnSpotty\Music\Repository($pdo))->allowed($currentUser['username'])
                 ? \NnSpotty\Music\View::controls($spot, $auth->can('metadata.manage'), $csrfField) : '')
             : ((new \NnSpotty\Metadata\Repository($pdo))->allowed($currentUser['username'])
-                ? \NnSpotty\Metadata\View::controls($spot, $auth->can('metadata.manage'), $csrfField) : ''),
+                ? \NnSpotty\Metadata\View::controls($spot, $auth->can('metadata.manage'), $csrfField, new \NnSpotty\Metadata\Repository($pdo)) : ''),
         facets: null,
         pendingComments: $content['show_comments'] ? $spots->pendingCommentCount($spotId) : 0
     );
@@ -923,7 +929,7 @@ $router->post('/spots/comment', static function (Request $request) use ($auth, $
         showComments: $content['show_comments'], imagesEnabled: $content['images_enabled'], retrieveComments: $content['retrieve_comments'],
         metadataControls: $spot['category'] === 'Geluid'
             ? ((new \NnSpotty\Music\Repository($pdo))->allowed($user['username']) ? \NnSpotty\Music\View::controls($spot, \NnSpotty\Users\Permissions::allows($user, 'metadata.manage'), $csrfField) : '')
-            : ((new \NnSpotty\Metadata\Repository($pdo))->allowed($user['username']) ? \NnSpotty\Metadata\View::controls($spot, \NnSpotty\Users\Permissions::allows($user, 'metadata.manage'), $csrfField) : ''),
+            : ((new \NnSpotty\Metadata\Repository($pdo))->allowed($user['username']) ? \NnSpotty\Metadata\View::controls($spot, \NnSpotty\Users\Permissions::allows($user, 'metadata.manage'), $csrfField, new \NnSpotty\Metadata\Repository($pdo)) : ''),
         facets: null,
         commentDraft: strlen($body) <= 10000 && preg_match('//u', $body) === 1 ? $body : '',
         commentRequestId: $publicationId !== null && preg_match('/^[a-f0-9]{64}$/D', $publicationId) ? $publicationId : null,

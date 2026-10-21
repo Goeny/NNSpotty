@@ -31,6 +31,22 @@ final class AdminPageRenderer
      * @param array<int, array{post_id: string, username: string, comment: string, created_at: string}> $comments
      * @param array<int, array{actor_username: string, action: string, target_type: string, target_id: string, details_json: string, ip_address: string, created_at: string}> $auditLogs
      */
+    /** Metadata admin tab: shared provider access plus one sub-tab per media type. */
+    public static function metadataPanel(string $providers, string $movies, string $series, string $music): string
+    {
+        $tabs = ['metadata-providers' => ['Providers', $providers], 'metadata-movies' => ['Films', $movies],
+            'metadata-series' => ['Series', $series], 'metadata-music' => ['Muziek', $music]];
+        $nav = '';
+        $panels = '';
+        foreach ($tabs as $id => [$label, $html]) {
+            $nav .= '<a class="nav-link" href="#' . $id . '">' . $label . '</a>';
+            $panels .= '<div data-admin-subpanel="' . $id . '" id="' . $id . '-panel">' . $html . '</div>';
+        }
+        return '<section class="my-4" aria-labelledby="metadata-heading"><h2 class="h4" id="metadata-heading">Metadata</h2>'
+            . '<nav class="nav nav-underline gap-2 metadata-subnavigation" aria-label="Metadata-onderdelen" data-admin-subnavigation>' . $nav . '</nav>'
+            . $panels . '<p class="small text-body-secondary mt-3">Applicaties, boeken en games volgen later; voor deze categorieën wordt nog geen metadata opgehaald.</p></section>';
+    }
+
     public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = [], array $spotContent = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true], bool $apiEnabled = false, string $sabSettings = '', string $metadataSettings = '',     string $spotterSettings = '', string $musicSettings = '', array $commentRetrieval = ['mode' => 'lazy', 'retention' => 0]): string
     {
         $retention = (int) $settings['retention'];
@@ -123,14 +139,12 @@ HTML;
       <a class="nav-link" href="#appearance">Inhoud en weergave</a>
       <a class="nav-link" href="#newznab">Newznab</a>
       <a class="nav-link" href="#downloads">SABnzbd</a>
-      <a class="nav-link" href="#metadata">TVDB metadata</a>
-      <a class="nav-link" href="#music-metadata">Muziekmetadata</a>
+      <a class="nav-link" href="#metadata">Metadata</a>
       <a class="nav-link" href="#moderation">Moderatie en reacties</a>
       <a class="nav-link" href="#audit">Auditlog</a>
     </nav>
     <div data-admin-panel="downloads">{$sabSettings}</div>
-    <div data-admin-panel="metadata">{$metadataSettings}</div>
-    <div data-admin-panel="music-metadata">{$musicSettings}</div>
+    <div data-admin-panel="metadata">{$metadataSettings}{$musicSettings}</div>
     <div data-admin-panel="newznab">
     <section class="card my-4" id="newznab">
       <div class="card-header">Newznab API</div>

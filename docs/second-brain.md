@@ -6,7 +6,7 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
 - **Datum:** 2026-10-20
 - **Versie:** 0.0.1
 - **Codenaam:** Delta Integrale
-- **Fase:** Spotnet/Newznab, SABnzbd en optionele TheTVDB-verrijking met gedeeld matchbeheer
+- **Fase:** Spotnet/Newznab, SABnzbd en optionele TMDB-/TheTVDB-verrijking met gedeeld matchbeheer
 
 ## Context
 - Spotweb is verouderd en lastig onderhoudbaar door gegroeide complexiteit en gemengde oude/nieuwe codepatronen.
@@ -355,6 +355,11 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
     Aanleiding: productieretrieve liep ruim 10 uur (circa 1,49 miljoen reacties) en eindigde met een lege `[ERROR]`. Analyse: elk reactieartikel werd volledig gedownload, standaardretentie 3000 dagen gold ook voor reacties, per rij een bestaat-query en autocommit-insert. Gebruiker koos uit voorstellen A-J: aparte reactie-retentie (A), bulkopslag per batch (C) en lazy reacties (J), alle drie instelbaar via admin plus een nieuw recht.
     Beslissingen: lazy-ontwerp "headers" — retrieve slaat XOVER-stubs op (`body` NULL, `body_status` pending) en de tekst wordt pas bij openen van de spot geladen; standaardmodus lazy; reactie-retentie standaard 0 (= spotretentie); recht `comments.load` standaard voor alle groepen. Stubs zonder afleidbare spot (geen punt in ID, geen References) vallen terug op volledige ARTICLE. Geladen tekst wordt nooit door een stub overschreven; onbeschikbaar/ongeldig wordt gemarkeerd en niet herhaald. Een batch is een transactie; transportfout commit reeds verwerkte artikelen zonder cursor, databasefout rolt terug. Migratie 20261021_0022 wijzigt `spotnet_comments` (zwaar op grote tabellen). Niet gekozen/vervolg: meerdere verbindingen, backfillcheckpoint, betere foutmelding bij lege exceptionmessage (H), XOVER-batchgrootte.
     Validatie: 2014 controles in volledige unit/database/HTTP/TCP-suite met GD (stubs, geen duplicaten, BodyLoader via NNTP-fixture, markering, reactie-retentie, instellingvalidatie, migratierecht, JSON- en formulierroute met CSRF, adminformulier en audit). Geen productiemeting; acceptatie door gebruiker met `retrieve --since-last --verbose` blijft open. Geen versie-/codenaamwijziging.
+
+92. **Metadata-tab, TMDB naast TheTVDB, muziekmatching en favorietennavigatie**
+    Gebruiker vroeg een aparte admin-tab Metadata met subgroepen Films/Series/Muziek (applicaties/boeken/games later, niet als beschikbaar tonen), keuze tussen TVDB en TMDB die elkaar aanvullen, betere muziekmatching (voorbeeld Beck) en dat een hoofdcategorie vanuit Favorieten naar het reguliere overzicht gaat.
+    Beslissingen: per type een primaire provider, de andere ingeschakelde provider vult alleen lege velden aan; standaard TMDB voor films en TheTVDB voor series. Koppeling tussen providers uitsluitend via externe ID's (IMDb/TVDB), nooit op titel. Episode-niveauvelden alleen samenvoegen bij gelijk niveau. Een gedeelde persoonlijke schakelaar "Film- en seriemetadata". Admin-layout met subtabs Providers/Films/Series/Muziek. Trailers click-to-load via youtube-nocookie/Vimeo, maximaal drie. TMDB-attributie: officieel logo plus verplichte vermelding, alleen als TMDB daadwerkelijk data leverde. Cache 7 dagen/1 dag/5 minuten (binnen TMDB-maximum van 6 maanden), budget 240/min naast TVDB 90/min. Niet-commercieel gebruik zonder aparte TMDB-overeenkomst; als beperking gedocumenteerd. Muziek: middenjaarvorm, albumvoorkeur boven single/EP en dismax-fallback met behoud van exacte selectie (signature discovery-v3).
+    Validatie: 1047 unitcontroles en 2054 controles in de volledige unit/database/HTTP/TCP-suite met TMDB-/TVDB-fixtures (primair/secundair, aanvulling, providerkeuze, adminrechten, geen geheimlek). Geen echte TMDB-requests; productieacceptatie met eigen TMDB-key blijft open. Geen versie-/codenaamwijziging.
 
 ## Open vragen (voor volgende stap)
 - Welk framework past het best bij verdere uitbreiding? De huidige basis gebruikt PHP 8.2+ en PDO/MySQL/MariaDB.

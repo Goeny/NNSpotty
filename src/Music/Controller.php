@@ -39,7 +39,7 @@ final class Controller
                 } else $repo->saveFanartPreference($user['username'], $enabled === '1');
                 $this->audit($user, $action, $request, 'music');
                 return Response::redirect(($action === 'fanart-settings' ? '/admin' : '/preferences')
-                    . '?status=' . rawurlencode('Artiest-fanartinstelling opgeslagen.') . '#music-metadata');
+                    . '?status=' . rawurlencode('Artiest-fanartinstelling opgeslagen.') . ($action === 'fanart-settings' ? '#metadata-providers' : '#music-metadata'));
             }
             if (in_array($action, ['settings', 'preference'], true)) {
                 $enabled = $request->inputScalar('enabled');
@@ -48,7 +48,7 @@ final class Controller
                 else $repo->savePreference($user['username'], $enabled === '1');
                 $this->audit($user, $action, $request, 'music');
                 return Response::redirect(($action === 'settings' ? '/admin' : '/preferences')
-                    . '?status=' . rawurlencode('Muziekmetadata-instelling opgeslagen.') . '#music-metadata');
+                    . '?status=' . rawurlencode('Muziekmetadata-instelling opgeslagen.') . ($action === 'settings' ? '#metadata-music' : '#music-metadata'));
             }
             if (!$repo->allowed($user['username'])) return Response::privateJson(['error' => 'Muziekmetadata is globaal of persoonlijk uitgeschakeld.'], 403);
             $id = $request->inputScalar('id') ?? '';
@@ -97,7 +97,8 @@ final class Controller
     private function error(string $action, string $message, int $status): Response
     {
         return in_array($action, ['settings', 'fanart-settings', 'fanart-preference'], true)
-            ? Response::redirect(($action === 'fanart-preference' ? '/preferences' : '/admin') . '?status=' . rawurlencode($message) . '#music-metadata')
+            ? Response::redirect(($action === 'fanart-preference' ? '/preferences' : '/admin') . '?status=' . rawurlencode($message)
+                . ['settings' => '#metadata-music', 'fanart-settings' => '#metadata-providers', 'fanart-preference' => '#music-metadata'][$action])
             : Response::privateJson(['error' => $message], $status);
     }
 

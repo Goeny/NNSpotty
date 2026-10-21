@@ -5,9 +5,13 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Fixed
+- Muziekmatching: `Artiest - jaar - Album` wordt herkend, bij gelijke artiest/titel wint het album van single/EP en een lege gerichte MusicBrainz-zoekactie valt terug op een bredere zoekactie (exacte selectie blijft vereist).
+- Vanuit Favorieten openen een hoofdcategorie en **Alle** in de sidebar weer het reguliere overzicht.
 - Muziek-/film-/serie-/afleveringfanart past volledig en proportioneel rechts in de metadatahero, zonder afgesneden boven-/onderkant. Zachte linkerovergang en gedeelde donker/licht-tekstoverlay; geldt ook voor previews, zonder extra paginahoogte, requests of cachewijzigingen.
 
 ### Added
+- Metadata-tab in het beheerpanel met subtabs Providers (TheTVDB, TMDB, fanart.tv), Films, Series en Muziek; applicaties, boeken en games volgen later. Oude adminlinks (`#music-metadata`, `#fanart`) openen de juiste subtab.
+- TMDB als tweede film-/serieprovider (migratie `20261022_0023_tmdb_metadata`): per type een primaire provider (standaard TMDB voor films, TheTVDB voor series), de andere vult lege velden aan via IMDb-/TVDB-ID's. TMDB levert gebruikersscore (ook per aflevering), NL/US-leeftijdsclassificatie en trailers die pas na een klik via youtube-nocookie.com of Vimeo laden. Bronvermelding met TMDB-logo en verplichte vermelding, provider per kandidaat bij handmatig zoeken, budget 240 requests/minuut.
 - Retrieverperformance: reacties standaard op aanvraag (alleen XOVER-headers indexeren, tekst bij openen spot via pipelined batches en databasecache), aparte reactie-retentie, opslag per batch in een transactie met een bestaat-query en multi-row inserts. Admininstelling voor reactiemodus/-retentie, nieuw recht `comments.load` (standaard voor alle groepen), `tekst_later`-teller in verbose output. Migratie `20261021_0022_lazy_comments`.
 - Gebruikers-/groepenbeheer in de UI, meerdere groepen en rechtenmatrix, beschermde laatste beheerder, directe sessie-/API-controles, deactivering en verplichte wijziging van tijdelijke wachtwoorden. CLI behoudt bestaande acties met actieve status en groeps-ID's. Profieltab met publieke reactienaam, vaste handtekening, prive-e-mail en veilige lokale avatarverwerking via upload/HTTPS/Gravatar; headeravatar en volledige publicatiepreview. Migratie `20261020_0021_accounts`.
 - Optionele aparte Usenet-postingserver met eigen poort/encryptie in het beheerpanel. Standaard dezelfde verbinding voor ophalen en publiceren; aparte postingserver erft de actuele standaardlogin tenzij expliciet een eigen gebruikersnaam en wachtwoord zijn gekozen. Geen wijziging aan retrieve/afbeeldingen/NZB of nieuwe migratie.

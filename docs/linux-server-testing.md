@@ -1030,6 +1030,24 @@ php tests/run.php
 
 Ververs de browsercache. Markeer een spot via de bladwijzer met ster: deze wordt oranje zonder een preview te openen. Controleer dezelfde status in preview/detail, ook na laden van muziek-/TVDB-metadata. Klik opnieuw om te verwijderen. Open **Mijn spots > Favorieten**, test categorie/zoeken/bijladen en verwijder een favoriet; de row verdwijnt direct. Controleer dark/light en smal scherm. Herhaal met een tweede account: favorieten mogen niet gedeeld worden. Verborgen erotica blijft verborgen; spot-/gebruikersverwijdering ruimt verwijzingen op. Bij een netwerkfout blijft de knopstatus ongewijzigd en verschijnt een waarschuwing. Een opnieuw toegevoegde spot vanuit een nog open preview verschijnt na herladen terug in de favorietenlijst.
 
+## Metadata-tab, TMDB en muziekmatching accepteren
+
+Als deploygebruiker in de projectmap (servicebeheer als root):
+
+```bash
+cd /home/hopseflop/domains/nnspotty.hopseflop.nl/public_html
+sudo -u hopseflop git pull --ff-only origin main
+sudo -u hopseflop env OPENSSL_CONF=/home/hopseflop/.config/nnspotty/openssl.cnf /opt/remi/php84/root/usr/bin/php bin/console db migrate
+sudo -u hopseflop env OPENSSL_CONF=/home/hopseflop/.config/nnspotty/openssl.cnf /opt/remi/php84/root/usr/bin/php bin/console db status
+systemctl reload nnspotty-php84-fpm.service
+```
+
+Ververs de browsercache. Open `/admin#metadata`: subtabs Providers, Films, Series en Muziek. Vul onder Providers een TMDB API-key of Read Access Token in, schakel in en klik **Toegang testen**. Controleer onder Films (standaard TMDB) en Series (standaard TheTVDB) de primaire provider. Open een filmdetail: TMDB-score, classificatie, trailerknop (speler pas na klik) en bronvermelding met TMDB-logo en vermelding. Open een aflevering: TVDB-data met aanvulling door TMDB (score/trailer). Test **Metadata link** > zoeken per provider en kiezen. Open de Beck-muziekspot en controleer de albumkoppeling. Ga naar Favorieten en klik een hoofdcategorie: het reguliere overzicht opent. Controleer fouten:
+
+```bash
+tail -n 50 /home/hopseflop/domains/nnspotty.hopseflop.nl/logs/php_log
+```
+
 ## Cleanup
 ```bash
 php bin/console db cleanup --days=90

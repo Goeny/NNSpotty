@@ -196,6 +196,17 @@
 .tvdb-logo-light { display: none; }
 [data-bs-theme="light"] .tvdb-logo-dark { display: none; }
 [data-bs-theme="light"] .tvdb-logo-light { display: inline; }
+.metadata-attributions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; }
+.metadata-attribution img.tmdb-logo, .tmdb-logo { width: 56px; height: 14px; object-fit: contain; }
+.metadata-notice { flex-basis: 100%; margin: 0; font-size: .75rem; }
+.metadata-badges { margin-block: 8px; }
+.metadata-score, .metadata-certification { font-size: .85rem; font-weight: 600; padding: .4em .65em; }
+.metadata-score { background: #032541; color: #fff; border: 1px solid #01b4e4; }
+.metadata-score small { font-weight: 400; opacity: .8; }
+.metadata-certification { background: transparent; color: var(--bs-body-color); border: 1px solid var(--bs-border-color); }
+.trailer-frame { max-width: 960px; border-radius: 8px; overflow: hidden; background: #000; }
+.trailer-frame iframe { border: 0; }
+.metadata-trailers .btn.active { border-color: var(--plex-accent); color: var(--plex-accent); }
 .metadata-drawer:not([open]) { display: none; }
 .metadata-hero .hero-backdrop, .music-hero .hero-backdrop { left: auto; width: auto; max-width: 100%; filter: none; object-fit: contain; object-position: right center; transform: none; mask-image: linear-gradient(90deg, transparent, #000 18%); }
 .metadata-hero::after, .music-hero::after { background: linear-gradient(90deg, rgba(11,17,25,.96), rgba(11,17,25,.85) 35%, rgba(11,17,25,.4) 75%, rgba(11,17,25,.3)); }

@@ -54,7 +54,83 @@ final class Repository
 
     public function allowed(string $username): bool
     {
-        return (bool) $this->settings()['enabled'] && $this->preference($username);
+        return ($this->providerEnabled('tvdb') || $this->providerEnabled('tmdb')) && $this->preference($username);
+    }
+
+    public function tmdbSettings(): array
+    {
+        $row = $this->pdo->query('SELECT enabled, token, language FROM tmdb_settings WHERE id = 1')->fetch();
+        return $row === false ? ['enabled' => false, 'token' => '', 'language' => 'nl-NL']
+            : ['enabled' => (bool) $row['enabled'], 'token' => $row['token'], 'language' => $row['language']];
+    }
+
+    public function saveTmdbSettings(bool $enabled, string $token, string $language, bool $clear = false): void
+    {
+        $old = $this->tmdbSettings();
+        $token = $clear ? '' : (trim($token) === '' ? $old['token'] : trim($token));
+        if (($enabled && $token === '') || strlen($token) > 2000 || preg_match('/[^A-Za-z0-9._-]/', $token)
+            || !in_array($language, ['nl-NL', 'en-US'], true)) {
+            throw new InvalidArgumentException('Voer een geldige TMDB API-key of Read Access Token en taal in.');
+        }
+        $this->pdo->prepare('INSERT INTO tmdb_settings (id, enabled, token, language) VALUES (1, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), token = VALUES(token), language = VALUES(language)')
+            ->execute([(int) $enabled, $token, $language]);
+        if ($old['token'] !== $token || $old['language'] !== $language || $old['enabled'] !== $enabled) {
+            $this->pdo->exec('UPDATE tvdb_matches SET expires_at = NULL');
+        }
+    }
+
+    public function providerEnabled(string $provider): bool
+    {
+        if ($provider === 'tmdb') {
+            $settings = $this->tmdbSettings();
+            return $settings['enabled'] && $settings['token'] !== '';
+        }
+        $settings = $this->settings();
+        return $provider === 'tvdb' && (bool) $settings['enabled'] && $settings['api_key'] !== '';
+    }
+
+    /** @return array{movie: string, series: string} */
+    public function providers(): array
+    {
+        $providers = ['movie' => 'tmdb', 'series' => 'tvdb'];
+        foreach ($this->pdo->query('SELECT media_type, provider FROM metadata_providers')->fetchAll() as $row) {
+            if (isset($providers[$row['media_type']]) && in_array($row['provider'], ['tvdb', 'tmdb'], true)) $providers[$row['media_type']] = $row['provider'];
+        }
+        return $providers;
+    }
+
+    public function saveProvider(string $type, string $provider): void
+    {
+        if (!in_array($type, ['movie', 'series'], true) || !in_array($provider, ['tvdb', 'tmdb'], true)) {
+            throw new InvalidArgumentException('Kies TMDB of TVDB als primaire provider.');
+        }
+        $this->pdo->prepare('INSERT INTO metadata_providers (media_type, provider) VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE provider = VALUES(provider)')->execute([$type, $provider]);
+        $this->pdo->exec('UPDATE tvdb_matches SET expires_at = NULL');
+    }
+
+    /** Configured primary provider, or the other provider when the configured one is not available. */
+    public function effectiveProvider(string $type): ?string
+    {
+        $primary = $this->providers()[$type] ?? 'tvdb';
+        $secondary = $primary === 'tvdb' ? 'tmdb' : 'tvdb';
+        return $this->providerEnabled($primary) ? $primary : ($this->providerEnabled($secondary) ? $secondary : null);
+    }
+
+    /** Everything that changes the shared match result; part of the match signature. */
+    public function profile(): string
+    {
+        $tvdb = $this->settings();
+        $tmdb = $this->tmdbSettings();
+        $enabled = ['tvdb' => (bool) $tvdb['enabled'] && $tvdb['api_key'] !== '', 'tmdb' => $tmdb['enabled'] && $tmdb['token'] !== ''];
+        $effective = [];
+        foreach ($this->providers() as $type => $primary) {
+            $secondary = $primary === 'tvdb' ? 'tmdb' : 'tvdb';
+            $effective[] = $enabled[$primary] ? $primary : ($enabled[$secondary] ? $secondary : '-');
+        }
+        return implode('|', [$tvdb['language'], $tmdb['language'], ...$effective,
+            $enabled['tvdb'] ? 'tvdb' : '', $enabled['tmdb'] ? 'tmdb' : '']);
     }
 
     public function token(string $key, string $pin, ?string $token): void
@@ -64,16 +140,20 @@ final class Repository
         $query->execute([$token, $key, $pin]);
     }
 
-    public function claimRequest(): void
+    public function claimRequest(string $provider = 'tvdb'): void
     {
-        if (!$this->lock('request-budget')) throw new \RuntimeException('TVDB-aanvraaglimiet is bezet. Probeer later opnieuw.');
+        // TVDB budget stays at 90/min; TMDB allows ~50/s, keep a modest 240/min per installation.
+        $limit = $provider === 'tmdb' ? 240 : 90;
+        $name = $provider === 'tmdb' ? 'TMDB' : 'TVDB';
+        $scope = $provider === 'tmdb' ? 'tmdb-request-budget' : 'request-budget';
+        if (!$this->lock($scope)) throw new \RuntimeException($name . '-aanvraaglimiet is bezet. Probeer later opnieuw.');
         try {
-            $key = 'request-budget:' . gmdate('YmdHi');
+            $key = $scope . ':' . gmdate('YmdHi');
             $count = (int) ($this->cached($key)['count'] ?? 0);
-            if ($count >= 90) throw new \RuntimeException('TVDB-aanvraaglimiet bereikt (90 per minuut voor deze installatie).');
+            if ($count >= $limit) throw new \RuntimeException($name . '-aanvraaglimiet bereikt (' . $limit . ' per minuut voor deze installatie).');
             $this->cache($key, ['count' => $count + 1], 120);
         } finally {
-            $this->unlock('request-budget');
+            $this->unlock($scope);
         }
     }
 
@@ -107,11 +187,10 @@ final class Repository
 
     public function previewMetadata(array $spot, string $username): ?array
     {
-        $settings = $this->settings();
-        if (!$settings['enabled'] || !$this->preference($username)) return null;
+        if (!$this->allowed($username)) return null;
         $match = $this->match($spot['id']);
         if ($match === null || !$match['fresh'] || ($match['choice_json']['blocked'] ?? false)
-            || $match['input_hash'] !== Service::matchSignature($spot, $settings['language'])
+            || $match['input_hash'] !== Service::matchSignature($spot, $this->profile())
             || ($match['result_json']['state'] ?? null) !== 'matched') return null;
         return $match['result_json']['metadata'];
     }

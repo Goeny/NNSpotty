@@ -34,14 +34,15 @@ final class SpotLayout
         $mode = $theme === 'plex-light' ? 'light' : 'dark';
         $head = SpotCategories::headForCategory($selected);
         $favoriteQuery = $favoritesOnly ? ['favorites' => '1'] : [];
-        $allQuery = $favoriteQuery + ($search === '' ? [] : ['q' => $search]);
-        $allUrl = '/spots' . ($allQuery === [] ? '' : '?' . http_build_query($allQuery));
-        $mainNavigation = '<a class="side-link' . ($head === null ? ' active' : '') . '" href="'
-            . h($allUrl) . '"' . ($head === null ? ' aria-current="page"' : '') . '>Alle</a>';
+        // Main categories always lead to the regular overview, also when coming from favorites.
+        $allUrl = '/spots' . ($search === '' ? '' : '?' . http_build_query(['q' => $search]));
+        $allActive = $head === null && !$favoritesOnly;
+        $mainNavigation = '<a class="side-link' . ($allActive ? ' active' : '') . '" href="'
+            . h($allUrl) . '"' . ($allActive ? ' aria-current="page"' : '') . '>Alle</a>';
         foreach (SpotCategories::HEADS as $index => $category) {
-            $active = $index === $head ? ' active' : '';
+            $active = $index === $head && !$favoritesOnly ? ' active' : '';
             $mainNavigation .= '<a class="side-link' . $active . '"' . ($active !== '' ? ' aria-current="page"' : '') . ' href="'
-                . h('/spots?' . http_build_query($favoriteQuery + ['category' => $category, 'q' => $search])) . '">' . h($category) . '</a>';
+                . h('/spots?' . http_build_query(['category' => $category, 'q' => $search])) . '">' . h($category) . '</a>';
         }
         $filters = is_array($selectedSubcategory) ? $selectedSubcategory : SpotFilters::parse($selectedSubcategory);
         $navigation = self::subcategories($head, $facets, $filters, $search, $showErotica, $favoritesOnly);

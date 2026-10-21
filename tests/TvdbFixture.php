@@ -15,6 +15,7 @@ final class TvdbFixture implements \NnSpotty\Metadata\Gateway
         $this->calls[] = [$path, $query];
         if ($this->fail) throw new RuntimeException('Synthetic provider outage');
         if ($path === '/search') return $this->searchResults;
+        if ($path === '/search/remoteid/tt1234567') return [['movie' => ['id' => 1]]];
         if ($path === '/artwork/types') return [
             ['id' => 2, 'name' => 'Series Poster'], ['id' => 3, 'name' => 'Series Background'],
             ['id' => 14, 'name' => 'Movie Poster'], ['id' => 15, 'name' => 'Movie Background']];
