@@ -1042,7 +1042,7 @@ sudo -u hopseflop env OPENSSL_CONF=/home/hopseflop/.config/nnspotty/openssl.cnf 
 systemctl reload nnspotty-php84-fpm.service
 ```
 
-Ververs de browsercache. Open `/admin#metadata`: subtabs Providers, Films, Series en Muziek. Vul onder Providers een TMDB API-key of Read Access Token in, schakel in en klik **Toegang testen**. Controleer onder Films (standaard TMDB) en Series (standaard TheTVDB) de primaire provider. Open een filmdetail: TMDB-score, classificatie, trailerknop (speler pas na klik) en bronvermelding met TMDB-logo en vermelding. Open een aflevering: TVDB-data met aanvulling door TMDB (score/trailer). Test **Metadata link** > zoeken per provider en kiezen. Open de Beck-muziekspot en controleer de albumkoppeling. Ga naar Favorieten en klik een hoofdcategorie: het reguliere overzicht opent. Controleer fouten:
+Ververs de browsercache. Open `/admin#metadata`: subtabs Providers, Films, Series en Muziek. Vul onder Providers een TMDB API-key of Read Access Token in, schakel in en klik **Toegang testen**. Controleer onder Films (standaard TMDB) en Series (standaard TheTVDB) de primaire provider. Open een filmdetail: TMDB-score, classificatie, filmrol-icoon naast de favorietknop (opent de trailer in een venster; sluiten stopt de speler), gelijk uitgelijnde knoppen Reacties/NZB/SABnzbd en bovenaan naast Metadata link de bronvermeldingen met even grote TVDB- en TMDB-logo's. Open een aflevering: TVDB-data met aanvulling door TMDB (score/trailer). Test **Metadata link** > zoeken per provider en kiezen. Open de Beck-muziekspot en controleer de albumkoppeling. Ga naar Favorieten en klik een hoofdcategorie: het reguliere overzicht opent. Controleer fouten:
 
 ```bash
 tail -n 50 /home/hopseflop/domains/nnspotty.hopseflop.nl/logs/php_log

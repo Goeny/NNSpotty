@@ -153,8 +153,10 @@ HTML;
             if (SpotLayout::can('nzb.download')) $action .= ' <a class="btn btn-sm btn-primary" href="/spots/nzb?key=' . rawurlencode($spot['id']) . '">NZB</a>';
             if (SpotLayout::can('nzb.forward')) $action .= ' <button class="btn btn-sm btn-warning" type="button" data-sab-send="' . h($spot['id']) . '">SABnzbd</button>';
         }
-        if ($metadataLink && !$preview) $action = ($spot['category'] === 'Geluid'
-            ? \NnSpotty\Music\View::link() : \NnSpotty\Metadata\View::link()) . $action;
+        $link = $metadataLink && !$preview ? ($spot['category'] === 'Geluid'
+            ? \NnSpotty\Music\View::link() : \NnSpotty\Metadata\View::link()) : '';
+        $buttons = $action;
+        $action = $link . $action;
         $hero = '<section class="spot-hero">' . SpotPresentation::backdrop($spot, 'hero-backdrop', $imagesEnabled)
             . ($action !== '' ? '<div class="hero-actions" role="group" aria-label="Spotacties">' . $action . '</div>' : '')
             . '<div class="hero-poster">' . $image . '</div><div class="hero-copy"><p class="text-body-secondary mb-2">'
@@ -165,7 +167,7 @@ HTML;
             if (($metadata['provider'] ?? '') === 'musicbrainz') {
                 $hero = \NnSpotty\Music\View::summary($spot, $metadata, $action, $imagesEnabled, $preview);
             } else {
-                $hero = \NnSpotty\Metadata\View::hero($spot, $metadata, $action, $imagesEnabled, $preview);
+                $hero = \NnSpotty\Metadata\View::hero($spot, $metadata, $buttons, $imagesEnabled, $preview, $link);
                 $people = ($preview ? '' : \NnSpotty\Metadata\View::trailers($metadata)) . \NnSpotty\Metadata\View::people($metadata, $imagesEnabled);
             }
         }

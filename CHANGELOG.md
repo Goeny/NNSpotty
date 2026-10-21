@@ -5,6 +5,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Fixed
+- Detailhero: trailer als filmrol-icoon in de knoppengroep met speler in een venster; bronvermeldingen TVDB/TMDB bovenaan naast Metadata link; TVDB-logo op teksthoogte; Reacties/NZB-knoppen verticaal gecentreerd.
 - Muziekmatching: `Artiest - jaar - Album` wordt herkend, bij gelijke artiest/titel wint het album van single/EP en een lege gerichte MusicBrainz-zoekactie valt terug op een bredere zoekactie (exacte selectie blijft vereist).
 - Vanuit Favorieten openen een hoofdcategorie en **Alle** in de sidebar weer het reguliere overzicht.
 - Muziek-/film-/serie-/afleveringfanart past volledig en proportioneel rechts in de metadatahero, zonder afgesneden boven-/onderkant. Zachte linkerovergang en gedeelde donker/licht-tekstoverlay; geldt ook voor previews, zonder extra paginahoogte, requests of cachewijzigingen.

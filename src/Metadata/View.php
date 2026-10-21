@@ -132,7 +132,7 @@ final class View
         return '<button class="btn btn-sm btn-link metadata-link" type="button" data-tvdb-open aria-controls="metadata-drawer" aria-haspopup="dialog">Metadata link</button>';
     }
 
-    public static function hero(array $spot, array $metadata, string $actions, bool $images, bool $preview = false): string
+    public static function hero(array $spot, array $metadata, string $actions, bool $images, bool $preview = false, string $link = ''): string
     {
         $cover = $metadata['poster'];
         if ($metadata['type'] === 'episode' && $metadata['still'] !== '') $cover = $metadata['still'];
@@ -163,10 +163,19 @@ final class View
             . ', aflevering ' . (int) $metadata['requested_episode']
             . ' is niet uniek beschikbaar in de officiële ' . $providerName . '-nummering. Seizoen en aflevering zijn uit de releasetitel, niet door ' . $providerName . ' bevestigd. Er worden alleen seriemetadata getoond; corrigeer de koppeling via Metadata link.</p>';
         $copy .= \NnSpotty\UI\SpotReleaseQuality::render($spot['title']);
-        $copy .= self::attribution($metadata, $provider);
+        $trailers = $preview ? [] : self::trailerItems($metadata);
+        if ($trailers !== []) {
+            $first = $trailers[0];
+            $actions = '<a class="trailer-button" href="' . h($first['url']) . '" target="_blank" rel="noopener noreferrer" data-trailer-open'
+                . ' aria-controls="trailer-dialog" aria-haspopup="dialog" aria-label="Trailer afspelen" title="Trailer afspelen">'
+                . '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true" focusable="false">'
+                . '<path fill-rule="evenodd" d="M12 2a10 10 0 1 1 0 20a10 10 0 1 1 0-20ZM12 4.4a2 2 0 1 1 0 4a2 2 0 1 1 0-4ZM17.33 8.27a2 2 0 1 1 0 4a2 2 0 1 1 0-4ZM15.29 14.53a2 2 0 1 1 0 4a2 2 0 1 1 0-4ZM8.71 14.53a2 2 0 1 1 0 4a2 2 0 1 1 0-4ZM6.67 8.27a2 2 0 1 1 0 4a2 2 0 1 1 0-4ZM12 11.1a.9.9 0 1 1 0 1.8a.9.9 0 1 1 0-1.8Z"/><rect x="12" y="20" width="10" height="2" rx="1"/>'
+                . '</svg></a>' . $actions;
+        }
         return '<section class="spot-hero metadata-hero' . ($metadata['type'] === 'episode' ? ' episode-hero' : '') . '">'
             . SpotPresentation::backdrop($backgroundSpot, 'hero-backdrop', $images)
-            . '<div class="hero-actions" role="group" aria-label="Spotacties">' . $actions . '</div>'
+            . '<div class="hero-actions" role="group" aria-label="Spotacties"><div class="hero-sources">' . $link . self::attribution($metadata, $provider) . '</div>'
+            . '<div class="hero-buttons">' . $actions . '</div></div>'
             . '<div class="hero-poster">' . SpotPresentation::image($imageSpot, false, $images) . '</div><div class="hero-copy">' . $copy . '</div></section>'
             . '<p class="small text-body-secondary metadata-release">Oorspronkelijke spottitel: <strong>' . h($spot['title']) . '</strong></p>';
     }
@@ -201,8 +210,8 @@ final class View
             if ($source === 'tvdb') {
                 $html .= '<a class="metadata-attribution small" href="https://thetvdb.com/dereferrer/' . h($path)
                     . '" target="_blank" rel="noopener noreferrer"><span>Metadata van TheTVDB</span>'
-                    . '<img class="tvdb-logo-dark" src="/assets/images/tvdb-dark.png" width="74" height="40" alt="" aria-hidden="true">'
-                    . '<img class="tvdb-logo-light" src="/assets/images/tvdb-light.png" width="74" height="40" alt="" aria-hidden="true"></a>';
+                    . '<img class="tvdb-logo-dark" src="/assets/images/tvdb-dark.png" width="30" height="16" alt="" aria-hidden="true">'
+                    . '<img class="tvdb-logo-light" src="/assets/images/tvdb-light.png" width="30" height="16" alt="" aria-hidden="true"></a>';
             } elseif ($source === 'tmdb') {
                 $html .= '<a class="metadata-attribution small" href="https://www.themoviedb.org/' . h($path)
                     . '" target="_blank" rel="noopener noreferrer"><span>Metadata van TMDB</span>'
@@ -213,9 +222,10 @@ final class View
         return '<div class="metadata-attributions">' . $html . '</div>';
     }
 
-    public static function trailers(array $metadata): string
+    /** @return list<array{site: string, key: string, url: string, name: string}> */
+    private static function trailerItems(array $metadata): array
     {
-        $items = '';
+        $items = [];
         foreach ($metadata['trailers'] ?? [] as $trailer) {
             $site = $trailer['site'] ?? '';
             $key = $trailer['key'] ?? '';
@@ -226,14 +236,27 @@ final class View
             } else {
                 continue;
             }
-            $items .= '<a class="btn btn-sm btn-outline-secondary" href="' . h($url) . '" target="_blank" rel="noopener noreferrer" data-trailer-site="' . h($site)
-                . '" data-trailer-key="' . h($key) . '">&#9654; ' . h((string) ($trailer['name'] ?? 'Trailer')) . '</a>';
+            $items[] = ['site' => $site, 'key' => $key, 'url' => $url, 'name' => (string) ($trailer['name'] ?? 'Trailer')];
         }
-        if ($items === '') return '';
-        return '<section class="metadata-trailers mb-4" aria-label="Trailers"><h2 class="h4">Trailers</h2>'
-            . '<div class="d-flex flex-wrap gap-2">' . $items . '</div>'
-            . '<p class="small text-body-secondary mt-2">De speler laadt pas na een klik, via youtube-nocookie.com of Vimeo.</p>'
-            . '<div class="ratio ratio-16x9 trailer-frame mt-2" data-trailer-frame hidden></div></section>';
+        return $items;
+    }
+
+    public static function trailers(array $metadata): string
+    {
+        $items = self::trailerItems($metadata);
+        if ($items === []) return '';
+        $buttons = '';
+        foreach ($items as $index => $item) {
+            $buttons .= '<a class="btn btn-sm btn-outline-secondary' . ($index === 0 ? ' active' : '') . '" href="' . h($item['url'])
+                . '" target="_blank" rel="noopener noreferrer" data-trailer-site="' . h($item['site']) . '" data-trailer-key="' . h($item['key']) . '">'
+                . h($item['name']) . '</a>';
+        }
+        return '<dialog class="image-lightbox trailer-dialog" id="trailer-dialog" aria-labelledby="trailer-title">'
+            . '<div class="lightbox-toolbar"><h2 class="h6 mb-0" id="trailer-title">Trailer</h2>'
+            . '<button class="btn btn-sm btn-outline-secondary" type="button" data-trailer-close>Sluiten &times;</button></div>'
+            . '<div class="trailer-body">' . (count($items) > 1 ? '<div class="d-flex flex-wrap gap-2 mb-2">' . $buttons . '</div>' : '<div hidden>' . $buttons . '</div>')
+            . '<div class="ratio ratio-16x9 trailer-frame" data-trailer-frame hidden></div>'
+            . '<p class="small text-body-secondary mt-2 mb-0">De speler laadt pas na een klik, via youtube-nocookie.com of Vimeo.</p></div></dialog>';
     }
 
     public static function people(array $metadata, bool $images): string

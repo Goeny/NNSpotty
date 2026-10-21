@@ -62,6 +62,16 @@ check(str_contains($tmdbHtml, 'TMDB &middot; Film') && str_contains($tmdbHtml, '
     && str_contains($tmdbHtml, 'data-trailer-key="trailerKEY1"') && str_contains($tmdbHtml, 'Official Trailer &lt;b&gt;')
     && str_contains($tmdbHtml, 'data-trailer-frame hidden') && !str_contains($tmdbHtml, '<iframe'),
     'Detail toont score, classificatie, beide attributies, TMDB-vermelding en trailers die pas na klik laden');
+$tmdbDom = new DOMDocument();
+$tmdbDom->loadHTML('<?xml encoding="UTF-8">' . \NnSpotty\UI\SpotDetailPageRenderer::summary($tmdbMovie, false, true, true, $tmdbMeta, true), LIBXML_NOERROR | LIBXML_NOWARNING);
+$tmdbXpath = new DOMXPath($tmdbDom);
+check($tmdbXpath->query('//div[@class="hero-actions"]/div[@class="hero-buttons"]/a[@data-trailer-open and @aria-label="Trailer afspelen"]/svg')->length === 1
+    && $tmdbXpath->query('//div[@class="hero-actions"]/div[@class="hero-sources"]/button[@data-tvdb-open]')->length === 1
+    && $tmdbXpath->query('//div[@class="hero-sources"]//a[contains(@class,"metadata-attribution")]')->length === 2
+    && $tmdbXpath->query('//div[@class="hero-copy"]//*[contains(@class,"metadata-attribution")]')->length === 0
+    && $tmdbXpath->query('//section[contains(@class,"spot-hero")]//dialog')->length === 0
+    && $tmdbXpath->query('//dialog[@id="trailer-dialog"]//a[@data-trailer-key="trailerKEY1"]')->length === 1,
+    'Trailericoon staat bij de heroknoppen, attributie naast Metadata link en speler in een dialoog buiten de hero');
 check(!str_contains(\NnSpotty\UI\SpotDetailPageRenderer::summary($tmdbMovie, true, true, true, $tmdbMeta), 'data-trailer-key'),
     'Preview toont geen trailers');
 $tmdbDrawer = MetadataView::controls($tmdbMovie, true, '', $tmdbRepo);

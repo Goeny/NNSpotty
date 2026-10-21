@@ -1,14 +1,11 @@
 (() => {
     'use strict';
     // Trailers load only after an explicit click (privacy-friendly youtube-nocookie / Vimeo embed).
-    document.addEventListener('click', event => {
-        const link = event.target.closest('[data-trailer-key]');
-        if (!link) return;
+    function playTrailer(dialog, link) {
         const site = link.dataset.trailerSite;
         const key = link.dataset.trailerKey;
-        const frame = document.querySelector('[data-trailer-frame]');
-        if (!frame || !((site === 'YouTube' && /^[A-Za-z0-9_-]{6,20}$/.test(key)) || (site === 'Vimeo' && /^\d{1,12}$/.test(key)))) return;
-        event.preventDefault();
+        const frame = dialog.querySelector('[data-trailer-frame]');
+        if (!frame || !((site === 'YouTube' && /^[A-Za-z0-9_-]{6,20}$/.test(key)) || (site === 'Vimeo' && /^\d{1,12}$/.test(key)))) return false;
         const iframe = document.createElement('iframe');
         iframe.src = site === 'YouTube'
             ? `https://www.youtube-nocookie.com/embed/${encodeURIComponent(key)}?autoplay=1`
@@ -19,8 +16,42 @@
         iframe.referrerPolicy = 'strict-origin-when-cross-origin';
         frame.replaceChildren(iframe);
         frame.hidden = false;
-        document.querySelectorAll('[data-trailer-key]').forEach(item => item.classList.toggle('active', item === link));
-        frame.scrollIntoView({block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+        dialog.querySelector('#trailer-title').textContent = iframe.title;
+        dialog.querySelectorAll('[data-trailer-key]').forEach(item => item.classList.toggle('active', item === link));
+        return true;
+    }
+    function stopTrailer(dialog) {
+        const frame = dialog.querySelector('[data-trailer-frame]');
+        if (frame) {
+            frame.replaceChildren();
+            frame.hidden = true;
+        }
+    }
+    let trailerTrigger = null;
+    document.addEventListener('click', event => {
+        const dialog = document.getElementById('trailer-dialog');
+        if (!dialog || typeof dialog.showModal !== 'function') return;
+        const open = event.target.closest('[data-trailer-open]');
+        const choice = event.target.closest('[data-trailer-key]');
+        if (open) {
+            const first = dialog.querySelector('[data-trailer-key]');
+            if (!first || !playTrailer(dialog, first)) return;
+            event.preventDefault();
+            trailerTrigger = open;
+            if (!dialog.open) dialog.showModal();
+            if (!dialog.dataset.bound) {
+                dialog.dataset.bound = '1';
+                dialog.addEventListener('close', () => {
+                    stopTrailer(dialog);
+                    if (trailerTrigger && trailerTrigger.isConnected) trailerTrigger.focus();
+                });
+                dialog.addEventListener('click', clickEvent => {
+                    if (clickEvent.target === dialog || clickEvent.target.closest('[data-trailer-close]')) dialog.close();
+                });
+            }
+        } else if (choice && dialog.contains(choice) && playTrailer(dialog, choice)) {
+            event.preventDefault();
+        }
     });
     const panel = document.querySelector('[data-tvdb]');
     const content = document.querySelector('[data-tvdb-content]');
