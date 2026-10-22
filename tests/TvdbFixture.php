@@ -6,6 +6,7 @@ final class TvdbFixture implements \NnSpotty\Metadata\Gateway
 {
     public array $calls = [];
     public bool $fail = false;
+    public array $failPaths = [];
     public array $searchResults = [];
     public bool $missingEpisode = false;
     public ?string $overview = null;
@@ -13,7 +14,7 @@ final class TvdbFixture implements \NnSpotty\Metadata\Gateway
     public function get(string $path, array $query = []): ?array
     {
         $this->calls[] = [$path, $query];
-        if ($this->fail) throw new RuntimeException('Synthetic provider outage');
+        if ($this->fail || in_array($path, $this->failPaths, true)) throw new RuntimeException('Synthetic provider outage');
         if ($path === '/search') return $this->searchResults;
         if ($path === '/search/remoteid/tt1234567') return [['movie' => ['id' => 1]]];
         if ($path === '/artwork/types') return [

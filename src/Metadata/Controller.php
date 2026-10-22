@@ -103,6 +103,7 @@ final class Controller
             if (!$repo->allowed($user['username'])) return Response::privateJson(['error' => 'Film-/seriemetadata is intussen uitgeschakeld.'], 403);
             $content = $this->state->spotContentSettings();
             return Response::privateJson(['state' => $result['state'], 'message' => View::message($result),
+                'warning' => !empty($result['warnings']),
                 'html' => SpotDetailPageRenderer::summary($spot, false, $content['images_enabled'], $content['show_comments'], $result['metadata'] ?? null, true)],
                 $result['state'] === 'error' ? 502 : 200);
         } catch (InvalidArgumentException $exception) {

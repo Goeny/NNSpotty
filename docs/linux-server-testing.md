@@ -238,6 +238,16 @@ php -l src/Moderation/SpotterIdentity.php
 
 De suite blijft op een blokkerende runtime expliciet falen; geen overgeslagen cryptografietests of geslaagde fallback. Een onderbroken historische retrieve met dezelfde eerder gebruikte full/days/all-modus hervatten, niet blind naar since-last wisselen. Eventuele hercontrole van al opgeslagen spots is een afzonderlijke refresh-beslissing; geen databasegegevens/cursors wissen.
 
+Op `nnspotty.hopseflop.nl` is eerder een aparte OpenSSL-configuratie voor PHP ingericht. Een losse `php tests/run.php` gebruikt die niet automatisch. Gebruik vanuit de deploymap de bedoelde PHP-runtime en de bestaande configuratie:
+
+```bash
+test -r /home/hopseflop/.config/nnspotty/openssl.cnf
+OPENSSL_CONF=/home/hopseflop/.config/nnspotty/openssl.cnf \
+    /opt/remi/php84/root/usr/bin/php tests/run.php
+```
+
+Dit maakt of wijzigt geen OpenSSL-configuratie en verlaagt geen systeembeleid. Ontbreekt het bestand of blijft RSA/SHA1 geblokkeerd, laat de beheerder de configuratie en de bovenstaande diagnostiek controleren; de omgevingsvariabele alleen garandeert geen herstel. Een CLI-instelling configureert PHP-FPM niet. Een HTTP 302 naar `/spots` bevestigt alleen dat de webroute reageert, niet dat RSA/SHA1 werkt.
+
 ### Schone Spotlist-installatie en retrieve
 
 Voor de afgesproken schone spotinstallatie moeten spotdata **en bijbehorende spot-/commentcursors** coherent leeg zijn voordat je opnieuw begint. Er wordt hier bewust geen destructief leegmaakcommando gegeven. Stel in admin eerst retentie/begindatum/groepen goed in. Start pas na geslaagde sync/activatie:
@@ -1052,6 +1062,30 @@ Ververs de browsercache. Open `/admin#metadata`: subtabs Providers, Films, Serie
 ```bash
 tail -n 50 /home/hopseflop/domains/nnspotty.hopseflop.nl/logs/php_log
 ```
+
+### Automatische terugval tussen TheTVDB en TMDB
+
+Voor deze wijziging is geen nieuwe migratie, retrieve of cacheflush nodig. Oude automatische/negatieve resultaten worden bij het volgende detailbezoek opnieuw beoordeeld; handmatige keuzes en blokkeringen blijven behouden. Als deploygebruiker:
+
+```bash
+cd /home/hopseflop/domains/nnspotty.hopseflop.nl/public_html
+git pull --ff-only origin main
+test -r /home/hopseflop/.config/nnspotty/openssl.cnf
+OPENSSL_CONF=/home/hopseflop/.config/nnspotty/openssl.cnf \
+    /opt/remi/php84/root/usr/bin/php tests/run.php
+curl -fsS https://nnspotty.hopseflop.nl/health
+```
+
+Controleer met beide providers ingeschakeld en een persoonlijke opt-in:
+
+1. Een film/serie die de voorkeursprovider uniek vindt blijft bij die provider. Ontbrekende gegevens worden zo mogelijk via externe IDs aangevuld, met attributie voor daadwerkelijk gebruikte bronnen.
+2. Een titel zonder unieke match bij de voorkeursprovider, maar met een unieke match bij de andere, krijgt automatisch die andere metadata. **Metadata link** benoemt de terugval. Test beide voorkeursvolgordes voor films en series.
+3. Een serie waarvan alleen de andere provider het gevraagde seizoen/aflevering kent krijgt die exacte aflevering. Ontbreekt die bij beide, dan alleen de eerst gevonden serie met de bestaande onbevestigde-afleveringsmelding.
+4. Handmatig gekoppelde records blijven gekoppeld; een providerstoring vervangt die keuze niet. Een blokkering doet geen providerrequests. Schakel de tweede provider uit: geen tweede poging.
+5. Providerstoring: bruikbare metadata van de andere provider blijft zichtbaar, met een waarschuwing in het paneel en een gemarkeerde Metadata link. Zonder bruikbaar resultaat blijft het een fout. Resultaten met een waarschuwing vernieuwen na vijf minuten; geen snelle retrylus. Een volgende geslaagde controle wist de waarschuwing.
+6. Heropen de spot: matchcache; open de kleine preview: geen externe zoekactie. Controleer de oorspronkelijke omschrijving, NZB/SAB-acties en bronvermelding.
+
+De database- en HTTP-regressies voor deze gevallen zitten in `tests/metadata-fallback-integration.php`, `tests/tmdb-integration.php` en `tests/tvdb-http.php`; voer `php tests/run.php --integration` uitsluitend met de afzonderlijke `NNSPOTTY_TEST_*`-testdatabase uit (en dezelfde `OPENSSL_CONF` als die nodig is).
 
 ## Overzichtsindex, drill-down en woordzoeken accepteren
 

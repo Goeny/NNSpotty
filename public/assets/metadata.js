@@ -158,6 +158,14 @@
                 if (typeof data.html !== 'string' || typeof data.message !== 'string') throw new Error(`Ongeldige ${provider}-presentatie.`);
                 replaceContent(data.html);
                 status.textContent = data.message;
+                if (data.warning === true) {
+                    status.className = 'alert alert-warning mt-2';
+                    const opener = content.querySelector('[data-tvdb-open]');
+                    if (opener) {
+                        opener.classList.add('text-warning');
+                        opener.setAttribute('aria-label', provider + ' link: ' + data.message);
+                    }
+                }
             }
         } catch (error) {
             status.className = 'alert alert-warning mt-2';

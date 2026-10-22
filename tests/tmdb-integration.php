@@ -40,6 +40,7 @@ $tmdbMovie['category'] = 'Beeld';
 $tmdbMovie['subcategories'] = ['1z00'];
 $spots->saveSpot($tmdbMovie, 'free.pt');
 $tvdbApi = new TvdbFixture();
+$tvdbApi->searchResults = [TvdbFixture::candidate()];
 $tmdbApi = new TmdbFixture();
 $tmdbApi->moviePoster = false;
 $tmdbService = new MetadataService($tmdbRepo, $tvdbApi, $tmdbApi);
@@ -129,6 +130,8 @@ rejects(static fn () => $tmdbService->choose($tmdbEpisode, ['id' => 700, 'type' 
     'Onvindbare handmatige TMDB-aflevering wordt geweigerd');
 $tmdbRepo->saveProvider('series', 'tvdb');
 
+require __DIR__ . '/metadata-fallback-integration.php';
+
 $tmdbApi->fail = true;
 $tmdbFailing = $tmdbMovie;
 $tmdbFailing['title'] = 'Fixture.Movie.2020.720p.WEB';
@@ -136,14 +139,18 @@ $tmdbFailing['id'] = hash('sha256', 'tmdb-failing');
 $tmdbFailing['message_id'] = 'tmdb-failing@example.invalid';
 $spots->saveSpot($tmdbFailing, 'free.pt');
 $pdo->exec('DELETE FROM tvdb_cache');
-check($tmdbService->lookup($tmdbFailing)['state'] === 'error', 'TMDB-storing geeft expliciete foutstatus en laat de spot intact');
+$tmdbFallbackResult = $tmdbService->lookup($tmdbFailing);
+check($tmdbFallbackResult['state'] === 'matched' && $tmdbFallbackResult['metadata']['provider'] === 'tvdb'
+    && $tmdbFallbackResult['fallback_from'] === 'tmdb' && count($tmdbFallbackResult['warnings']) === 1,
+    'TMDB-storing valt terug op TVDB met expliciete waarschuwing en laat de spot intact');
 $tmdbApi->fail = false;
 $tvdbApi->fail = true;
 $pdo->exec('DELETE FROM tvdb_cache');
 $tmdbRepo->choose($tmdbFailing['id'], 'stale', null);
 $partial = $tmdbService->lookup($tmdbFailing);
-check($partial['state'] === 'matched' && $partial['metadata']['provider'] === 'tmdb' && !isset($partial['metadata']['links']['tvdb']),
-    'Storing bij de aanvullende provider breekt het primaire resultaat niet');
+check($partial['state'] === 'matched' && $partial['metadata']['provider'] === 'tmdb' && !isset($partial['metadata']['links']['tvdb'])
+    && count($partial['warnings']) === 1 && str_contains(MetadataView::message($partial), 'Aanvullen via TVDB is mislukt'),
+    'Storing bij de aanvullende provider breekt het primaire resultaat niet en blijft zichtbaar');
 $tvdbApi->fail = false;
 
 $tmdbRepo->saveSettings(false, '', '', 'nld');

@@ -68,15 +68,15 @@ final class View
         $state = $effective === null ? 'Geen provider ingeschakeld; er worden geen ' . $label . 'metadata opgehaald.'
             : ($effective === $primary ? 'Actief: ' . $names[$primary] . ' als primaire provider.'
             : $names[$primary] . ' is niet ingeschakeld; ' . $names[$effective] . ' wordt nu als primaire provider gebruikt.');
-        $other = $primary === 'tvdb' ? 'tmdb' : 'tvdb';
         return '<section class="card my-4" id="metadata-provider-' . $type . '"><div class="card-header">Metadata voor ' . $label . '</div><div class="card-body">'
             . '<form method="post" action="/metadata">' . $csrf . '<input type="hidden" name="action" value="provider"><input type="hidden" name="type" value="' . $type . '">'
             . '<label class="form-label" for="metadata-provider-select-' . $type . '">Primaire provider</label>'
             . '<select class="form-select" id="metadata-provider-select-' . $type . '" name="provider">'
             . '<option value="tmdb"' . ($primary === 'tmdb' ? ' selected' : '') . '>TMDB (The Movie Database)</option>'
             . '<option value="tvdb"' . ($primary === 'tvdb' ? ' selected' : '') . '>TheTVDB</option></select>'
-            . '<p class="form-text">' . h($state) . ' De primaire provider bepaalt de match, titel en synopsis. Is ' . $names[$other]
-            . ' ook ingeschakeld, dan vult die ontbrekende gegevens aan (bijv. poster, score, classificatie, trailers, cast) via IMDb-/TVDB-ID&#39;s, nooit op titel. Wijzigen bepaalt bestaande automatische matches opnieuw; handmatige keuzes blijven bij hun provider zolang die is ingeschakeld.</p>'
+            . '<p class="form-text">' . h($state) . ' Eerst wordt de primaire provider geprobeerd. Zonder unieke match, bij een fout of ontbrekende aflevering wordt ook de andere ingeschakelde provider geprobeerd. '
+            . 'Een geslaagde match bepaalt de titel en synopsis; de andere ingeschakelde provider'
+            . ' kan ontbrekende gegevens aanvullen (bijv. poster, score, classificatie, trailers, cast) via IMDb-/TVDB-ID&#39;s, nooit alleen op titel. Wijzigen bepaalt bestaande automatische matches opnieuw; handmatige keuzes blijven bij hun provider zolang die is ingeschakeld.</p>'
             . '<button class="btn btn-primary" type="submit">Provider voor ' . $label . ' opslaan</button></form>'
             . '<p class="form-text mt-3">Alleen overtuigende titels worden automatisch gekoppeld; films vereisen ook een overeenkomend jaar. Onduidelijke titels blijven origineel. Data wordt zeven dagen gecachet, zoekresultaten en ontbrekende matches een dag; fouten vijf minuten. Geen massale backfill tijdens retrieval.</p>'
             . '</div></section>';
@@ -284,15 +284,19 @@ final class View
 
     public static function message(array $result): string
     {
-        return match ($result['state']) {
+        $providers = implode(' of ', array_map(self::name(...), $result['providers'] ?? [$result['provider'] ?? 'tvdb']));
+        $message = match ($result['state']) {
             'matched' => ($result['manual'] ? 'Handmatig gekoppeld aan ' : 'Automatisch gekoppeld aan ') . self::name($result['metadata']['provider'] ?? 'tvdb') . '.',
-            'ambiguous' => 'Geen overtuigende unieke ' . self::name($result['provider'] ?? 'tvdb') . '-match. De oorspronkelijke spot wordt getoond; een bevoegde gebruiker kan de match kiezen.',
-            'unmatched' => 'Geen ' . self::name($result['provider'] ?? 'tvdb') . '-resultaat gevonden. De oorspronkelijke spot wordt getoond.',
+            'ambiguous' => 'Geen overtuigende unieke ' . $providers . '-match. De oorspronkelijke spot wordt getoond; een bevoegde gebruiker kan de match kiezen.',
+            'unmatched' => 'Geen ' . $providers . '-resultaat gevonden. De oorspronkelijke spot wordt getoond.',
             'blocked' => 'Een admin heeft metadata voor deze spot uitgeschakeld.',
             'busy' => 'Film-/seriemetadata wordt al opgehaald. Controleer over enkele seconden opnieuw.',
-            'error' => $result['message'],
+            'error' => $result['message'] ?? 'Metadata kon niet worden opgehaald. De oorspronkelijke spot blijft beschikbaar.',
             default => 'Deze spot heeft geen herkenbare film- of serietitel.',
         };
+        if (isset($result['fallback_from'])) $message .= ' Terugval vanaf ' . self::name($result['fallback_from']) . '.';
+        if (!empty($result['warnings'])) $message .= ' ' . implode(' ', $result['warnings']);
+        return $message;
     }
 
     private static function name(string $provider): string

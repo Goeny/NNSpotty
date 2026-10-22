@@ -18,7 +18,9 @@ final class Fixtures
         if (!openssl_sign('<' . $id . '>', $signature, $key, OPENSSL_ALGO_SHA1)) {
             throw new RuntimeException('Ondertekenen van RSA/SHA1-testfixture mislukt. '
                 . 'Controleer de OpenSSL-providerconfiguratie en het cryptografiebeleid van PHP; '
-                . 'deze tests vereisen RSA/SHA1-ondertekening en -verificatie.');
+                . 'start de tests met OPENSSL_CONF als de hoster een aparte configuratie heeft ingericht '
+                . '(zie docs/linux-server-testing.md#openssl-diagnostiek). '
+                . 'Deze tests vereisen RSA/SHA1-ondertekening en -verificatie.');
         }
         return self::headers($id) . "\r\nX-User-Key: <RSAKeyValue><Modulus>" . base64_encode($details['rsa']['n'])
             . '</Modulus><Exponent>' . base64_encode($details['rsa']['e']) . "</Exponent></RSAKeyValue>\r\nX-User-Signature: "

@@ -21,7 +21,7 @@ final class Service
 
     public static function matchSignature(array $spot, string $profile): string
     {
-        return self::signature($spot, $profile . ':release-v3');
+        return self::signature($spot, $profile . ':release-v4');
     }
 
     public function search(string $query, string $type, ?string $provider = null): array
@@ -77,22 +77,50 @@ final class Service
             } else {
                 $provider = $choice !== null ? ($choice['provider'] ?? 'tvdb') : $this->repo->effectiveProvider($release['type']);
                 if ($provider === null) throw new RuntimeException('Geen film-/seriemetadataprovider ingeschakeld.');
-                $selected = $choice;
-                $candidates = [];
-                if ($selected === null) {
-                    $candidates = $this->search($release['query'], $release['type'], $provider);
-                    $selected = Release::select($release, $candidates);
+                $providers = [$provider];
+                $secondary = $provider === 'tvdb' ? 'tmdb' : 'tvdb';
+                if ($choice === null && $this->repo->providerEnabled($secondary)) $providers[] = $secondary;
+                $metadata = null;
+                $found = false;
+                $warnings = [];
+                $failed = [];
+                foreach ($providers as $attempt) {
+                    try {
+                        $selected = $choice;
+                        if ($selected === null) {
+                            $candidates = $this->search($release['query'], $release['type'], $attempt);
+                            $found = $found || $candidates !== [];
+                            $selected = Release::select($release, $candidates);
+                        }
+                        if ($selected === null) continue;
+                        $details = $this->details($attempt, $selected['type'], $selected['id'], $choice ?? $release);
+                        // Keep the preferred series if neither provider knows the requested episode.
+                        if ($metadata === null || !($details['episode_missing'] ?? false)) $metadata = $details;
+                        if ($choice !== null || !($details['episode_missing'] ?? false)) break;
+                    } catch (\PDOException $exception) {
+                        throw $exception;
+                    } catch (Throwable $exception) {
+                        error_log('Metadata ophalen via ' . strtoupper($attempt) . ': ' . $exception->getMessage());
+                        $warnings[] = strtoupper($attempt) . ' kon niet worden opgehaald. Controleer de providertoegang en serverlog; probeer over vijf minuten opnieuw.';
+                        $failed[] = $attempt;
+                    }
                 }
-                if ($selected === null) {
-                    $result = ['state' => $candidates === [] ? 'unmatched' : 'ambiguous', 'query' => $release['query'], 'provider' => $provider];
+                if ($metadata === null) {
+                    $result = ['state' => $warnings !== [] ? 'error' : ($found ? 'ambiguous' : 'unmatched'),
+                        'query' => $release['query'], 'provider' => $provider, 'providers' => $providers];
                 } else {
-                    $metadata = $this->details($provider, $selected['type'], $selected['id'], $choice ?? $release);
+                    $matchedProvider = $metadata['provider'];
+                    $other = $matchedProvider === 'tvdb' ? 'tmdb' : 'tvdb';
                     $result = ['state' => 'matched', 'manual' => $choice !== null,
-                        'metadata' => $this->complement($provider, $metadata)];
+                        'metadata' => in_array($other, $failed, true) ? $metadata : $this->complement($matchedProvider, $metadata, $warnings)];
+                    if ($matchedProvider !== $provider) $result['fallback_from'] = $provider;
                 }
+                if ($warnings !== []) $result['warnings'] = $warnings;
             }
-            $this->repo->result($spot['id'], $hash, $result, $result['state'] === 'matched' ? 604800 : 86400);
+            $this->repo->result($spot['id'], $hash, $result, !empty($result['warnings']) ? 300 : ($result['state'] === 'matched' ? 604800 : 86400));
             return $result;
+        } catch (\PDOException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             error_log('Film-/seriemetadata: ' . $exception->getMessage());
             $result = ['state' => 'error', 'message' => 'Metadata kon niet worden opgehaald. De oorspronkelijke spot blijft beschikbaar. Probeer over vijf minuten opnieuw.'];
@@ -139,7 +167,7 @@ final class Service
     }
 
     /** Fill gaps from the other enabled provider, linked via external IDs only (never by title). */
-    private function complement(string $primary, array $metadata): array
+    private function complement(string $primary, array $metadata, array &$warnings): array
     {
         $secondary = $primary === 'tvdb' ? 'tmdb' : 'tvdb';
         if (!$this->repo->providerEnabled($secondary)) return $metadata;
@@ -160,8 +188,11 @@ final class Service
                 $other = $this->tvdbDetails($kind, $id, $this->repo->settings()['language'], $context);
             }
             return self::merge($metadata, $other);
+        } catch (\PDOException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             error_log('Metadata aanvullen via ' . strtoupper($secondary) . ': ' . $exception->getMessage());
+            $warnings[] = 'Aanvullen via ' . strtoupper($secondary) . ' is mislukt. De gevonden metadata blijft beschikbaar; probeer over vijf minuten opnieuw.';
             return $metadata;
         }
     }

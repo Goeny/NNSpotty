@@ -81,6 +81,26 @@ check(str_contains($data['html'], 'data-favorite="' . $httpMetaSpot['id'] . '" a
 check($loaded['status'] === 200 && $data['state'] === 'matched' && str_contains($data['html'], 'metadata-hero')
     && str_contains($data['html'], 'Cast &amp; Crew') && in_array('Cache-Control: private, no-store', $loaded['headers'], true),
     'HTTP-metadata levert veilige verrijkte hero en cast uit gedeelde databasecache');
+check($data['warning'] === false, 'HTTP-metadata zonder providerstoring heeft geen waarschuwingsstatus');
+$warningResult = $previewMatch['result_json'];
+$warningResult['warnings'] = ['Aanvullen via TMDB is mislukt. Probeer over vijf minuten opnieuw.'];
+$tvdbRepo->result($httpMetaSpot['id'], $previewMatch['input_hash'], $warningResult, 300);
+$warningResponse = $tvdbPost(['action' => 'load', 'id' => $httpMetaSpot['id']], true);
+$warningData = json_decode($warningResponse['body'], true, 64, JSON_THROW_ON_ERROR);
+check($warningResponse['status'] === 200 && $warningData['warning'] === true
+    && str_contains($warningData['message'], 'Aanvullen via TMDB is mislukt')
+    && str_contains($warningData['html'], 'metadata-hero'),
+    'HTTP-deelresultaat bewaart hero en geeft providerwaarschuwing door voor de statusalert');
+$tvdbRepo->result($httpMetaSpot['id'], $previewMatch['input_hash'], [
+    'state' => 'error', 'warnings' => ['TVDB kon niet worden opgehaald.', 'TMDB kon niet worden opgehaald.'],
+], 300);
+$failedResponse = $tvdbPost(['action' => 'load', 'id' => $httpMetaSpot['id']], true);
+$failedData = json_decode($failedResponse['body'], true, 64, JSON_THROW_ON_ERROR);
+check($failedResponse['status'] === 502 && $failedData['warning'] === true && $failedData['state'] === 'error'
+    && str_contains($failedData['message'], 'TVDB kon niet worden opgehaald.')
+    && str_contains($failedData['message'], 'TMDB kon niet worden opgehaald.'),
+    'HTTP-providerfouten blijven een 502 met beide waarschuwingen, geen lege succesvolle match');
+$tvdbRepo->result($httpMetaSpot['id'], $previewMatch['input_hash'], $previewMatch['result_json'], 604800);
 check(str_contains($data['html'], 'data-tvdb-open') && str_contains($data['html'], 'metadata-attribution')
     && !str_contains($data['html'], '<dialog'), 'Asynchrone vervanging behoudt heropenbare link en attributie zonder paneel te dupliceren');
 check(str_contains($data['html'], 'class="release-quality"') && str_contains($data['html'], '1080p')
