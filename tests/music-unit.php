@@ -105,6 +105,63 @@ check(MusicRelease::select(MusicRelease::parse($musicSpot), [$beckSingle, $beckA
     'Gelijknamig album wint van single met dezelfde artiest/titel/jaar');
 check(MusicRelease::select(MusicRelease::parse($musicSpot), [$beckAlbum, array_replace($beckAlbum, ['id' => $otherMusic['id']])]) === null,
     'Twee gelijke albums blijven ambigu');
+foreach ([
+    'Hilary Duff-Holiday Things-EP-24BIT-WEB-FLAC-2026-ENRiCH' => ['Hilary Duff', 'Holiday Things', '2026', false, 'EP'],
+    'Amy Winehouse-Back To Black-(20th Anniversary Deluxe Edition)-3CD-2026-C4' => ['Amy Winehouse', 'Back To Black', '2026', false, null],
+    'Diverse Artiesten - 538 Dance Smash Hits 1997-vol.2 in DTS-HD-*HRA* ( OV )' => ['Various Artists', '538 Dance Smash Hits 1997-vol 2', null, true, null],
+    'Miranda Lambert - Crisco (2026) [Hi-Res]' => ['Miranda Lambert', 'Crisco', '2026', true, null],
+    'V.A. - Dance Hits (2020) MP3' => ['Various Artists', 'Dance Hits', '2020', true, null],
+    'VA-Dance_Hits-2CD-2020-GROUP' => ['Various Artists', 'Dance Hits', '2020', false, null],
+    'Verschillende Artiesten - Dance Hits FLAC' => ['Various Artists', 'Dance Hits', null, true, null],
+    'Dance Hits - Various Artists (2020) FLAC' => ['Various Artists', 'Dance Hits', '2020', true, null],
+    'Fixture Artist - Fixture Album (Remastered 2015) FLAC' => ['Fixture Artist', 'Fixture Album', null, false, null],
+    'Fixture Artist - Fixture Album - Single (2020)' => ['Fixture Artist', 'Fixture Album', '2020', true, 'Single'],
+    'Artist-Album-2026-GRP' => ['Artist', 'Album', '2026', false, null],
+] as $musicTitle => [$expectedArtist, $expectedAlbum, $expectedYear, $expectedExact, $expectedKind]) {
+    $musicSpot['title'] = $musicTitle;
+    $musicParsed = MusicRelease::parse($musicSpot);
+    check($musicParsed !== null && $musicParsed['auto'] && $musicParsed['artist'] === $expectedArtist
+        && $musicParsed['title'] === $expectedAlbum && $musicParsed['year'] === $expectedYear
+        && $musicParsed['year_exact'] === $expectedExact && $musicParsed['kind'] === $expectedKind,
+        'Rommelige muziektitel wordt opgeschoond tot artiest/album/jaarhint/type: ' . $musicTitle);
+}
+$realMusic = static fn (string $id, string $artist, string $title, string $year, string $kind, array $artists = []): array => [
+    'type' => 'release-group', 'id' => $id, 'artist' => $artist, 'artists' => $artists, 'names' => [$title], 'year' => $year, 'kind' => $kind];
+$musicSpot['title'] = 'Hilary Duff-Holiday Things-EP-24BIT-WEB-FLAC-2026-ENRiCH';
+$duffEp = $realMusic('adc5b48a-8302-4e6b-96b6-934981669203', 'Hilary Duff', 'Holiday Things', '2026', 'EP');
+check(MusicRelease::select(MusicRelease::parse($musicSpot), [$duffEp]) === $duffEp, 'Scene-EP koppelt aan MusicBrainz-EP');
+$musicSpot['title'] = 'Amy Winehouse-Back To Black-(20th Anniversary Deluxe Edition)-3CD-2026-C4';
+$amyAlbum = $realMusic('6eac2e57-ee50-36f8-b0c4-c4c847a2c098', 'Amy Winehouse', 'Back to Black', '2006', 'Album');
+$amySingle = $realMusic('395c3c5d-a677-3c1f-ac1f-1beff237f62d', 'Amy Winehouse', 'Back to Black', '2007', 'Single');
+check(MusicRelease::select(MusicRelease::parse($musicSpot), [$amySingle, $amyAlbum]) === $amyAlbum,
+    'Jubileumeditie uit 2026 koppelt aan oorspronkelijke albumgroep uit 2006, niet aan de single');
+$amyFuture = array_replace($amyAlbum, ['year' => '2027']);
+check(MusicRelease::select(MusicRelease::parse($musicSpot), [$amyFuture]) === null,
+    'Scene-/editiejaar accepteert geen albumgroep die pas later verscheen');
+$musicSpot['title'] = 'Diverse Artiesten - 538 Dance Smash Hits 1997-vol.2 in DTS-HD-*HRA* ( OV )';
+$smashVol2 = $realMusic('0a174484-7624-3fe3-a089-61fb0a9e4dc0', 'Various Artists', '538 Dance Smash Hits 1997, Volume 2', '1997', 'Album');
+$smashVol1 = array_replace($smashVol2, ['id' => $otherMusic['id'], 'names' => ['538 Dance Smash Hits 1997, Volume 1']]);
+check(MusicRelease::select(MusicRelease::parse($musicSpot), [$smashVol1, $smashVol2]) === $smashVol2,
+    'Verzamelalbum met Diverse Artiesten en vol.2 koppelt aan Various Artists "Volume 2", niet aan volume 1');
+$musicSpot['title'] = 'Miranda Lambert - Crisco (2026) [Hi-Res]';
+$criscoAlbum = $realMusic('658150db-909b-4c96-98e8-c10bdee302e0', 'Miranda Lambert', 'Crisco', '2026', 'Album');
+$criscoSingle = $realMusic('b32986fd-83dd-43d7-bea9-6aae6b403014', 'Miranda Lambert', 'Crisco', '2026', 'Single');
+check(MusicRelease::select(MusicRelease::parse($musicSpot), [$criscoSingle, $criscoAlbum]) === $criscoAlbum,
+    'Hi-Res-album wint van gelijknamige single');
+$musicSpot['title'] = 'Miranda Lambert - Crisco - Single (2026)';
+check(MusicRelease::select(MusicRelease::parse($musicSpot), [$criscoAlbum, $criscoSingle]) === $criscoSingle,
+    'Expliciete Single-hint kiest de single boven het gelijknamige album');
+$musicSpot['title'] = 'Hillary Duff - Holiday Things (2026)';
+$duffAlias = array_replace($duffEp, ['artists' => ['Hilary Duff', 'Hillary Duff']]);
+check(MusicRelease::select(MusicRelease::parse($musicSpot), [$duffAlias]) === $duffAlias
+    && MusicRelease::select(MusicRelease::parse($musicSpot), [$duffEp]) === null,
+    'Artiestalias uit MusicBrainz telt als artiestidentiteit, zonder alias geen gok');
+$musicSpot['title'] = 'Various Artists - Top 40 Hits 1997 FLAC';
+$top40 = $realMusic('55555555-5555-4555-8555-555555555555', 'Various Artists', 'Top 40 Hits 1997', '1998', 'Album');
+check(MusicRelease::select(MusicRelease::parse($musicSpot), [$top40]) === $top40,
+    'Jaartal dat deel is van de verzameltitel blokkeert de koppeling niet');
+check(MusicRelease::various('V.A.') && MusicRelease::various('Diverse Artiesten') && MusicRelease::various('VA')
+    && MusicRelease::various('Various') && !MusicRelease::various('Vanessa Amorosi'), 'Verzamelaliassen worden herkend zonder echte artiesten te raken');
 $fanartUrl = 'https://assets.fanart.tv/fanart/music/11111111-1111-4111-8111-111111111111/artistbackground/fixture.jpg';
 check(\NnSpotty\Music\Fanart::imageUrl(str_replace('https:', 'http:', $fanartUrl)) === $fanartUrl,
     'Fanart-afbeeldingen worden uitsluitend via HTTPS gepubliceerd');

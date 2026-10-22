@@ -51,20 +51,60 @@ final class Service
         }
         $parsed = $type === 'release-group' ? Release::parseTitle($query) : null;
         if ($parsed !== null && $parsed['auto'] && $parsed['type'] !== 'artist') {
-            // Broaden discovery, not identity: automatic selection still checks the full live title.
-            $title = trim(preg_replace('/\s*[\[(](?:live|concert)\b[^)\]]*[)\]]$/i', '', $parsed['title']));
-            if ($title === '') $title = $parsed['title'];
-            $terms = 'artist:' . self::quoted($parsed['artist']) . ' AND releasegroup:' . self::quoted($title);
-            $parameters = ['query' => $terms, 'limit' => 25];
-        } else {
-            $parameters = ['query' => trim($query), 'dismax' => 'true', 'limit' => 25];
-        }
-        $data = $this->cached($type, null, $parameters);
-        $key = match ($type) { 'artist' => 'artists', 'release' => 'releases', default => 'release-groups' };
-        if (isset($terms) && ($data[$key] ?? null) === []) {
+            [$strict, $relaxed] = self::queries($parsed);
+            $results = $this->rows($type, $this->cached($type, null, $strict));
             // Strict field search misses slightly different credits/titles; identity is still checked by select().
-            $data = $this->cached($type, null, ['query' => $parsed['artist'] . ' ' . $title, 'dismax' => 'true', 'limit' => 25]);
+            return $results === [] ? $this->rows($type, $this->cached($type, null, $relaxed)) : $results;
         }
+        return $this->rows($type, $this->cached($type, null, ['query' => trim($query), 'dismax' => 'true', 'limit' => 25]));
+    }
+
+    /** @return array{0: array, 1: array} strict field query and relaxed dismax query */
+    private static function queries(array $release): array
+    {
+        // Broaden discovery, not identity: automatic selection still checks the full live title.
+        $title = trim(preg_replace('/\s*[\[(](?:live|concert)\b[^)\]]*[)\]]$/i', '', $release['title']));
+        if ($title === '') $title = $release['title'];
+        return [
+            ['query' => 'artist:' . self::quoted($release['artist']) . ' AND releasegroup:' . self::quoted($title), 'limit' => 25],
+            ['query' => $release['artist'] . ' ' . $title, 'dismax' => 'true', 'limit' => 25],
+        ];
+    }
+
+    /**
+     * Tries strict and relaxed searches, then the swapped "Album - Artist" order, until one unique match is found.
+     *
+     * @return array{0: ?array, 1: bool} selected candidate and whether any candidate was found
+     */
+    private function discover(array $release): array
+    {
+        if ($release['type'] === 'artist') {
+            $candidates = $this->search($release['query'], 'artist');
+            return [Release::select($release, $candidates), $candidates !== []];
+        }
+        $attempts = [$release];
+        if ($release['artist'] !== 'Various Artists' && Release::key($release['artist']) !== Release::key($release['title'])) {
+            $attempts[] = ['artist' => $release['title'], 'title' => $release['artist']] + $release;
+        }
+        $found = false;
+        $seen = [];
+        foreach ($attempts as $attempt) {
+            foreach (self::queries($attempt) as $parameters) {
+                $key = json_encode($parameters, JSON_THROW_ON_ERROR);
+                if (isset($seen[$key])) continue;
+                $seen[$key] = true;
+                $candidates = $this->rows('release-group', $this->cached('release-group', null, $parameters));
+                $found = $found || $candidates !== [];
+                $selected = Release::select($attempt, $candidates);
+                if ($selected !== null) return [$selected, true];
+            }
+        }
+        return [null, $found];
+    }
+
+    private function rows(string $type, ?array $data): array
+    {
+        $key = match ($type) { 'artist' => 'artists', 'release' => 'releases', default => 'release-groups' };
         $rows = $data[$key] ?? null;
         if (!is_array($rows) || !array_is_list($rows)) throw new RuntimeException('MusicBrainz gaf geen geldige zoekresultaten.');
         $results = [];
@@ -76,6 +116,14 @@ final class Service
             $names = [$name];
             foreach ($row['aliases'] ?? [] as $alias) if (is_string($alias['name'] ?? null)) $names[] = self::text($alias['name']);
             $artist = $type === 'artist' ? '' : self::credit($row['artist-credit'] ?? []);
+            $artists = [];
+            $credit = $row['artist-credit'] ?? [];
+            if ($type !== 'artist' && is_array($credit) && count($credit) === 1 && is_array($credit[0] ?? null)) {
+                // Spellings such as "Hillary Duff" or "Diverse Kunstnere" are MusicBrainz artist aliases.
+                foreach (array_merge([$credit[0]['artist'] ?? []], $credit[0]['artist']['aliases'] ?? []) as $alias) {
+                    if (is_array($alias) && is_string($alias['name'] ?? null)) $artists[] = self::text($alias['name']);
+                }
+            }
             $notes = [self::text($row['disambiguation'] ?? '')];
             if ($type === 'release') {
                 $notes[] = self::text($row['country'] ?? '');
@@ -86,6 +134,7 @@ final class Service
                 }
             }
             $results[] = ['id' => $row['id'], 'type' => $type, 'name' => $name, 'names' => $names, 'artist' => $artist,
+                'artists' => array_values(array_unique($artists)),
                 'year' => substr(self::text($row['first-release-date'] ?? $row['date'] ?? ''), 0, 4),
                 'note' => implode(' / ', array_unique(array_filter($notes))),
                 'kind' => self::text($row['primary-type'] ?? $row['type'] ?? '')];
@@ -113,11 +162,11 @@ final class Service
             if ($choice['blocked'] ?? false) {
                 $result = ['state' => 'blocked'];
             } else {
-                $candidates = [];
-                if ($choice === null && $release['auto']) $candidates = $this->search($release['query'], $release['type']);
-                $selected = $choice ?? Release::select($release, $candidates);
+                $selected = $choice;
+                $found = false;
+                if ($choice === null && $release['auto']) [$selected, $found] = $this->discover($release);
                 $result = $selected === null
-                    ? ['state' => $candidates === [] && $release['auto'] ? 'unmatched' : 'ambiguous']
+                    ? ['state' => !$found && $release['auto'] ? 'unmatched' : 'ambiguous']
                     : ['state' => 'matched', 'manual' => $choice !== null, 'metadata' => $this->details($selected['type'], $selected['id'])];
             }
             $this->repo->result($spot, $result, $result['state'] === 'matched' ? 604800 : 86400);

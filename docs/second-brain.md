@@ -3,7 +3,7 @@
 Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
 
 ## Snapshot
-- **Datum:** 2026-10-20
+- **Datum:** 2026-10-22
 - **Versie:** 0.0.1
 - **Codenaam:** Delta Integrale
 - **Fase:** Spotnet/Newznab, SABnzbd en optionele TMDB-/TheTVDB-verrijking met gedeeld matchbeheer
@@ -366,6 +366,11 @@ Doel: centrale contextbron voor keuzes, aannames, besluiten en volgende stappen.
     Aanleiding: productie met circa 4,3 miljoen spots, 1,3 miljoen newznab-categorieregels en 1,4 miljoen reacties; filters en zoeken zeer traag (Spotweb sneller). Gebruiker koos fase 1+2: smal leesmodel met FULLTEXT, drill-down (alleen subcategorieen tonen die nog resultaten geven) en zoeken op hele woorden/exacte frase ("The" vindt geen "Thesaurus").
     Beslissingen: tabel `spot_browse` plus gedeelde `spot_combos`/`spot_combo_codes` met spotaantallen (migratie 0024, `db reindex-spots`); planner met favorieten-, combinatie- en datumwandelplan zonder filesort; zoeken eerst in de nieuwste 5000 rijen, daarna FULLTEXT met 1 s budget en terugval (ook MariaDB-fout 188); filterbeschikbaarheid 10 minuten gecachet in `spot_filter_cache`, brede zoekwoorden gebruiken die cache; opbouw in `(posted_at, id)`-volgorde voor lokaliteit. Newznab gebruikt dezelfde zoeksemantiek.
     Validatie: 1050 unit- en 2067 integratiecontroles. Benchmark `tests/browse-performance.php` op 4 miljoen synthetische spots (voor datumvolgorde-opbouw): lijst zonder filter enkele ms, gangbare filters ~70 ms, zeldzame filters ~0,5 s, zoeken 25-700 ms, zoeken+filter ~1,2 s, beschikbaarheid bij breed zoekwoord ~1 s (nu via cache verbeterd, nog niet opnieuw gemeten). Open: herhaalde benchmark na datumvolgorde-opbouw, productieacceptatie na migratie 0024. Geen versie-/codenaamwijziging.
+
+94. **Tolerantere muziekdiscovery met behoud van unieke identiteit**
+    Aanleiding: te veel muziekspots bleven ongekoppeld, o.a. `Hilary Duff-Holiday Things-EP-24BIT-WEB-FLAC-2026-ENRiCH`, `Amy Winehouse-Back To Black-(20th Anniversary Deluxe Edition)-3CD-2026-C4`, `Diverse Artiesten - 538 Dance Smash Hits 1997-vol.2 in DTS-HD-*HRA* ( OV )` en `Miranda Lambert - Crisco (2026) [Hi-Res]`. Titels varieren in volgorde, jaar, kwaliteit en verzamelaarsnotatie.
+    Beslissingen: parser verwijdert scenegroep, Hi-Res/HRA/WEB, schijfaantallen en editiehaakjes (niet live/mix) en bewaart `EP`/`Single` als typehint; verzamelaliassen worden Various Artists, ook bij titel-eerst. Scene- en editiejaren zijn een bovengrens (heruitgave mag nieuwer zijn dan de albumgroep), overige jaren blijven exact. Vergelijking trekt `vol`/`Volume`/`Deel` en `&`/`and` gelijk, accepteert titel+jaar voor verzameltitels en MusicBrainz-artiestaliassen. Detail-discovery probeert gericht, breed en omgedraaide volgorde, max. vier gecachete zoekrequests, stopt bij de eerste unieke match. Geen scorefallback of eerste-hitkeuze: ambiguiteit (bijvoorbeeld twee volumes of twee albums) blijft ongekoppeld. Resultaathash `discovery-v4` laat oude automatische/negatieve resultaten bij detail opnieuw beoordelen; stabiele `music-v1`-keuzes/blokkeringen blijven. Geen migratie, flush of retrieve nodig. Versie blijft 0.0.1 Delta Integrale.
+    Validatie: 1091 unitcontroles en volledige integratie-/HTTP-suite (2022 controles, PHP 8.4/MariaDB 11.4); alleen de lokale NNTP-POST-reactiefixture faalde, identiek zonder deze wijziging. Live tegen MusicBrainz: alle vier voorbeelden en `Back To Black - Amy Winehouse (2006) FLAC` koppelen aan respectievelijk EP Holiday Things, album Back to Black (2006, niet de single), 538 Dance Smash Hits 1997, Volume 2 en album Crisco.
 
 ## Open vragen (voor volgende stap)
 - Welk framework past het best bij verdere uitbreiding? De huidige basis gebruikt PHP 8.2+ en PDO/MySQL/MariaDB.

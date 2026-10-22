@@ -5,6 +5,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Fixed
+- Muziekmatching slimmer: scenegroep, `Hi-Res`/HRA, WEB, `3CD`/`2xCD` en editiehaakjes (Anniversary/Deluxe/Remastered) worden opgeschoond; `EP`/`Single` wordt typehint; `VA`/`V.A.`/`Various`/`Diverse Artiesten`/`Verschillende Artiesten` worden Various Artists (ook achteraan); `vol.2` = `Volume 2`; scene-/editiejaar accepteert een oudere albumgroep; MusicBrainz-artiestaliassen tellen mee; detail-discovery probeert gericht, breed en daarna omgedraaide volgorde (max. vier zoekrequests). Oude automatische/negatieve matches worden bij de volgende detailweergave opnieuw beoordeeld; handmatige keuzes blijven.
 - Detailhero: trailer als filmrol-icoon in de knoppengroep met speler in een venster; bronvermeldingen TVDB/TMDB bovenaan naast Metadata link; TVDB-logo op teksthoogte; Reacties/NZB-knoppen verticaal gecentreerd.
 - Muziekmatching: `Artiest - jaar - Album` wordt herkend, bij gelijke artiest/titel wint het album van single/EP en een lege gerichte MusicBrainz-zoekactie valt terug op een bredere zoekactie (exacte selectie blijft vereist).
 - Vanuit Favorieten openen een hoofdcategorie en **Alle** in de sidebar weer het reguliere overzicht.

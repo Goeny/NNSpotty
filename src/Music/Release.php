@@ -20,7 +20,32 @@ final class Release
 
     public static function matchSignature(array $spot): string
     {
-        return hash('sha256', self::signature($spot) . ':discovery-v3:artist-id-v1');
+        return hash('sha256', self::signature($spot) . ':discovery-v4:artist-id-v1');
+    }
+
+    private const VARIOUS = ['va', 'various', 'variousartists', 'variousartist', 'diverseartiesten', 'diverseartiest',
+        'diversen', 'diverse', 'verschillendeartiesten', 'divartiesten', 'artistesdivers', 'variosartistas',
+        'verschiedeneinterpreten', 'verschiedenekunstler'];
+
+    public static function various(string $name): bool
+    {
+        return in_array(Titles::normalized($name), self::VARIOUS, true);
+    }
+
+    /** Comparison key that treats "vol.2"/"Volume 2" and "&"/"and" as equal. */
+    public static function key(string $text): string
+    {
+        $text = preg_replace('/\b(?:vol(?:ume)?|deel|part|pt)\b\.?\s*(\d+)/iu', ' vol $1', $text) ?? $text;
+        $text = preg_replace('/\s+(?:&|\+|and)\s+/iu', ' and ', $text) ?? $text;
+        return Titles::normalized($text);
+    }
+
+    private static function named(string $target, array $names): bool
+    {
+        $key = self::key($target);
+        if ($key === '') return false;
+        foreach ($names as $name) if (is_string($name) && self::key($name) === $key) return true;
+        return false;
     }
 
     public static function parse(array $spot): ?array
@@ -50,12 +75,15 @@ final class Release
         $physical = preg_match('/[\[(][^)\]]*\b(?:Vinyl|LP)\b|\bCDRIP\b|\b(?:Vinyl|LP)\b(?=\s*(?:$|[-)\]]|\d+\s*[-.]?\s*bit\b|FLAC\b|WAVPACK\b))/i', $title) === 1;
         // A scene year can follow the audio suffix; capture it before removing that suffix.
         $sceneYear = preg_match('/-((?:19|20)\d{2})(?:-[A-Z0-9]+)?$/i', $title, $scene) ? $scene[1] : null;
+        // Drop the "-YEAR-GROUP" scene suffix when an artist/album pair remains in front of it.
+        $withoutGroup = preg_replace('/-(?:19|20)\d{2}-[A-Z0-9]+$/i', '', $title);
+        if ($withoutGroup !== $title && str_contains($withoutGroup, '-')) $title = $withoutGroup;
         $title = preg_replace_callback('/\s*(?:\[[^\]]*\]|\([^)]*\))/', static function (array $match): string {
-            $technical = preg_match('/\b(?:Vinyl|LP|FLAC|MP3|WAVPACK|DTS|kHz)\b|\b(?:16|24|32)\s*[- ]?bit\b/i', $match[0]) === 1;
+            $technical = preg_match('/\b(?:Vinyl|LP|FLAC|MP3|WAVPACK|DTS|kHz|Hi[- ]?Res|HRA|\d+\s*CDS?)\b|\b(?:16|24|32)\s*[- ]?bit\b/i', $match[0]) === 1;
             $identity = preg_match('/\b(?:live|remaster(?:ed)?|deluxe|edition|mix|version)\b/i', $match[0]) === 1;
             return $technical && !$identity ? '' : $match[0];
         }, $title);
-        preg_match_all('/(?:\s+in\s+)?\b(?:FLAC|MP3|AAC|ALAC|APE|WAVPACK|WAV|WMA|OGG|DSD|SACD|WEB|CDRIP|DTS(?:[- .]?HD)?|(?:16|24|32)\s*[- .]?\s*bit|320\s*kbps|(?:LP|Vinyl)(?=\s*(?:$|-|\d+\s*[-.]?\s*bit\b|FLAC\b|WAVPACK\b)))\b/i', $title, $technical, PREG_OFFSET_CAPTURE);
+        preg_match_all('/(?:\s+in\s+)?\b(?:FLAC|MP3|AAC|ALAC|APE|WAVPACK|WAV|WMA|OGG|DSD|SACD|WEB|CDRIP|Hi[- ]?Res|HRA|\d+\s*x\s*CD|\d+CDS?|DTS(?:[- .]?HD)?|(?:16|24|32)\s*[- .]?\s*bit|320\s*kbps|(?:LP|Vinyl)(?=\s*(?:$|-|\d+\s*[-.]?\s*bit\b|FLAC\b|WAVPACK\b)))\b/i', $title, $technical, PREG_OFFSET_CAPTURE);
         foreach ($technical[0] as [, $offset]) {
             $before = substr($title, 0, $offset);
             if (substr_count($before, '(') !== substr_count($before, ')') || substr_count($before, '[') !== substr_count($before, ']')) continue;
@@ -86,10 +114,32 @@ final class Release
         $parts = preg_split('/\s+-\s+/', self::cleanEdges($title), 2);
         if (count($parts) === 1 && !$artistOnly && str_contains($title, '-')) $parts = explode('-', self::cleanEdges($title), 2);
         $artist = self::cleanEdges(str_replace('.', ' ', $parts[0]));
-        if (in_array(strtolower($artist), ['va', 'v a', 'various'], true)) $artist = 'Various Artists';
         $album = !$artistOnly && isset($parts[1]) ? self::cleanEdges(str_replace('.', ' ', $parts[1])) : '';
         // Edition labels are not part of an album-group title; live/location qualifiers are.
-        $album = self::cleanEdges(preg_replace('/(?:\s+|[(\[])(?:DeLuxe|Super\s+Deluxe)(?:\s+Edition)?[)\]\s.]*$/i', '', $album));
+        $edition = false;
+        $kind = null;
+        if (preg_match('/^(.+?\S)\s*(?:-\s*|[(\[]\s*)(EP|Single)\s*[)\]]?$/iu', $album, $type)
+            || preg_match('/^(.+?\S)\s+(EP)$/u', $album, $type)) {
+            $album = self::cleanEdges($type[1]);
+            $kind = strcasecmp($type[2], 'EP') === 0 ? 'EP' : 'Single';
+        }
+        if (preg_match('/^(.+?\S)(?:\s*-\s*|\s+)?[(\[]([^)\]]*)[)\]]$/u', $album, $label)
+            && preg_match('/\b(?:deluxe|anniversary|expanded|remaster(?:ed)?|edition|reissue|bonus|special|collector\'?s|legacy|jubileum|editie|uitgave)\b/i', $label[2])
+            && !preg_match('/\b(?:live|concert|unplugged|acoustic|session|mix|version)\b/i', $label[2])) {
+            $album = self::cleanEdges($label[1]);
+            $edition = true;
+        }
+        $deluxe = '/(?:\s+|[(\[])(?:DeLuxe|Super\s+Deluxe)(?:\s+Edition)?[)\]\s.]*$/i';
+        if (preg_match($deluxe, $album) === 1) {
+            $album = self::cleanEdges(preg_replace($deluxe, '', $album));
+            $edition = true;
+        }
+        if (self::various($artist)) {
+            $artist = 'Various Artists';
+        } elseif ($album !== '' && self::various($album)) {
+            // "Compilation - Various Artists": the title comes first.
+            [$artist, $album] = ['Various Artists', $artist];
+        }
         $explicitArtist = preg_match('/^(?:artist|artiest)\s*:\s*(.+)$/iu', $artist, $artistMatch) === 1;
         if ($explicitArtist) $artist = trim($artistMatch[1]);
         $artistOnly = $artistOnly || $explicitArtist;
@@ -97,6 +147,8 @@ final class Release
         if (!$artistOnly && $album === '') return ['type' => 'release-group', 'artist' => '', 'title' => $artist, 'year' => $year, 'auto' => false, 'query' => $artist];
         return ['type' => $artistOnly ? 'artist' : 'release-group', 'artist' => $artist,
             'title' => $album, 'year' => $physical || $sourceYear !== null ? null : $year,
+            // Scene/edition years describe this upload or reissue; the album group may be older.
+            'year_exact' => $sceneYear === null && !$edition, 'kind' => $kind,
             'source_year' => $sourceYear ?? $year, 'auto' => $artistOnly || $album !== '',
             'query' => $artistOnly ? $artist : $artist . ' - ' . $album];
     }
@@ -117,19 +169,33 @@ final class Release
         $matches = [];
         foreach ($candidates as $candidate) {
             if ($candidate['type'] !== $release['type']) continue;
-            $target = $release['type'] === 'artist' ? $release['artist'] : $release['title'];
-            if (!in_array(Titles::normalized($target), array_map(Titles::normalized(...), $candidate['names']), true)) continue;
-            if ($release['type'] !== 'artist') {
-                if (Titles::normalized($candidate['artist']) !== Titles::normalized($release['artist'])) continue;
-                if ($release['year'] !== null && $candidate['year'] !== $release['year']) continue;
+            if ($release['type'] === 'artist') {
+                if (!self::named($release['artist'], $candidate['names'])) continue;
+            } else {
+                $byTitle = self::named($release['title'], $candidate['names']);
+                // "Hits 1997" may be parsed as album "Hits" plus year; the full name then carries the year.
+                $byTitleYear = !$byTitle && $release['year'] !== null
+                    && self::named($release['title'] . ' ' . $release['year'], $candidate['names']);
+                if (!$byTitle && !$byTitleYear) continue;
+                if (!self::named($release['artist'], array_merge([$candidate['artist']], $candidate['artists'] ?? []))) continue;
+                if ($byTitle && $release['year'] !== null && !self::yearFits($release, (string) $candidate['year'])) continue;
             }
             $matches[$candidate['id']] = $candidate;
         }
         if (count($matches) > 1 && $release['type'] === 'release-group') {
-            // Same artist/title as album plus single/EP: the album is the intended release group.
-            $albums = array_filter($matches, static fn (array $candidate): bool => strcasecmp($candidate['kind'] ?? '', 'Album') === 0);
-            if (count($albums) === 1) return array_values($albums)[0];
+            // Same artist/title as album plus single/EP: prefer the hinted type, otherwise the album.
+            foreach (array_filter([$release['kind'] ?? null, 'Album']) as $kind) {
+                $typed = array_filter($matches, static fn (array $candidate): bool => strcasecmp($candidate['kind'] ?? '', $kind) === 0);
+                if (count($typed) === 1) return array_values($typed)[0];
+                if (count($typed) > 1) return null;
+            }
         }
         return count($matches) === 1 ? array_values($matches)[0] : null;
+    }
+
+    private static function yearFits(array $release, string $year): bool
+    {
+        if ($release['year_exact'] ?? true) return $year === $release['year'];
+        return $year === '' || $year <= $release['year'];
     }
 }

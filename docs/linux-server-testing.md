@@ -367,6 +367,11 @@ Controleer APP_URL in je bestaande `.env`: publieke HTTP(S)-contact/project-URL 
    - `1973 - Alice Cooper - Killer [USA Vinyl LP 24-192 kHz]`: artiest Alice Cooper, albumgroep **Killer**; bronjaar 1973 blokkeert het oorspronkelijke album uit 1971 niet.
    - `Simply Red - Holding Back The Years (Live In Santiago 2026)`: bruikbare titel-/artiestsuggesties via adminzoeken, maar geen automatische koppeling aan studioversie of verkeerde liveopname.
    - `Taylor Swift - 1989 FLAC` en `Prince - 1999 FLAC`: numerieke albumtitel blijft onderdeel van de zoekterm.
+   - `Hilary Duff-Holiday Things-EP-24BIT-WEB-FLAC-2026-ENRiCH`: EP **Holiday Things** (2026).
+   - `Amy Winehouse-Back To Black-(20th Anniversary Deluxe Edition)-3CD-2026-C4`: album **Back to Black** uit 2006, niet de gelijknamige single.
+   - `Diverse Artiesten - 538 Dance Smash Hits 1997-vol.2 in DTS-HD-*HRA* ( OV )`: Various Artists, **538 Dance Smash Hits 1997, Volume 2** (niet volume 1).
+   - `Miranda Lambert - Crisco (2026) [Hi-Res]`: album **Crisco** (2026), niet de single.
+   - Omgedraaide volgorde zoals `Back To Black - Amy Winehouse (2006) FLAC` koppelt ook aan het album.
 3. Zoek als admin via MusicBrainz link. Kies een specifieke uitgave voor tracklist/label/speelduur; vergelijk MBID, artiest, jaar en editie met MusicBrainz. Reset en blokkering gelden voor iedereen; een gewone gebruiker ziet geen matchbeheer.
 4. Controleer een artiest/discografie: artiestweergave met decoratief symbool, geen willekeurig album of verzonnen artiestfoto/biografie.
 5. Heropen dezelfde spot: databasecache; open kleine preview: uitsluitend cache, geen `/music-metadata` of server-side providerrequest. Zonder match/verlopen cache blijft de oorspronkelijke preview.
