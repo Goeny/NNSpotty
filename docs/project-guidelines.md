@@ -107,3 +107,5 @@ Deze richtlijnen zijn leidend voor ontwerp, implementatie en validatie.
 - Vermijd legacy-mix van oude en moderne patronen.
 - Code moet onderhoudbaar, testbaar en modulair zijn.
 - UX-feedback via Bootstrap componenten; geen browser popups.
+- Houd `README.md` kort, praktisch en eenvoudig.
+- Houd `CHANGELOG.md` beknopt en alleen op hoofdlijnen (features, relevante fixes, security/performance).

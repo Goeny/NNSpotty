@@ -59,6 +59,9 @@ NNSpotty is een volledig nieuwe webapplicatie (geen voortbouw op legacy Spotweb-
 
 ## Werkwijze bij wijzigingen
 - Documenteer elke nieuwe of gewijzigde feature in [`README.md`](../README.md) als onderdeel van dezelfde wijziging. Houd functionaliteiten, configuratie, installatie- en retrieve-commando's, beperkingen en gebruikte third-party applicaties/code/tools met links actueel; presenteer geplande functies niet als reeds beschikbaar.
+- Houd [`README.md`](../README.md) bewust kort en simpel (geen lange technische uitwerkingen in de README).
+- Houd [`CHANGELOG.md`](../CHANGELOG.md) clean en beknopt: alleen concrete wijzigingen zoals nieuwe features, relevante bugfixes en security/performance updates.
+- Werk `CHANGELOG.md` niet per tussenfix bij als die binnen dezelfde feature-uitwerking valt; bundel dit als één duidelijke wijziging.
 - Als er wijzigingen zijn, lever altijd concrete Linux server-commando's mee voor testen op `nnspotty.hopseflop.nl`.
 - Zodra aanpassingen gereed en gevalideerd zijn, commit en push de taakgerelateerde wijzigingen naar de huidige Git-branch zonder een apart verzoek af te wachten.
 - Neem geen ongerelateerde wijzigingen of secrets mee. Gebruik geen force-push; meld expliciet als committen of pushen niet lukt.
