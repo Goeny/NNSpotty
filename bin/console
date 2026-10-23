@@ -67,6 +67,9 @@ try {
             fwrite(STDOUT, json_encode(['settings' => $lists->settings(), 'counts' => $lists->totals()],
                 JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . PHP_EOL);
             break;
+        case 'system':
+            handleSystemCommand($argv, $migrator);
+            break;
         default:
             throw new RuntimeException('Onbekend commando: ' . $command);
     }
@@ -248,6 +251,147 @@ function handleRetrieveCommand(array $argv, RetrieveService $service): void
     fwrite(STDOUT, $result['message'] . PHP_EOL);
 }
 
+function handleSystemCommand(array $argv, Migrator $migrator): void
+{
+    $action = $argv[2] ?? 'update';
+    if ($action !== 'update') {
+        throw new RuntimeException('Gebruik: bin/console system update [--check]');
+    }
+
+    $checkOnly = optionBool($argv, '--check', false);
+    $repoRoot = realpath(__DIR__ . '/..');
+    if ($repoRoot === false) {
+        throw new RuntimeException('Kon repository root niet bepalen.');
+    }
+
+    $insideWorkTree = runCommand(['git', 'rev-parse', '--is-inside-work-tree'], $repoRoot);
+    if ($insideWorkTree['exitCode'] !== 0 || trim($insideWorkTree['output']) !== 'true') {
+        throw new RuntimeException('Deze map is geen geldige git repository.');
+    }
+
+    $branchResult = runCommand(['git', 'branch', '--show-current'], $repoRoot);
+    if ($branchResult['exitCode'] !== 0) {
+        throw new RuntimeException('Kon huidige git branch niet bepalen: ' . trim($branchResult['output']));
+    }
+    $branch = trim($branchResult['output']);
+    if ($branch === '') {
+        throw new RuntimeException('Onbekende huidige branch.');
+    }
+
+    fwrite(STDOUT, "Git fetch uitvoeren...\n");
+    $fetchResult = runCommand(['git', 'fetch', '--prune', 'origin'], $repoRoot);
+    if ($fetchResult['exitCode'] !== 0) {
+        throw new RuntimeException('Fetch mislukt: ' . trim($fetchResult['output']));
+    }
+
+    $localHead = runCommand(['git', 'rev-parse', 'HEAD'], $repoRoot);
+    $remoteHead = runCommand(['git', 'rev-parse', 'origin/' . $branch], $repoRoot);
+    if ($localHead['exitCode'] !== 0 || $remoteHead['exitCode'] !== 0) {
+        throw new RuntimeException('Kon lokale/remote commit niet bepalen.');
+    }
+    $localSha = trim($localHead['output']);
+    $remoteSha = trim($remoteHead['output']);
+    $behind = runCommand(['git', 'rev-list', '--count', 'HEAD..origin/' . $branch], $repoRoot);
+    if ($behind['exitCode'] !== 0) {
+        throw new RuntimeException('Kon update-status niet bepalen: ' . trim($behind['output']));
+    }
+    $behindCount = (int) trim($behind['output']);
+
+    if ($checkOnly) {
+        fwrite(STDOUT, 'Branch: ' . $branch . PHP_EOL);
+        fwrite(STDOUT, 'Local:  ' . $localSha . PHP_EOL);
+        fwrite(STDOUT, 'Remote: ' . $remoteSha . PHP_EOL);
+        if ($behindCount > 0) {
+            fwrite(STDOUT, 'Update beschikbaar: ' . $behindCount . " commit(s).\n");
+            $pending = runCommand(['git', '--no-pager', 'log', '--oneline', 'HEAD..origin/' . $branch], $repoRoot);
+            if ($pending['exitCode'] === 0 && trim($pending['output']) !== '') {
+                fwrite(STDOUT, $pending['output'] . PHP_EOL);
+            }
+            return;
+        }
+
+        fwrite(STDOUT, "Geen updates beschikbaar.\n");
+        return;
+    }
+
+    $status = runCommand(['git', 'status', '--porcelain'], $repoRoot);
+    if ($status['exitCode'] !== 0) {
+        throw new RuntimeException('Kon git status niet opvragen: ' . trim($status['output']));
+    }
+    if (trim($status['output']) !== '') {
+        throw new RuntimeException('Werkmap is niet schoon. Commit/stash eerst lokale wijzigingen.');
+    }
+
+    if ($behindCount > 0) {
+        fwrite(STDOUT, "Updates gevonden. Pull uitvoeren...\n");
+        $pull = runCommand(['git', 'pull', '--ff-only', 'origin', $branch], $repoRoot);
+        if ($pull['exitCode'] !== 0) {
+            throw new RuntimeException('Git pull mislukt: ' . trim($pull['output']));
+        }
+        if (trim($pull['output']) !== '') {
+            fwrite(STDOUT, $pull['output'] . PHP_EOL);
+        }
+    } else {
+        fwrite(STDOUT, "Repository is al up-to-date.\n");
+    }
+
+    fwrite(STDOUT, "Database migraties uitvoeren...\n");
+    $migrator->migrate(static function (string $line): void {
+        fwrite(STDOUT, $line . PHP_EOL);
+    });
+    fwrite(STDOUT, "Migrations uitgevoerd.\n");
+
+    fwrite(STDOUT, "Database checks uitvoeren...\n");
+    $health = $migrator->health();
+    fwrite(STDOUT, 'Ping: ' . $health['ping'] . PHP_EOL);
+    fwrite(STDOUT, 'Server UTC: ' . $health['server_time_utc'] . PHP_EOL);
+    $statusEntries = $migrator->status();
+    foreach ($statusEntries as $entry) {
+        $marker = $entry['executed'] ? '[x]' : '[ ]';
+        fwrite(STDOUT, $marker . ' ' . $entry['name'] . PHP_EOL);
+    }
+
+    fwrite(STDOUT, "System update voltooid.\n");
+}
+
+/**
+ * @param string[] $command
+ * @return array{exitCode: int, output: string}
+ */
+function runCommand(array $command, string $cwd): array
+{
+    $parts = array_map(
+        static function (string $part): string {
+            return escapeshellarg($part);
+        },
+        $command
+    );
+    $commandLine = implode(' ', $parts);
+    $descriptorSpec = [
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ];
+    $process = proc_open($commandLine, $descriptorSpec, $pipes, $cwd);
+    if (!is_resource($process)) {
+        throw new RuntimeException('Kon command niet starten: ' . implode(' ', $command));
+    }
+
+    fclose($pipes[0]);
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $exitCode = proc_close($process);
+
+    $output = trim(((string) $stdout) . PHP_EOL . ((string) $stderr));
+
+    return [
+        'exitCode' => $exitCode,
+        'output' => $output,
+    ];
+}
+
 function optionValue(array $argv, string $name): ?string
 {
     foreach ($argv as $argument) {
@@ -298,4 +442,5 @@ function showHelp(): void
     fwrite(STDOUT, "  bin/console user password <username> <newPassword>\n");
     fwrite(STDOUT, "  bin/console retrieve [--all|--full|--since-last|--days=30] [--comments-only|--refresh-spots] [--verbose]\n");
     fwrite(STDOUT, "  bin/console spotters status|sync|enable|disable\n");
+    fwrite(STDOUT, "  bin/console system update [--check]\n");
 }

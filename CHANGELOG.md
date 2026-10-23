@@ -6,6 +6,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
 ### Fixed
 - Installatiehandleiding gecorrigeerd: `db migrate` dekt volledige schema-opbouw voor nieuwe installaties; losse migratiestappen zijn niet nodig.
+- Publieke documentatie geanonimiseerd: omgeving-specifieke hostnames/paden verwijderd en vervangen door generieke voorbeelden.
 - Film-/seriemetadata probeert automatisch de andere ingeschakelde provider wanneer de voorkeursprovider geen unieke match heeft, een zoek-/detailfout geeft of de gevraagde aflevering mist. Een geslaagde primaire match blijft leidend en wordt via externe IDs aangevuld. Handmatige keuzes/blokkeringen blijven behouden; providerfouten blijven zichtbaar, met vijf minuten cache voor deelresultaten. Oude automatische/negatieve matches worden bij detail opnieuw beoordeeld, zonder migratie of cacheflush.
 - RSA/SHA1-testfout verwijst naar de OpenSSL-diagnostiek en het gebruik van de bestaande aparte `OPENSSL_CONF`-configuratie; geen cryptografietests overgeslagen of beleid gewijzigd.
 - Muziekmatching slimmer: scenegroep, `Hi-Res`/HRA, WEB, `3CD`/`2xCD` en editiehaakjes (Anniversary/Deluxe/Remastered) worden opgeschoond; `EP`/`Single` wordt typehint; `VA`/`V.A.`/`Various`/`Diverse Artiesten`/`Verschillende Artiesten` worden Various Artists (ook achteraan); `vol.2` = `Volume 2`; scene-/editiejaar accepteert een oudere albumgroep; MusicBrainz-artiestaliassen tellen mee; detail-discovery probeert gericht, breed en daarna omgedraaide volgorde (max. vier zoekrequests). Oude automatische/negatieve matches worden bij de volgende detailweergave opnieuw beoordeeld; handmatige keuzes blijven.
@@ -15,6 +16,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 - Muziek-/film-/serie-/afleveringfanart past volledig en proportioneel rechts in de metadatahero, zonder afgesneden boven-/onderkant. Zachte linkerovergang en gedeelde donker/licht-tekstoverlay; geldt ook voor previews, zonder extra paginahoogte, requests of cachewijzigingen.
 
 ### Added
+- Nieuw consolecommando `php bin/console system update [--check]` voor updatecheck en geautomatiseerde update-run (fetch/pull, migrate en databasechecks).
 - Uitgebreidere CLI-documentatie met alle beschikbare `bin/console` commandgroepen, opties en voorbeelden.
 - Snelle overzichtsindex (migratie `20261023_0024_spot_browse_index`): smalle leestabel `spot_browse`, gedeelde categoriecombinaties met spotaantallen en titel-FULLTEXT. Filters/aantallen lezen combinaties, de lijst wandelt op datum zonder filesort, brede zoekopdrachten zoeken eerst in de nieuwste spots en hebben een tijdslimiet met terugval (ook bij MariaDB-fout 188); beschikbare filters worden 10 minuten gecachet in `spot_filter_cache`; opbouw in datumvolgorde. Opbouw met voortgang tijdens `db migrate`; `db reindex-spots` bouwt opnieuw op, `db cleanup` herstelt aantallen. Overbodige brede indexen op `spotnet_spots` vervallen. Benchmark `tests/browse-performance.php` tot 5 miljoen spots.
 - Zoeken op hele woorden en exacte woordreeksen in overzicht en Newznab: `The` vindt geen `Thesaurus`, `The Juggler` vindt niet `Juggler in the streets`.

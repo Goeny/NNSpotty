@@ -9,6 +9,9 @@
 /.phpunit.cache/
 /.phpunit.result.cache
 /coverage/
+/docs/private/*
+!/docs/private/.gitkeep
+!/docs/private/README.md
 *.log
 *.sql
 *.sql.gz

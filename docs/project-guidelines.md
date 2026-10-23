@@ -101,7 +101,7 @@ Deze richtlijnen zijn leidend voor ontwerp, implementatie en validatie.
 
 18. **Server testinstructies bij wijzigingen**  
    - Bij elke wijziging moeten concrete Linux testcommando's worden meegegeven.
-   - Doelomgeving: `nnspotty.hopseflop.nl` (private subdomein).
+   - Gebruik in publieke documentatie altijd generieke hostnames en paden.
 
 ## Niet-functionele uitgangspunten
 - Vermijd legacy-mix van oude en moderne patronen.

@@ -1,86 +1,24 @@
 # NNSpotty – Copilot Instructions
 
-## Projectdoel
-NNSpotty is een volledig nieuwe webapplicatie (geen voortbouw op legacy Spotweb-code) met focus op:
-- eenvoudige installatie;
-- eenvoudige gebruikerservaring;
-- moderne, snelle architectuur;
-- duidelijke uitbreidbaarheid.
+## Doel
 
-## Technische basis
-- Gebruik **php-nntp** voor Usenet-koppeling en indexing van spots.
-- Bouw modulair met duidelijke domeinlagen (indexing, metadata, theming, Newznab API, NZB forwarding).
-- Vermijd legacy patronen en mixed paradigms.
-- Sla applicatiedata op in een database (voorkeur: MySQL/MariaDB), niet in losse bestanden.
+Werk aan NNSpotty als moderne, modulaire Spotnet-webapp op basis van php-nntp.
 
-## UI/UX-richtlijnen
-- Gebruik Bootstrap-componenten voor bevestigingen en feedback:
-  - bevestigen via modals;
-  - feedback via alerts, modals of toasts.
-- Geen browser-popups (`alert`, `confirm`, `prompt`).
+## Kernregels
 
-## Productrichtlijnen (samenvatting)
-1. Makkelijk te installeren.
-2. Makkelijk in gebruik.
-3. Theming mogelijk.
-4. Usenet-verbinding + spots indexeren.
-5. NZB direct forwarden (o.a. SABnzbd/NZBGet).
-6. Inzetbaar als Newznab provider.
-7. Modern en snel.
-8. IMDB/TVDB metadata-integratie.
-9. Standaardthema met Plex-invloeden.
-10. Second brain onderhouden.
-11. Versioning + codenames hanteren.
-12. Admin beheerpanel met centrale systeeminstellingen.
-13. Gebruikersspecifieke preferences op username-basis.
-14. Spotter whitelist/blacklist beheer.
-15. Commentaar op posts ondersteunen.
-16. Console-commando's voor kernbeheer leveren (`bin/console`).
+- Houd wijzigingen gericht en functioneel.
+- Gebruik MySQL/MariaDB als primaire datastore.
+- Beheer runtime-instellingen via admin (niet primair via `.env`).
+- Gebruik Bootstrap-componenten voor feedback/confirmaties.
+- Gebruik geen browser-popups (`alert`, `confirm`, `prompt`).
 
-## Verplichte beheerfuncties
-- Admin panel moet minimaal beheren:
-  - Usenet host/port/login;
-  - retentie;
-  - overige kerninstellingen voor indexing.
-- User preferences zijn gekoppeld aan username en staan los van globale settings.
-- Moderatie bevat whitelist/blacklist van spotters.
-- Posts moeten comments ondersteunen.
-- Databasebeheer moet minimaal via console ondersteunen:
-  - `bin/console db migrate`
-  - `bin/console db status`
-  - `bin/console db health`
-  - `bin/console db cleanup`
-- Userbeheer moet minimaal via console ondersteunen:
-  - `bin/console user create|delete|edit|password|list`
-- Retrieve moet minimaal via console ondersteunen:
-  - `bin/console retrieve --days=<n>`
-  - `bin/console retrieve --full` (retentie geldt; `--all` is een alias)
-  - `bin/console retrieve --since-last`
+## Documentatiebeleid
 
-## Werkwijze bij wijzigingen
-- Documenteer elke nieuwe of gewijzigde feature in [`README.md`](../README.md) als onderdeel van dezelfde wijziging. Houd functionaliteiten, configuratie, installatie- en retrieve-commando's, beperkingen en gebruikte third-party applicaties/code/tools met links actueel; presenteer geplande functies niet als reeds beschikbaar.
-- Houd [`README.md`](../README.md) bewust kort en simpel (geen lange technische uitwerkingen in de README).
-- Houd [`CHANGELOG.md`](../CHANGELOG.md) clean en beknopt: alleen concrete wijzigingen zoals nieuwe features, relevante bugfixes en security/performance updates.
-- Werk `CHANGELOG.md` niet per tussenfix bij als die binnen dezelfde feature-uitwerking valt; bundel dit als één duidelijke wijziging.
-- Als er wijzigingen zijn, lever altijd concrete Linux server-commando's mee voor testen op `nnspotty.hopseflop.nl`.
-- Zodra aanpassingen gereed en gevalideerd zijn, commit en push de taakgerelateerde wijzigingen naar de huidige Git-branch zonder een apart verzoek af te wachten.
-- Neem geen ongerelateerde wijzigingen of secrets mee. Gebruik geen force-push; meld expliciet als committen of pushen niet lukt.
+- Houd [README.md](../README.md) kort en simpel.
+- Houd [CHANGELOG.md](../CHANGELOG.md) clean en beknopt (features, relevante fixes, security/performance).
+- Gebruik [docs/cli-commands.md](../docs/cli-commands.md) voor CLI-documentatie.
 
-## Toekomstige metadata-uitbreiding
-- Breid metadata op termijn uit naar overige categorieen, niet alleen films en series.
-- Onderzoek passende providers per domein: muziek via [MusicBrainz](https://musicbrainz.org/), games via [IGDB](https://www.igdb.com/) of [RAWG](https://rawg.io/), software via [AppStream](https://www.freedesktop.org/software/appstream/docs/) en boeken via [Open Library](https://openlibrary.org/).
-- Dit zijn roadmap-opties, geen reeds geimplementeerde koppelingen of definitieve providerkeuzes. Beoordeel bij uitwerking beschikbaarheid, databron/identificatie, API-toegang, licentie, attributie, limieten, caching en gebruikersvoorkeuren. AppStream is een metadatastandaard/catalogus-ecosysteem, geen universele softwarezoek-API.
-- Houd de domeinlagen modulair en documenteer gekozen providers en grenzen in README en second brain.
+## Privacybeleid
 
-## Versioning en codenaambeleid
-- Start development op **0.0.1**.
-- Final release wordt **1.0.0**.
-- Elke release krijgt een codenaam op basis van (interessante) automodel-varianten.
-- Huidige codenaam: **0.0.1 “Delta Integrale”**.
-
-## Second brain beleid
-- Houd [`docs/second-brain.md`](../docs/second-brain.md) continu up-to-date.
-- Werk minimaal bij op:
-  - beslissingsmomenten;
-  - scopewijzigingen;
-  - release-/versie-updates.
+- Zet geen hostnames, gebruikersnamen, paden of secrets van private omgevingen in publieke docs.
+- Bewaar private operationele notities lokaal in `docs/private/*.local.md`.

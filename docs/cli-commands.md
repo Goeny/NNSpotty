@@ -101,3 +101,22 @@ php bin/console retrieve --days=7 --comments-only --verbose
 
 - `php bin/console spotters disable`  
   Schakelt sleutelmoderatie uit.
+
+---
+
+## System update
+
+- `php bin/console system update --check`  
+  Controleert of `origin/<huidige-branch>` nieuwe commits heeft en toont pending commits.
+
+- `php bin/console system update`  
+  Voert een complete update-run uit:
+  1. `git fetch --prune origin`
+  2. `git pull --ff-only origin <huidige-branch>` (alleen als updates beschikbaar zijn)
+  3. `db migrate`
+  4. database checks (`db health` + migratiestatus)
+
+### Let op
+
+- `system update` stopt als de lokale werkmap niet schoon is.
+- Gebruik eerst `--check` als je alleen wilt zien of er updates klaarstaan.
