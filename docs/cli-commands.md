@@ -1,57 +1,103 @@
 # NNSpotty CLI commando's
 
-Korte referentie voor `bin/console`.
+Referentie voor `php bin/console`.
+
+## Algemene hulp
+
+- `php bin/console --help`
+- `php bin/console help`
+
+---
 
 ## Database
 
+### Status en migraties
+
 - `php bin/console db status`  
-  Toont migratiestatus.
+  Toont welke migraties al uitgevoerd zijn.
+
 - `php bin/console db migrate`  
-  Voert migraties uit.
+  Voert alle nog openstaande migraties uit.
+
 - `php bin/console db health`  
-  Controleert database-connectie.
-- `php bin/console db cleanup --days=90`  
-  Ruimt oude data op.
+  Controleert databaseconnectie en server-tijd.
+
+### Onderhoud
+
+- `php bin/console db cleanup`  
+  Cleanup met standaardretentie (90 dagen).
+
+- `php bin/console db cleanup --days=30`  
+  Cleanup met eigen retentie.
+
 - `php bin/console db reindex-spots`  
   Herbouwt de spot-overzichtsindex.
+
+---
 
 ## Users en groepen
 
 - `php bin/console user list`  
   Toont alle gebruikers.
+
 - `php bin/console user groups`  
-  Toont beschikbare groepen/rollen.
+  Toont beschikbare groepen/rollen met ID.
+
 - `php bin/console user create <username> <password> [--admin=1]`  
-  Maakt gebruiker aan.
+  Maakt gebruiker aan (`--admin=1` optioneel).
+
 - `php bin/console user edit <username> [--admin=1|0] [--active=1|0] [--groups=<id,id>]`  
-  Past gebruiker aan.
+  Past adminstatus, activestatus en groepslidmaatschappen aan.
+
 - `php bin/console user password <username> <newPassword>`  
   Wijzigt wachtwoord.
+
 - `php bin/console user delete <username>`  
   Verwijdert gebruiker.
+
+---
 
 ## Retrieve
 
 - `php bin/console retrieve --since-last`  
-  Haalt op vanaf laatste cursor.
+  Incrementeel ophalen vanaf de laatst bekende cursor.
+
 - `php bin/console retrieve --days=30`  
-  Haalt spots op van afgelopen dagen.
-- `php bin/console retrieve --all` of `--full`  
-  Volledige retrieve (binnen retentie).
+  Historische retrieve voor afgelopen dagen.
+
+- `php bin/console retrieve --all`  
+  Volledige retrieve (alias van `--full`).
+
+- `php bin/console retrieve --full`  
+  Volledige retrieve.
+
 - `php bin/console retrieve --comments-only`  
-  Haalt alleen comments op.
+  Alleen comments ophalen.
+
 - `php bin/console retrieve --refresh-spots`  
-  Ververst bestaande spotgegevens.
+  Bestaande spots vernieuwen.
+
 - `php bin/console retrieve --verbose`  
-  Geeft uitgebreide logging.
+  Uitgebreide runtime logging.
+
+### Combinatievoorbeeld
+
+```bash
+php bin/console retrieve --days=7 --comments-only --verbose
+```
+
+---
 
 ## Spotterlijsten
 
 - `php bin/console spotters status`  
-  Toont huidige spotterinstellingen.
+  Toont huidige moderatie-instellingen en aantallen.
+
 - `php bin/console spotters sync`  
   Synchroniseert whitelist/blacklist.
+
 - `php bin/console spotters enable`  
   Schakelt sleutelmoderatie in.
+
 - `php bin/console spotters disable`  
   Schakelt sleutelmoderatie uit.
