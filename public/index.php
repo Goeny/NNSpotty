@@ -35,6 +35,14 @@ if (!is_file($autoloadPath)) {
 require_once $autoloadPath;
 
 require_once __DIR__ . '/../src/helpers.php';
+$maintenancePath = __DIR__ . '/../var/update-maintenance.json';
+$maintenanceRequest = Request::fromGlobals($_SERVER, $_GET, $_POST);
+if (is_file($maintenancePath) && !in_array($maintenanceRequest->path(),
+    ['/system/update', '/system/update/status', '/login', '/logout', '/health', '/account/password', '/account/profile'], true)) {
+    (new Response(503, 'NNSpotty wordt bijgewerkt. Probeer later opnieuw; beheerders kunnen /system/update openen.',
+        ['Content-Type' => 'text/plain; charset=utf-8', 'Cache-Control' => 'no-store', 'Retry-After' => '60']))->send();
+    exit;
+}
 require_once __DIR__ . '/../src/Http/Request.php';
 require_once __DIR__ . '/../src/Http/Response.php';
 require_once __DIR__ . '/../src/Http/Router.php';
@@ -101,7 +109,7 @@ $router->get('/health', static fn (Request $_request): Response => Response::jso
 
 $router->get('/login', static function (Request $request) use ($auth, $csrf): Response {
     if ($auth->isAuthenticated()) {
-        return Response::redirect('/spots');
+        return Response::redirect(is_file(__DIR__ . '/../var/update-maintenance.json') && $auth->can('system.update') ? '/system/update' : '/spots');
     }
 
     $html = LoginPageRenderer::render($request->query('status'), $csrf->field());
@@ -184,7 +192,7 @@ $router->post('/login', static function (Request $request) use ($auth, $csrf, $l
 
     $loginRateLimiter->registerAttempt($clientIp, $username, true);
 
-    return Response::redirect('/spots');
+    return Response::redirect(is_file(__DIR__ . '/../var/update-maintenance.json') && $auth->can('system.update') ? '/system/update' : '/spots');
 });
 
 $router->post('/logout', static function (Request $request) use ($auth, $csrf): Response {
@@ -1049,6 +1057,10 @@ $router->post('/preferences', static function (Request $request) use ($state, $a
     return Response::redirect('/preferences?status=' . rawurlencode('Preferences opgeslagen.'));
 });
 
+$systemController = new \NnSpotty\System\Controller(dirname(__DIR__), $pdo, $auth, $csrf, $state);
+$router->get('/system/update', $systemController->handle(...));
+$router->get('/system/update/status', $systemController->handle(...));
+$router->post('/system/update', $systemController->handle(...));
 $activityController = new \NnSpotty\Activity\Controller($pdo, $auth, $csrf, $state);
 $router->get('/history', $activityController->handle(...));
 $router->get('/statistics', $activityController->handle(...));

@@ -23,8 +23,8 @@ final class AppConfig
             environment: envValue('APP_ENV', 'development') ?? 'development',
             debug: filter_var(envValue('APP_DEBUG', 'true') ?? 'true', FILTER_VALIDATE_BOOL),
             url: envValue('APP_URL', 'http://localhost:8080') ?? 'http://localhost:8080',
-            version: envValue('APP_VERSION', '0.0.1') ?? '0.0.1',
-            codename: envValue('APP_CODENAME', 'Delta Integrale') ?? 'Delta Integrale'
+            version: Release::VERSION,
+            codename: Release::CODENAME
         );
     }
 }

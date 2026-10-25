@@ -96,6 +96,10 @@ final class SpotLayout
         $connectionOptions = '<option value="personal">Mijn SABnzbd</option>' . ($isAdmin ? '<option value="central">Centrale SABnzbd (admin)</option>' : '');
         $downloadButton = $account === null || \NnSpotty\Users\Permissions::allows($account, 'nzb.forward')
             ? '<button class="btn btn-sm btn-outline-secondary" type="button" data-sab-open="personal">Downloads</button>' : '';
+        $releaseLabel = h(\NnSpotty\Config\Release::VERSION) . ' &middot; ' . h(\NnSpotty\Config\Release::CODENAME);
+        $updateNotice = ($account !== null ? \NnSpotty\Users\Permissions::allows($account, 'system.update') : $isAdmin)
+            ? '<a class="small d-block mt-1" href="/system/update" data-update-notice>Releases controleren</a>' : '';
+        $updateScript = $updateNotice !== '' ? '<script src="/assets/updater.js" defer></script>' : '';
         return <<<HTML
 <!doctype html>
 <html lang="nl" data-bs-theme="{$mode}">
@@ -113,6 +117,7 @@ final class SpotLayout
   <script src="/assets/retrieve.js" defer></script>
   <script src="/assets/favorites.js" defer></script>
   <script src="/assets/comments.js" defer></script>
+  {$updateScript}
   {$scripts}
 </head>
 <body class="spotty">
@@ -152,7 +157,8 @@ final class SpotLayout
       {$navigation}
     </nav>
     <div class="sidebar-footer">
-      <span class="small text-body-secondary">0.0.1 &middot; Delta Integrale</span>
+      <span class="small text-body-secondary">{$releaseLabel}</span>
+      {$updateNotice}
       <form method="post" action="/logout" class="mt-3">{$csrfField}<button class="btn btn-sm btn-outline-secondary w-100" type="submit">Uitloggen</button></form>
     </div>
   </aside>

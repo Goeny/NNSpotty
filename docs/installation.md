@@ -62,12 +62,15 @@ Deze handleiding is voor een normale serverinstallatie (Apache/Nginx + PHP + MyS
 ## Updateprocedure (bestaande installatie)
 
 ```bash
-git pull
-composer install --no-dev --optimize-autoloader
-php bin/console db migrate
+php bin/console system update --check
+php bin/console system update
 ```
 
-Daarna eventueel PHP-FPM/opcache herladen volgens je serverconfiguratie.
+Maak vooraf een database- en bestandenback-up. De updater volgt gepubliceerde stabiele releases van de `origin`, installeert de release-dependencies en voert migraties met de nieuwe code uit. Zie [CLI-updatehandleiding](./cli-commands.md#system-update) voor voorwaarden, herstel en de GUI-updater. Er moeten daadwerkelijk Releases gepubliceerd zijn; een losse tag of een nieuwere ontwikkelcommit is niet voldoende.
+
+De releasecode bepaalt versie/codenaam centraal; oude `APP_VERSION`/`APP_CODENAME`-waarden in bestaande `.env`-bestanden worden niet meer gebruikt. Voor ontwikkelinstallaties blijft handmatig `git pull --ff-only`, Composer en `db migrate` mogelijk; dat is geen release-update.
+
+Daarna eventueel PHP-FPM/opcache herladen volgens je serverconfiguratie, vooral wanneer `opcache.validate_timestamps=0` wordt gebruikt. De GUI vraagt een reset van de gedeelde web-opcache na succes; CLI kan niet de opcache van PHP-FPM resetten.
 
 ## Lokale ontwikkelmodus (optioneel)
 

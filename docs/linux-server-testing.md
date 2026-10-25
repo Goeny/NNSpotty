@@ -7,12 +7,13 @@ Bewaar server-specifieke hostnames/paden in [docs/private/README.md](./private/R
 
 ```bash
 cd /var/www/nnspotty
-git pull --ff-only
-composer install --no-dev --optimize-autoloader
-php bin/console db migrate
+php bin/console system update --check
+php bin/console system update
 php bin/console db status
 php bin/console db health
 ```
+
+Alleen uitvoeren na een database-/bestandenback-up. Voor eenmalig ophalen van de nieuwe updater op een ontwikkelbranch: `git pull --ff-only`, Composer en `db migrate`; daarna volgen normale updates gepubliceerde releases.
 
 ## Historie en statistieken controleren
 
@@ -52,7 +53,9 @@ php bin/console system update --check
 php bin/console system update
 ```
 
-Deze run doet fetch/pull, migraties en basischecks.
+Deze run installeert de nieuwste gepubliceerde stabiele release van de clone-origin, Composer-dependencies en migraties met de nieuwe code, gevolgd door basischecks. Geen ontwikkelbranch-pull. Maak vooraf een back-up; zie [updatevoorwaarden en herstel](./cli-commands.md#system-update).
+
+Controleer de sidebar met en zonder het recht **Systeem bijwerken (servercode uitvoeren)**. Alleen bevoegde accounts mogen `/system/update` en de releasecontrole openen. Test een handmatige hercontrole, back-upbevestiging en eventuele foutmelding; voer een echte update uitsluitend op een afzonderlijke testinstallatie met gepubliceerde testrelease uit. De geautomatiseerde regressies gebruiken tijdelijke Git-repositories, een lokale release-API en een echte nieuwe testdatabasemigratie, niet de productie-origin.
 
 ## Veiligheidsnotities
 

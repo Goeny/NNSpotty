@@ -22,7 +22,10 @@ Voorbeelden van geschikte stijl:
 - **Status:** Developmentfundament met Spotnet-retrieval; geen stabiele of complete Spotweb-vervanger
 
 ## Releaseadministratie
-Bij elke versie-upgrade:
-1. Update deze file met nieuwe versie + codenaam.
-2. Update [README.md](../README.md) met actuele status.
-3. Voeg beslissing/rationale toe in [second-brain.md](./second-brain.md).
+Alleen een expliciet gevraagde nieuwe release verandert versie **en** codenaam; reguliere commits veranderen die niet.
+
+1. Pas de centrale runtimebron `src/Config/Release.php` aan, plus de versie in Composer, changelog en deze pagina. De runtime leest geen versie/codenaam uit `.env`.
+2. Controleer tests en releasecode, maak een releasecommit en een tag `vMAJOR.MINOR.PATCH`.
+3. Publiceer dezelfde releasecommit/tag en release notes op GitLab en [GitHub](https://github.com/Goeny/NNSpotty). Werk op dat moment ook de GitHub-standaardbranch bij tot de releasecommit, zodat nieuwe clones de actuele release krijgen.
+4. GitLab ontvangt reguliere ontwikkelcommits; GitHub wordt alleen bij expliciete releases bijgewerkt. De noodzakelijke Git-voorgeschiedenis gaat daarbij mee met de release; losse ontwikkelpushes niet.
+5. Maak op **beide** platformen een gepubliceerde Release, niet alleen een Git-tag. Verifieer de API en de codeversie. De updater volgt de origin van de installatie en installeert alleen stabiele gepubliceerde releases.

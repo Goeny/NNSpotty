@@ -473,6 +473,8 @@ try {
     require __DIR__ . '/posting-settings-unit.php';
     require __DIR__ . '/accounts-unit.php';
     require __DIR__ . '/avatar-unit.php';
+    require __DIR__ . '/system-unit.php';
+    require __DIR__ . '/system-update.php';
     if (in_array('--integration', $argv, true)) {
         require __DIR__ . '/integration.php';
     }

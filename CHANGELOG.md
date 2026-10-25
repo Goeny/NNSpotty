@@ -5,6 +5,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased] - 0.0.1 - Delta Integrale
 
 ### Fixed
+- Updater volgt gepubliceerde stabiele GitLab-/GitHub-releases in plaats van branchcommits; exacte releasetag, Composer, migraties met nieuwe PHP-processen, onderhoudsmodus/herstel en gedeelde updatelock. Runtimeversie/codenaam centraal in releasecode, niet uit verouderde `.env`-waarden.
 - Installatiehandleiding gecorrigeerd: `db migrate` dekt volledige schema-opbouw voor nieuwe installaties; losse migratiestappen zijn niet nodig.
 - Publieke documentatie geanonimiseerd: omgeving-specifieke hostnames/paden verwijderd en vervangen door generieke voorbeelden.
 - Film-/seriemetadata probeert automatisch de andere ingeschakelde provider wanneer de voorkeursprovider geen unieke match heeft, een zoek-/detailfout geeft of de gevraagde aflevering mist. Een geslaagde primaire match blijft leidend en wordt via externe IDs aangevuld. Handmatige keuzes/blokkeringen blijven behouden; providerfouten blijven zichtbaar, met vijf minuten cache voor deelresultaten. Oude automatische/negatieve matches worden bij detail opnieuw beoordeeld, zonder migratie of cacheflush.
@@ -16,6 +17,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 - Muziek-/film-/serie-/afleveringfanart past volledig en proportioneel rechts in de metadatahero, zonder afgesneden boven-/onderkant. Zachte linkerovergang en gedeelde donker/licht-tekstoverlay; geldt ook voor previews, zonder extra paginahoogte, requests of cachewijzigingen.
 
 ### Added
+- GUI-releasecontrole onder de sidebarversie en installatiepagina met back-upbevestiging, CSRF en afzonderlijk groepsrecht `system.update`. Releasebeleid: reguliere commits alleen GitLab; expliciete releases met nieuwe versie/codenaam op GitLab en GitHub.
 - Persoonlijke historie onder Favorieten, met tabs Bekeken/Gedownload, laatste datum, aantallen en downloadbronnen. Statistieken met periodekeuze, gebruikersaantallen, categorie-/downloadbrongrafieken en dagelijkse activiteit; nieuw toekenbaar groepsrecht `statistics.view` (standaard alleen admins). Migratie `20261025_0025_activity` neemt beschikbare bevestigde SABnzbd-verzendingen over.
 - Poster- en fanartgalerijen voor films/series: overige posters via de cover, fanart via een media-icoon naast de trailer. Afbeeldingen van gekoppelde TVDB-/TMDB-records, met vorige/volgende, teller, pijltjestoetsen en swipen. Extra beelden laden pas bij bekijken; geen wijziging van de gekozen hero, respecteert afbeeldingen uit.
 - Nieuw consolecommando `php bin/console system update [--check]` voor updatecheck en geautomatiseerde update-run (fetch/pull, migrate en databasechecks).

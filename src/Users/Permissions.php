@@ -17,6 +17,7 @@ final class Permissions
         'retrieve.run' => 'Handmatige retrieve starten',
         'audit.view' => 'Auditlog bekijken',
         'statistics.view' => 'Statistieken bekijken',
+        'system.update' => 'Systeem bijwerken (servercode uitvoeren)',
         'users.manage' => 'Gebruikers beheren',
         'groups.manage' => 'Groepen en rechten beheren',
         'settings.manage' => 'Systeeminstellingen beheren',

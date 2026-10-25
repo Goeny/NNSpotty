@@ -49,6 +49,7 @@ try {
     $spots = new SpotRepository($pdo);
     require __DIR__ . '/activity-integration.php';
     require __DIR__ . '/activity-http.php';
+    require __DIR__ . '/system-http.php';
     require __DIR__ . '/comments-integration.php';
     $log = [];
     $logger = static function (string $message) use (&$log): void {

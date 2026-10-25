@@ -102,7 +102,7 @@ final class Article
             'Date: ' . gmdate('D, d M Y H:i:s') . ' +0000',
             'Content-Type: text/plain; charset=ISO-8859-1',
             'Content-Transfer-Encoding: 8bit',
-            'X-Newsreader: NNSpotty 0.0.1',
+            'X-Newsreader: NNSpotty ' . \NnSpotty\Config\Release::VERSION,
             'X-No-Archive: yes',
             'X-User-Rating: 0',
             'X-User-Key: ' . self::publicXml($user),
