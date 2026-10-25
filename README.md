@@ -16,6 +16,7 @@ NNSpotty is een moderne Spotnet-webapplicatie voor het ophalen, browsen en downl
 - Poster- en fanartgalerijen bij films/series: klik de cover voor overige posters, of het media-icoon naast de trailer voor fanart. Bladeren met knoppen, pijltjestoetsen of swipen; afbeeldingen laden pas bij bekijken.
 - Admin beheerpanel voor systeeminstellingen
 - Gebruikers, rollen, rechten en persoonlijke preferences
+- Persoonlijke historie met tabs Bekeken/Gedownload (SABnzbd, Newznab API en NZB-bestanden); geaggregeerde statistieken met grafieken achter het groepsrecht `statistics.view`
 - Spotter moderatie (whitelist / blacklist)
 - Light en dark thema (Plex-geïnspireerde UX)
 

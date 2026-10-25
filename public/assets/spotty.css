@@ -5,6 +5,20 @@
     --plex-accent-text: #f2b830;
     --plex-accent-rgb: 229, 160, 13;
 }
+.activity-page { max-width: 1400px; margin-inline: auto; }
+.activity-title { min-width: 220px; max-width: 650px; overflow-wrap: anywhere; }
+.activity-history-table time { white-space: nowrap; }
+.activity-bar-row { margin-top: 1rem; }
+.activity-bar-track { height: 9px; margin-top: .35rem; background: var(--bs-tertiary-bg); border-radius: 5px; overflow: hidden; }
+.activity-bar { height: 100%; background: var(--plex-accent); border-radius: inherit; }
+.activity-chart { display: block; width: 100%; min-width: 480px; }
+.activity-chart-scroll { overflow-x: auto; }
+.activity-chart-axis { stroke: var(--bs-border-color); }
+.activity-chart-label { fill: var(--bs-secondary-color); font-size: 12px; }
+.activity-line { fill: none; stroke-width: 3; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.activity-series-0 { stroke: var(--plex-accent); background: var(--plex-accent); }
+.activity-series-1 { stroke: #83b7a4; background: #83b7a4; stroke-dasharray: 7 4; }
+.activity-legend { display: inline-block; width: 18px; height: 3px; vertical-align: middle; }
 [data-bs-theme="light"], html:not([data-bs-theme]) { --plex-accent-text: #855700; }
 .btn-primary, .btn-warning {
     --bs-btn-color: #191919;

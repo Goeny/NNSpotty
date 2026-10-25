@@ -47,6 +47,8 @@ try {
     $settings['max_articles_per_group'] = 100;
     $state->saveUsenetSettings($settings);
     $spots = new SpotRepository($pdo);
+    require __DIR__ . '/activity-integration.php';
+    require __DIR__ . '/activity-http.php';
     require __DIR__ . '/comments-integration.php';
     $log = [];
     $logger = static function (string $message) use (&$log): void {

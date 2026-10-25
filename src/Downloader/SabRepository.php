@@ -124,6 +124,24 @@ final class SabRepository
 
     public function finish(int $id, string $status, ?string $nzoId = null): void
     {
-        $this->pdo->prepare('UPDATE sabnzbd_downloads SET status = ?, nzo_id = ? WHERE id = ?')->execute([$status, $nzoId, $id]);
+        $this->pdo->beginTransaction();
+        try {
+            $select = $this->pdo->prepare('SELECT username, spot_id, status FROM sabnzbd_downloads WHERE id = ? FOR UPDATE');
+            $select->execute([$id]);
+            $download = $select->fetch();
+            if ($download === false) throw new InvalidArgumentException('Downloadpoging niet gevonden.');
+            if ($download['status'] !== 'sent') {
+                $this->pdo->prepare('UPDATE sabnzbd_downloads SET status = ?, nzo_id = ? WHERE id = ?')->execute([$status, $nzoId, $id]);
+                if ($status === 'sent') {
+                    $spot = (new \NnSpotty\Usenet\SpotRepository($this->pdo))->getSpot($download['spot_id'], true);
+                    if ($spot === null) throw new \RuntimeException('Spot voor downloadhistorie niet gevonden.');
+                    (new \NnSpotty\Activity\Repository($this->pdo))->record($download['username'], $spot, 'sabnzbd');
+                }
+            }
+            $this->pdo->commit();
+        } catch (\Throwable $exception) {
+            $this->pdo->rollBack();
+            throw $exception;
+        }
     }
 }

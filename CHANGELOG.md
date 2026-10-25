@@ -16,6 +16,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 - Muziek-/film-/serie-/afleveringfanart past volledig en proportioneel rechts in de metadatahero, zonder afgesneden boven-/onderkant. Zachte linkerovergang en gedeelde donker/licht-tekstoverlay; geldt ook voor previews, zonder extra paginahoogte, requests of cachewijzigingen.
 
 ### Added
+- Persoonlijke historie onder Favorieten, met tabs Bekeken/Gedownload, laatste datum, aantallen en downloadbronnen. Statistieken met periodekeuze, gebruikersaantallen, categorie-/downloadbrongrafieken en dagelijkse activiteit; nieuw toekenbaar groepsrecht `statistics.view` (standaard alleen admins). Migratie `20261025_0025_activity` neemt beschikbare bevestigde SABnzbd-verzendingen over.
 - Poster- en fanartgalerijen voor films/series: overige posters via de cover, fanart via een media-icoon naast de trailer. Afbeeldingen van gekoppelde TVDB-/TMDB-records, met vorige/volgende, teller, pijltjestoetsen en swipen. Extra beelden laden pas bij bekijken; geen wijziging van de gekozen hero, respecteert afbeeldingen uit.
 - Nieuw consolecommando `php bin/console system update [--check]` voor updatecheck en geautomatiseerde update-run (fetch/pull, migrate en databasechecks).
 - Uitgebreidere CLI-documentatie met alle beschikbare `bin/console` commandgroepen, opties en voorbeelden.

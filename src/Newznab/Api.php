@@ -66,7 +66,11 @@ final class Api
                     return self::error(300, 'NZB niet beschikbaar.');
                 }
                 try {
-                    return SpotNzbService::download((new SpotNzbService($this->pdo, $this->state))->load($spot), $id);
+                    $response = SpotNzbService::download((new SpotNzbService($this->pdo, $this->state))->load($spot), $id);
+                    if ($request->method() === 'GET') {
+                        (new \NnSpotty\Activity\Repository($this->pdo))->record($username, $spot, 'newznab');
+                    }
+                    return $response;
                 } catch (Throwable $exception) {
                     error_log('Newznab NZB ' . $id . ': ' . $exception->getMessage());
                     return self::error(300, 'NZB ophalen mislukt. Controleer de serverlog.', 502);

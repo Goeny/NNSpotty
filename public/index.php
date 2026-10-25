@@ -832,6 +832,9 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
         pendingComments: $content['show_comments'] ? $spots->pendingCommentCount($spotId) : 0
     );
 
+    if ($request->method() === 'GET') {
+        (new \NnSpotty\Activity\Repository($pdo))->record($currentUser['username'], $spot, 'detail');
+    }
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
 });
 
@@ -879,7 +882,11 @@ $router->get('/spots/nzb', static function (Request $request) use ($auth, $spots
         return Response::notFound();
     }
     try {
-        return \NnSpotty\Usenet\SpotNzbService::download((new \NnSpotty\Usenet\SpotNzbService($pdo, $state))->load($spot), $id);
+        $response = \NnSpotty\Usenet\SpotNzbService::download((new \NnSpotty\Usenet\SpotNzbService($pdo, $state))->load($spot), $id);
+        if ($request->method() === 'GET') {
+            (new \NnSpotty\Activity\Repository($pdo))->record($auth->user()['username'], $spot, 'nzb');
+        }
+        return $response;
     } catch (Throwable $exception) {
         error_log('Spot NZB ' . $id . ': ' . $exception->getMessage());
         return new Response(502, 'NZB ophalen mislukt. Controleer de serverlog.', [
@@ -1042,6 +1049,9 @@ $router->post('/preferences', static function (Request $request) use ($state, $a
     return Response::redirect('/preferences?status=' . rawurlencode('Preferences opgeslagen.'));
 });
 
+$activityController = new \NnSpotty\Activity\Controller($pdo, $auth, $csrf, $state);
+$router->get('/history', $activityController->handle(...));
+$router->get('/statistics', $activityController->handle(...));
 $accountController = new \NnSpotty\Users\Controller($pdo, $users, $auth, $csrf, $state);
 $router->get('/account/password', $accountController->profile(...));
 $router->post('/account/profile', $accountController->profile(...));

@@ -20,6 +20,16 @@ Migratie `20261020_0021_accounts` breidt `app_users` uit met status, tijdelijke-
 
 `Comments/Publisher` gebruikt de actuele publieke naam en voegt een ingestelde handtekening altijd toe voordat de volledige body wordt gevalideerd/ondertekend. De persoonlijke RSA-sleutel blijft gekoppeld aan loginnaam. `comment_publications.poster/source_body/body` bewaren de oorspronkelijke publieke naam, oorspronkelijke invoer en volledige publicatietekst, zodat idempotente retries/reconciliatie niet door latere profielwijzigingen veranderen. Nieuwe webformulieren geven een naam/signature-revisie mee en worden bij profielwijziging eerst ter herbeoordeling getoond; oudere formulieren blijven compatibel. Zowel preview als lokale cache tonen de publieke identiteit; avatar is geen onderdeel van het Spotnet-protocol.
 
+## Historie en statistieken
+
+Migratie `20261025_0025_activity` bewaart persoonlijke tellers in `activity_history` per gebruiker/spot/actie/bron en anonieme dagtotalen in `activity_daily`. `Activity/Repository` schrijft beide atomair met upserts: herhaalde acties verhogen tellers, niet het aantal historieregels. Alleen succesvolle volledige detail-GETs, browser-NZB-GETs, Newznab `t=get`-GETs en bevestigde SABnzbd-verzendingen tellen mee. Preview, HEAD, zoekrequests, mislukte of onbekende verzendingen tellen niet. SABnzbd-status en historie worden in dezelfde transactie opgeslagen; herbevestiging van een al verzonden poging telt niet dubbel. Een NZB-aanlevering is geen bevestiging dat een downloader klaar is.
+
+`/history` gebruikt alleen de ingelogde gebruiker, pagineert en bundelt downloadbronnen per spot. Titels/categorieen blijven als snapshot bewaard na spotretentie; ontbrekende spots krijgen geen detailkoppeling. Accountverwijdering verwijdert persoonlijke historie via FK; anonieme dagtotalen blijven bestaan. Erotiek wordt in historie op snapshot en actuele spotzichtbaarheid gefilterd en in statistieken op de opgeslagen categorieclassificatie. Er worden geen IP-adressen, API-keys of downloaderhosts opgeslagen.
+
+`/statistics` vereist `statistics.view`, ook voor directe URL/HEAD. Dit recht staat in de bestaande groepsrechtenmatrix en is standaard alleen via de adminrol beschikbaar. De pagina toont uitsluitend geaggregeerde cijfers over 7/30/90 UTC-dagen, inclusief vandaag. Gebruikers/actieve accounts zijn huidige aantallen; nieuwe accounts per dag betreffen nu nog bestaande accounts. Lokale SVG-/CSS-grafieken hebben exacte tabellen/waarden en laden geen externe charttool. Beide pagina's zijn private/no-store.
+
+De migratie neemt beschikbare `sent`-SABnzbd-records over in historie en dagtotalen; oude views, handmatige NZB- en API-downloads zijn niet reconstrueerbaar. NZBGet blijft gepland en wordt niet als bestaande koppeling voorgesteld.
+
 ## Persoonlijke favorieten
 
 `Favorites/Repository` bewaart `(username, spot_id)` in `spot_favorites` (migratie `20261019_0019_favorites`). De samengestelde primary key maakt toevoegen idempotent en gebruikersfilters geindexeerd; foreign keys verwijderen verwijzingen bij spot-/gebruikersverwijdering. Geen providerrequests of volledige favoriete spotcollectie bij pageload: de huidige begrensde batch krijgt via een enkele `IN`-lookup `is_favorite`. Favorietenlijsten/facets gebruiken dezelfde zichtbaarheid, zoekfilters en keysetpaginering met een gebruikersgebonden subquery.

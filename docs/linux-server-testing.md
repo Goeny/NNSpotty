@@ -14,6 +14,19 @@ php bin/console db status
 php bin/console db health
 ```
 
+## Historie en statistieken controleren
+
+Na `php bin/console db migrate`:
+
+- Open een volledige detailpagina tweemaal: `/history` toont onder Bekeken een regel met aantal twee; een preview telt niet.
+- Download een NZB handmatig, via een persoonlijke Newznab-key en via SABnzbd. Gedownload bundelt per spot met de juiste bronnen; mislukte/onbekende SABnzbd-verzendingen en herhaalde bevestigingen tellen niet extra.
+- Controleer met twee accounts dat ieder uitsluitend zijn eigen historie ziet, ook met een toegevoegde `username`-queryparameter.
+- Open `/statistics` als admin en wissel tussen 7/30/90 dagen. Controleer categorieen, downloadbronnen, gebruikersaantallen en de uitklapbare exacte dagwaarden.
+- Een gewone gebruiker ziet geen statistiekenlink en krijgt 403 op de directe URL. Ken via groepsbeheer **Statistieken bekijken** toe en trek het weer in; beide wijzigingen moeten meteen werken.
+- Controleer donker/licht, mobiel, paginering en verborgen erotiek. Verwijderde spots blijven herkenbaar zonder dode detailkoppeling.
+
+De automatische activiteitstests draaien mee met de bestaande database-integratietests; ze gebruiken synthetische accounts/NZB's en een lokale SABnzbd-fixture.
+
 ## Retrieve-check
 
 ```bash

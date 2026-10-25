@@ -612,6 +612,47 @@ final class Migrator
                     DROP INDEX IF EXISTS idx_spotnet_spots_category_date,
                     DROP INDEX IF EXISTS idx_spotnet_created_at',
             ],
+            '20261025_0025_activity' => [
+                'CREATE TABLE IF NOT EXISTS activity_history (
+                    username VARCHAR(191) NOT NULL,
+                    spot_id CHAR(64) CHARACTER SET ascii NOT NULL,
+                    kind VARCHAR(10) CHARACTER SET ascii NOT NULL,
+                    source VARCHAR(16) CHARACTER SET ascii NOT NULL,
+                    title TEXT NOT NULL,
+                    category VARCHAR(32) NOT NULL,
+                    is_erotica TINYINT(1) NOT NULL,
+                    first_at DATETIME(6) NOT NULL,
+                    last_at DATETIME(6) NOT NULL,
+                    action_count BIGINT UNSIGNED NOT NULL DEFAULT 1,
+                    PRIMARY KEY (username, spot_id, kind, source),
+                    INDEX idx_activity_history (username, kind, last_at, spot_id),
+                    FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS activity_daily (
+                    day DATE NOT NULL,
+                    kind VARCHAR(10) CHARACTER SET ascii NOT NULL,
+                    source VARCHAR(16) CHARACTER SET ascii NOT NULL,
+                    category VARCHAR(32) NOT NULL,
+                    is_erotica TINYINT(1) NOT NULL,
+                    action_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+                    PRIMARY KEY (day, kind, source, category, is_erotica)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'INSERT IGNORE INTO activity_history
+                    (username, spot_id, kind, source, title, category, is_erotica, first_at, last_at, action_count)
+                    SELECT d.username, d.spot_id, \'download\', \'sabnzbd\', MAX(d.title),
+                        MAX(s.browse_type), MAX(s.is_erotica),
+                        MIN(d.created_at), MAX(d.created_at), COUNT(*)
+                    FROM sabnzbd_downloads d JOIN app_users u ON u.username = d.username
+                    JOIN spotnet_spots s ON s.id = d.spot_id
+                    WHERE d.status = \'sent\' GROUP BY d.username, d.spot_id',
+                'INSERT IGNORE INTO activity_daily (day, kind, source, category, is_erotica, action_count)
+                    SELECT DATE(d.created_at), \'download\', \'sabnzbd\', s.browse_type,
+                        s.is_erotica, COUNT(*)
+                    FROM sabnzbd_downloads d JOIN app_users u ON u.username = d.username
+                    JOIN spotnet_spots s ON s.id = d.spot_id
+                    WHERE d.status = \'sent\'
+                    GROUP BY DATE(d.created_at), s.browse_type, s.is_erotica',
+            ],
         ];
     }
 }

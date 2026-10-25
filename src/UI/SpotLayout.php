@@ -30,14 +30,14 @@ final class SpotLayout
      *  @param list<array<string, mixed>>|null $facets
      *  @param list<string>|null $available Subcategory codes that still yield results; null shows every code.
      */
-    public static function render(string $title, string $username, bool $isAdmin, string $csrfField, string $content, array $categories = [], ?string $selected = null, string $theme = 'default', ?array $facets = [], string|array|null $selectedSubcategory = null, string $search = '', bool $showErotica = false, bool $browse = false, bool $favoritesOnly = false, ?array $available = null): string
+    public static function render(string $title, string $username, bool $isAdmin, string $csrfField, string $content, array $categories = [], ?string $selected = null, string $theme = 'default', ?array $facets = [], string|array|null $selectedSubcategory = null, string $search = '', bool $showErotica = false, bool $browse = false, bool $favoritesOnly = false, ?array $available = null, string $section = ''): string
     {
         $mode = $theme === 'plex-light' ? 'light' : 'dark';
         $head = SpotCategories::headForCategory($selected);
         $favoriteQuery = $favoritesOnly ? ['favorites' => '1'] : [];
         // Main categories always lead to the regular overview, also when coming from favorites.
         $allUrl = '/spots' . ($search === '' ? '' : '?' . http_build_query(['q' => $search]));
-        $allActive = $head === null && !$favoritesOnly;
+        $allActive = $head === null && !$favoritesOnly && $section === '';
         $mainNavigation = '<a class="side-link' . ($allActive ? ' active' : '') . '" href="'
             . h($allUrl) . '"' . ($allActive ? ' aria-current="page"' : '') . '>Alle</a>';
         foreach (SpotCategories::HEADS as $index => $category) {
@@ -49,7 +49,14 @@ final class SpotLayout
         $navigation = self::subcategories($head, $facets, $filters, $search, $showErotica, $favoritesOnly, $available);
         $favoritesNavigation = '<nav class="mb-3" aria-label="Mijn spots"><p class="nav-caption">Mijn spots</p>'
             . '<a class="side-link' . ($favoritesOnly ? ' active' : '') . '" href="/spots?favorites=1"'
-            . ($favoritesOnly ? ' aria-current="page"' : '') . '>Favorieten</a></nav>';
+            . ($favoritesOnly ? ' aria-current="page"' : '') . '>Favorieten</a>'
+            . '<a class="side-link' . ($section === 'history' ? ' active' : '') . '" href="/history"'
+            . ($section === 'history' ? ' aria-current="page"' : '') . '>Historie</a>';
+        if (self::$account !== null ? \NnSpotty\Users\Permissions::allows(self::$account, 'statistics.view') : $isAdmin) {
+            $favoritesNavigation .= '<a class="side-link' . ($section === 'statistics' ? ' active' : '') . '" href="/statistics"'
+                . ($section === 'statistics' ? ' aria-current="page"' : '') . '>Statistieken</a>';
+        }
+        $favoritesNavigation .= '</nav>';
         $admin = $isAdmin ? '<a class="dropdown-link" href="/admin">Beheerpanel</a>' : '';
         $safeTitle = h($title);
         $safeUsername = h($username);
