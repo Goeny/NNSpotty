@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "d9b4a7c4b842649c5796432d280c354d",
+    "content-hash": "f0c5fba2fb19ef175faf6b88f635054a",
     "packages": [
         {
             "name": "rvdv/nntp",
@@ -78,5 +78,5 @@
         "ext-zlib": "*"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.6.0"
+    "plugin-api-version": "2.9.0"
 }

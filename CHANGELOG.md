@@ -2,7 +2,7 @@
 
 Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
-## [Unreleased] - 0.0.1 - Delta Integrale
+## [0.1.0] - 2026-10-25 - Skyline GT-R
 
 ### Fixed
 - Updater volgt gepubliceerde stabiele GitLab-/GitHub-releases in plaats van branchcommits; exacte releasetag, Composer, migraties met nieuwe PHP-processen, onderhoudsmodus/herstel en gedeelde updatelock. Runtimeversie/codenaam centraal in releasecode, niet uit verouderde `.env`-waarden.
@@ -20,7 +20,6 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 - GUI-releasecontrole onder de sidebarversie en installatiepagina met back-upbevestiging, CSRF en afzonderlijk groepsrecht `system.update`. Releasebeleid: reguliere commits alleen GitLab; expliciete releases met nieuwe versie/codenaam op GitLab en GitHub.
 - Persoonlijke historie onder Favorieten, met tabs Bekeken/Gedownload, laatste datum, aantallen en downloadbronnen. Statistieken met periodekeuze, gebruikersaantallen, categorie-/downloadbrongrafieken en dagelijkse activiteit; nieuw toekenbaar groepsrecht `statistics.view` (standaard alleen admins). Migratie `20261025_0025_activity` neemt beschikbare bevestigde SABnzbd-verzendingen over.
 - Poster- en fanartgalerijen voor films/series: overige posters via de cover, fanart via een media-icoon naast de trailer. Afbeeldingen van gekoppelde TVDB-/TMDB-records, met vorige/volgende, teller, pijltjestoetsen en swipen. Extra beelden laden pas bij bekijken; geen wijziging van de gekozen hero, respecteert afbeeldingen uit.
-- Nieuw consolecommando `php bin/console system update [--check]` voor updatecheck en geautomatiseerde update-run (fetch/pull, migrate en databasechecks).
 - Uitgebreidere CLI-documentatie met alle beschikbare `bin/console` commandgroepen, opties en voorbeelden.
 - Snelle overzichtsindex (migratie `20261023_0024_spot_browse_index`): smalle leestabel `spot_browse`, gedeelde categoriecombinaties met spotaantallen en titel-FULLTEXT. Filters/aantallen lezen combinaties, de lijst wandelt op datum zonder filesort, brede zoekopdrachten zoeken eerst in de nieuwste spots en hebben een tijdslimiet met terugval (ook bij MariaDB-fout 188); beschikbare filters worden 10 minuten gecachet in `spot_filter_cache`; opbouw in datumvolgorde. Opbouw met voortgang tijdens `db migrate`; `db reindex-spots` bouwt opnieuw op, `db cleanup` herstelt aantallen. Overbodige brede indexen op `spotnet_spots` vervallen. Benchmark `tests/browse-performance.php` tot 5 miljoen spots.
 - Zoeken op hele woorden en exacte woordreeksen in overzicht en Newznab: `The` vindt geen `Thesaurus`, `The Juggler` vindt niet `Juggler in the streets`.

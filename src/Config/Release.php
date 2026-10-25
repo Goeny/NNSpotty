@@ -6,6 +6,6 @@ namespace NnSpotty\Config;
 
 final class Release
 {
-    public const VERSION = '0.0.1';
-    public const CODENAME = 'Delta Integrale';
+    public const VERSION = '0.1.0';
+    public const CODENAME = 'Skyline GT-R';
 }

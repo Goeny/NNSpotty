@@ -17,9 +17,9 @@ Voorbeelden van geschikte stijl:
 - Alpine A110 S
 
 ## Actuele release
-- **Versie:** `0.0.1`
-- **Codenaam:** `Delta Integrale`
-- **Status:** Developmentfundament met Spotnet-retrieval; geen stabiele of complete Spotweb-vervanger
+- **Versie:** `0.1.0`
+- **Codenaam:** `Skyline GT-R`
+- **Status:** Eerste gepubliceerde 0.x-release met Spotnet, Newznab, metadata, downloadintegratie, historie/statistieken en release-updater; nog geen 1.0-productierelease
 
 ## Releaseadministratie
 Alleen een expliciet gevraagde nieuwe release verandert versie **en** codenaam; reguliere commits veranderen die niet.
