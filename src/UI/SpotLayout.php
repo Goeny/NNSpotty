@@ -163,9 +163,15 @@ final class SpotLayout
     </div>
     <div class="lightbox-body">
       <p class="small text-body-secondary" data-lightbox-status role="status">Afbeelding laden...</p>
-      <div class="alert alert-warning" data-lightbox-error role="alert" hidden>De afbeelding kon niet worden geladen. Sluit dit venster en probeer opnieuw.</div>
+      <div class="alert alert-warning" data-lightbox-error role="alert" hidden>De afbeelding kon niet worden geladen. Probeer opnieuw of bekijk een andere afbeelding.</div>
       <img class="lightbox-image" alt="" referrerpolicy="no-referrer">
     </div>
+    <div class="lightbox-navigation" data-lightbox-navigation hidden>
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-lightbox-previous aria-label="Vorige afbeelding">&larr; Vorige</button>
+      <span class="small" data-lightbox-counter role="status" aria-live="polite" aria-atomic="true"></span>
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-lightbox-next aria-label="Volgende afbeelding">Volgende &rarr;</button>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary lightbox-retry" type="button" data-lightbox-retry hidden>Opnieuw proberen</button>
   </dialog>
   <dialog class="download-drawer" id="download-drawer" aria-labelledby="download-title">
     <div class="download-toolbar">

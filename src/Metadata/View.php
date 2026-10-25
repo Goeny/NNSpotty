@@ -163,6 +163,25 @@ final class View
             . ', aflevering ' . (int) $metadata['requested_episode']
             . ' is niet uniek beschikbaar in de officiële ' . $providerName . '-nummering. Seizoen en aflevering zijn uit de releasetitel, niet door ' . $providerName . ' bevestigd. Er worden alleen seriemetadata getoond; corrigeer de koppeling via Metadata link.</p>';
         $copy .= \NnSpotty\UI\SpotReleaseQuality::render($spot['title']);
+        $galleries = '';
+        $posterGallery = null;
+        if ($images && !$preview) {
+            $posters = self::galleryImages($metadata['posters'] ?? [], $cover);
+            $backdrops = self::galleryImages($metadata['backdrops'] ?? [], $metadata['fanart']);
+            if ($posters !== []) {
+                $posterGallery = 'posters';
+                $galleries .= self::galleryTemplate('posters', $posters);
+            }
+            if ($backdrops !== []) {
+                $galleries .= self::galleryTemplate('fanart', $backdrops);
+                $actions = '<a class="media-button" href="' . h($backdrops[0]) . '" target="_blank" rel="noopener noreferrer"'
+                    . ' data-image-lightbox data-image-gallery="fanart" data-image-title="' . h($metadata['title'] . ' - Fanart') . '"'
+                    . ' aria-controls="image-lightbox" aria-haspopup="dialog" aria-label="Fanart bekijken" title="Fanart bekijken">'
+                    . '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true" focusable="false">'
+                    . '<rect x="5" y="3" width="16" height="16" rx="2"/><path d="M17 21H4a2 2 0 0 1-2-2V7m3 9 4-4 4 3 3-5 5 6"/>'
+                    . '<circle cx="10" cy="8" r="1.5"/></svg></a>' . $actions;
+            }
+        }
         $trailers = $preview ? [] : self::trailerItems($metadata);
         if ($trailers !== []) {
             $first = $trailers[0];
@@ -176,8 +195,32 @@ final class View
             . SpotPresentation::backdrop($backgroundSpot, 'hero-backdrop', $images)
             . '<div class="hero-actions" role="group" aria-label="Spotacties"><div class="hero-sources">' . $link . self::attribution($metadata, $provider) . '</div>'
             . '<div class="hero-buttons">' . $actions . '</div></div>'
-            . '<div class="hero-poster">' . SpotPresentation::image($imageSpot, false, $images) . '</div><div class="hero-copy">' . $copy . '</div></section>'
+            . '<div class="hero-poster">' . SpotPresentation::image($imageSpot, false, $images, $posterGallery) . '</div><div class="hero-copy">' . $copy . '</div>'
+            . $galleries . '</section>'
             . '<p class="small text-body-secondary metadata-release">Oorspronkelijke spottitel: <strong>' . h($spot['title']) . '</strong></p>';
+    }
+
+    /** @return list<string> */
+    private static function galleryImages(array $images, string $current): array
+    {
+        $result = [];
+        foreach (array_merge([$current], $images) as $url) {
+            if (!is_string($url) || $url === '') continue;
+            if (preg_match('~^https://image\.tmdb\.org/t/p/(?:original|w[0-9]+)/([A-Za-z0-9_-]{1,100}\.(?:jpe?g|png|webp|svg))$~D', $url, $match)) {
+                $url = Tmdb::imageUrl('/' . $match[1], 'original');
+            } else {
+                $url = Service::imageUrl($url);
+            }
+            if ($url !== '') $result[$url] = $url;
+        }
+        return array_values($result);
+    }
+
+    private static function galleryTemplate(string $name, array $images): string
+    {
+        $html = '<template data-image-gallery-items="' . h($name) . '">';
+        foreach ($images as $url) $html .= '<a href="' . h($url) . '"></a>';
+        return $html . '</template>';
     }
 
     private static function badges(array $metadata): string

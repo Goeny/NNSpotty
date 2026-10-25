@@ -75,6 +75,7 @@ check($tmdbXpath->query('//div[@class="hero-actions"]/div[@class="hero-buttons"]
     'Trailericoon staat bij de heroknoppen, attributie naast Metadata link en speler in een dialoog buiten de hero');
 check(!str_contains(\NnSpotty\UI\SpotDetailPageRenderer::summary($tmdbMovie, true, true, true, $tmdbMeta), 'data-trailer-key'),
     'Preview toont geen trailers');
+require __DIR__ . '/metadata-gallery-integration.php';
 $tmdbDrawer = MetadataView::controls($tmdbMovie, true, '', $tmdbRepo);
 check(str_contains($tmdbDrawer, 'name="provider"') && str_contains($tmdbDrawer, '<option value="tmdb" selected>TMDB</option>')
     && str_contains($tmdbDrawer, 'data-choice-id="metadata_id"') && str_contains($tmdbDrawer, 'Metadata link'),
@@ -126,6 +127,12 @@ $tmdbEpisodeMeta = $tmdbService->lookup($tmdbEpisode)['metadata'] ?? [];
 check($tmdbEpisodeMeta['provider'] === 'tmdb' && $tmdbEpisodeMeta['episode_title'] === 'TMDB Episode' && $tmdbEpisodeMeta['id'] === 7002
     && $tmdbEpisodeMeta['links']['tmdb'] === 'tv/700/season/3/episode/2',
     'Series met TMDB primair koppelen de exacte TMDB-aflevering');
+$episodeGalleryHtml = MetadataView::hero($tmdbEpisode, $tmdbEpisodeMeta, '', true);
+check(str_contains($episodeGalleryHtml, 'data-image-gallery="posters"')
+    && str_contains($episodeGalleryHtml, 'data-image-gallery="fanart"')
+    && str_contains($episodeGalleryHtml, '<template data-image-gallery-items="posters"><a href="https://image.tmdb.org/t/p/original/still.jpg"')
+    && count($tmdbEpisodeMeta['posters']) >= 2 && count($tmdbEpisodeMeta['backdrops']) >= 2,
+    'Aflevering behoudt de still als eerste vergroting en kan door serieposters en fanart bladeren');
 rejects(static fn () => $tmdbService->choose($tmdbEpisode, ['id' => 700, 'type' => 'series', 'provider' => 'tmdb', 'season' => 9, 'episode' => 9]),
     'Onvindbare handmatige TMDB-aflevering wordt geweigerd');
 $tmdbRepo->saveProvider('series', 'tvdb');

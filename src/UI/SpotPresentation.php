@@ -7,7 +7,7 @@ namespace NnSpotty\UI;
 final class SpotPresentation
 {
     /** @param array<string, mixed> $spot */
-    public static function image(array $spot, bool $thumbnail, bool $enabled = true): string
+    public static function image(array $spot, bool $thumbnail, bool $enabled = true, ?string $gallery = null): string
     {
         if (!$enabled) {
             return '<div class="cover-placeholder' . ($thumbnail ? ' small' : '') . '">Afbeeldingen uitgeschakeld</div>';
@@ -23,6 +23,7 @@ final class SpotPresentation
             . ' onerror="this.hidden=true;this.closest(\'figure\').classList.add(\'image-failed\');this.closest(\'figure\').querySelector(\'[data-image-fallback]\').hidden=false">';
         if (!$thumbnail) {
             $image = '<a class="poster-enlarge" href="' . h($source) . '" target="_blank" rel="noopener noreferrer" data-image-lightbox'
+                . ($gallery === null ? '' : ' data-image-gallery="' . h($gallery) . '"')
                 . ' data-image-title="' . h($spot['title']) . '" aria-label="Afbeelding vergroten: ' . h($spot['title']) . '">' . $image . '</a>';
         }
         return '<figure class="' . ($thumbnail ? 'mb-0' : 'spot-poster mb-0') . '">' . $background . $image

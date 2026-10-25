@@ -16,6 +16,7 @@ Dit bestand blijft bewust kort en publiek.
 - NZB-download en SABnzbd-koppeling
 - Newznab API
 - Metadata-integraties (films/series/muziek)
+- Posters en fanart van gekoppelde TVDB-/TMDB-records in aparte lightboxgalerijen; cover opent posters, media-icoon opent fanart. Alleen de bekeken afbeelding wordt geladen; hero-keuze blijft gelijk.
 - Gebruikers, rollen, rechten en preferences
 
 ## Werkwijze

@@ -46,3 +46,20 @@ Deze run doet fetch/pull, migraties en basischecks.
 - Commit nooit `.env` of secrets.
 - Gebruik altijd least-privilege database- en API-accounts.
 - Sla interne hostnames, users en paden niet op in publieke docs.
+
+## Poster- en fanartgalerijen
+
+Na een update: harde browserverversing en een gematchte film, serie en aflevering openen. Geen nieuwe migratie of cacheflush nodig voor de galerijen; oude matches worden bij detail vernieuwd. Gebruik voor de tests dezelfde PHP/OpenSSL-configuratie als voor de bestaande installatie.
+
+```bash
+php tests/run.php
+```
+
+- Cover aanklikken: huidige cover eerst, daarna overige posters. Bij een aflevering staat de huidige still eerst.
+- Media-icoon naast de trailer: aparte galerij met beschikbare fanart; ook zichtbaar als er fanart maar geen trailer is.
+- Test vorige/volgende, teller, pijltjestoetsen, swipen op mobiel, Escape en focusherstel. Werkt na asynchrone metadata-vervanging.
+- Extra afbeeldingen laden pas wanneer ze worden bekeken. Bij een laadfout blijven navigatie en opnieuw proberen bruikbaar. Geen artwork: geen lege mediaknop.
+- Afbeeldingen uit: geen mediaknop, galerij-URLs of externe afbeeldingsrequests. De preview krijgt geen galerijlijsten.
+- Heropenen gebruikt databasecache. Beide gekoppelde providers kunnen afbeeldingen leveren met bronvermelding; een fout bij extra artwork laat de gevonden metadata intact met een waarschuwing.
+
+Databasechecks voor verzamelen, samenvoegen, dedupliceren, URL-validatie en artworkfouten staan in `tests/metadata-gallery-integration.php`. Draai `php tests/run.php --integration` alleen op een aparte testdatabase met de bestaande `NNSPOTTY_TEST_*`-instellingen.

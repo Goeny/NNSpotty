@@ -111,6 +111,7 @@ final class Tmdb
         $imdb = $base['external_ids']['imdb_id'] ?? $base['imdb_id'] ?? '';
         $tvdb = $base['external_ids']['tvdb_id'] ?? null;
         $link = ($type === 'movie' ? 'movie/' : 'tv/') . $id . ($episode === null ? '' : '/season/' . (int) $season . '/episode/' . (int) $number);
+        $artwork = $this->artwork($path, $base);
         return [
             'provider' => 'tmdb', 'type' => $episode === null ? $type : 'episode', 'id' => $episode['id'] ?? $id, 'parent_id' => $id,
             'title' => self::text($title),
@@ -123,6 +124,7 @@ final class Tmdb
             'genres' => array_slice(array_values(array_filter(array_map(static fn ($g): string => is_array($g) ? self::text($g['name'] ?? '') : '', $base['genres'] ?? []))), 0, 15),
             'poster' => self::imageUrl($base['poster_path'] ?? null, 'w500'), 'fanart' => self::imageUrl($base['backdrop_path'] ?? null, 'w1280'),
             'still' => $episode === null ? '' : self::imageUrl($episode['still_path'] ?? null, 'w780'),
+            ...$artwork,
             'people' => array_values($people), 'companies' => array_slice(array_values($companies), 0, 20),
             'remote_ids' => [],
             'imdb_id' => is_string($imdb) && preg_match('/^tt\d{5,10}$/D', $imdb) ? $imdb : '',
@@ -132,6 +134,38 @@ final class Tmdb
             'trailers' => self::trailers(array_merge($episode['videos']['results'] ?? [], $base['videos']['results'] ?? []), substr($language, 0, 2)),
             'links' => ['tmdb' => $link],
         ];
+    }
+
+    private function artwork(string $path, array $base): array
+    {
+        $artwork = [
+            'posters' => array_filter([self::imageUrl($base['poster_path'] ?? null, 'original')]),
+            'backdrops' => array_filter([self::imageUrl($base['backdrop_path'] ?? null, 'original')]),
+        ];
+        try {
+            // No language filter: the gallery includes all available artwork languages.
+            $data = $this->cached($path . '/images', []);
+            if (!is_int($data['id'] ?? null) || (string) $data['id'] !== basename($path)) {
+                throw new RuntimeException('TMDB-artwork hoort niet bij de gekozen titel.');
+            }
+            foreach (['posters', 'backdrops'] as $field) {
+                if (!is_array($data[$field] ?? null) || !array_is_list($data[$field])) {
+                    throw new RuntimeException('TMDB gaf geen geldige artworklijst.');
+                }
+                foreach ($data[$field] as $image) {
+                    if (!is_array($image)) throw new RuntimeException('TMDB gaf ongeldige artworkgegevens.');
+                    $url = self::imageUrl($image['file_path'] ?? null, 'original');
+                    if ($url !== '') $artwork[$field][] = $url;
+                }
+            }
+        } catch (\PDOException $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            error_log('TMDB-artwork: ' . $exception->getMessage());
+            $artwork['artwork_warning'] = 'Extra TMDB-afbeeldingen konden niet worden opgehaald. De metadata blijft beschikbaar; probeer over vijf minuten opnieuw.';
+        }
+        foreach (['posters', 'backdrops'] as $field) $artwork[$field] = array_values(array_unique($artwork[$field]));
+        return $artwork;
     }
 
     private function cached(string $path, array $query, int $seconds = 604800, bool $optional = false): array

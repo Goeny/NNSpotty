@@ -21,7 +21,7 @@ final class Service
 
     public static function matchSignature(array $spot, string $profile): string
     {
-        return self::signature($spot, $profile . ':release-v4');
+        return self::signature($spot, $profile . ':release-v5');
     }
 
     public function search(string $query, string $type, ?string $provider = null): array
@@ -94,6 +94,7 @@ final class Service
                         }
                         if ($selected === null) continue;
                         $details = $this->details($attempt, $selected['type'], $selected['id'], $choice ?? $release);
+                        if (isset($details['artwork_warning'])) $warnings[] = $details['artwork_warning'];
                         // Keep the preferred series if neither provider knows the requested episode.
                         if ($metadata === null || !($details['episode_missing'] ?? false)) $metadata = $details;
                         if ($choice !== null || !($details['episode_missing'] ?? false)) break;
@@ -187,6 +188,7 @@ final class Service
                 if ($id === null) return $metadata;
                 $other = $this->tvdbDetails($kind, $id, $this->repo->settings()['language'], $context);
             }
+            if (isset($other['artwork_warning'])) $warnings[] = $other['artwork_warning'];
             return self::merge($metadata, $other);
         } catch (\PDOException $exception) {
             throw $exception;
@@ -207,6 +209,11 @@ final class Service
             if (empty($primary[$field]) && !empty($other[$field])) {
                 $primary[$field] = $other[$field];
                 $used = true;
+            }
+            foreach (['posters', 'backdrops'] as $field) {
+                $before = $primary[$field] ?? [];
+                $primary[$field] = array_values(array_unique(array_merge($before, $other[$field] ?? [])));
+                if ($primary[$field] !== $before) $used = true;
             }
         }
         if (($primary['imdb_id'] ?? '') === '') $primary['imdb_id'] = $other['imdb_id'] ?? '';
@@ -289,6 +296,7 @@ final class Service
         }
         $types = $this->cached('/artwork/types');
         $art = ['poster' => '', 'fanart' => ''];
+        $gallery = ['poster' => [], 'fanart' => []];
         foreach ($types as $artType) {
             if (!is_array($artType) || !isset($artType['id'], $artType['name'])) continue;
             $name = strtolower($artType['name']);
@@ -296,11 +304,15 @@ final class Service
             if ($target === null) continue;
             foreach ($base['artworks'] ?? [] as $image) {
                 if (!is_array($image)) throw new RuntimeException('TVDB gaf ongeldige artworkgegevens.');
-                if (($image['type'] ?? null) !== $artType['id'] || $art[$target] !== '') continue;
-                $art[$target] = self::imageUrl($image['image'] ?? '');
+                if (($image['type'] ?? null) !== $artType['id']) continue;
+                $url = self::imageUrl($image['image'] ?? '');
+                if ($url === '') continue;
+                $gallery[$target][] = $url;
+                if ($art[$target] === '') $art[$target] = $url;
             }
         }
         if ($art['poster'] === '') $art['poster'] = self::imageUrl($base['image'] ?? '');
+        if ($art['poster'] !== '') array_unshift($gallery['poster'], $art['poster']);
         $cast = [];
         foreach (array_merge($data['characters'] ?? [], $base === $data ? [] : ($base['characters'] ?? [])) as $person) {
             if (!is_array($person)) throw new RuntimeException('TVDB gaf ongeldige castgegevens.');
@@ -344,6 +356,7 @@ final class Service
             'runtime' => is_numeric($runtime) ? (int) $runtime : null,
             'genres' => array_slice(array_values(array_filter(array_map(static fn ($g): string => is_array($g) ? self::text($g['name'] ?? '') : '', $base['genres'] ?? []))), 0, 15),
             'poster' => $art['poster'], 'fanart' => $art['fanart'], 'still' => $episode === null ? '' : self::imageUrl($episode['image'] ?? ''),
+            'posters' => array_values(array_unique($gallery['poster'])), 'backdrops' => array_values(array_unique($gallery['fanart'])),
             'people' => array_values($cast), 'companies' => array_slice($companies, 0, 20),
             'remote_ids' => $base['remoteIds'] ?? [],
             'imdb_id' => $imdb, 'tvdb_id' => $type === 'series' ? $id : null,

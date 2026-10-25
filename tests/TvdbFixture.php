@@ -10,6 +10,7 @@ final class TvdbFixture implements \NnSpotty\Metadata\Gateway
     public array $searchResults = [];
     public bool $missingEpisode = false;
     public ?string $overview = null;
+    public array $extraArtwork = [];
 
     public function get(string $path, array $query = []): ?array
     {
@@ -33,8 +34,8 @@ final class TvdbFixture implements \NnSpotty\Metadata\Gateway
                 'nameTranslations' => ['nld', 'eng'], 'overviewTranslations' => ['nld', 'eng'],
                 'overview' => 'Original overview', 'runtime' => 116, 'averageRuntime' => 42,
                 'firstAired' => '2017-01-01', 'first_release' => ['date' => '2020-01-01'],
-                'artworks' => [['type' => $movie ? 14 : 2, 'image' => '/banners/poster.jpg'],
-                    ['type' => $movie ? 15 : 3, 'image' => '/banners/fanart.jpg']],
+                'artworks' => array_merge([['type' => $movie ? 14 : 2, 'image' => '/banners/poster.jpg'],
+                    ['type' => $movie ? 15 : 3, 'image' => '/banners/fanart.jpg']], $this->extraArtwork),
                 'characters' => [['peopleId' => 55, 'personName' => 'Fixture Actor', 'name' => 'Fixture Role',
                     'peopleType' => 'Actor', 'personImgURL' => '/banners/actor.jpg']],
                 'genres' => [['id' => 8, 'name' => 'Drama']],

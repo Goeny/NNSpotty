@@ -10,11 +10,20 @@ final class TmdbFixture implements \NnSpotty\Metadata\Gateway
     public ?array $movieResults = null;
     public ?array $seriesResults = null;
     public bool $missingEpisode = false;
+    public bool $failImages = false;
+    public ?array $images = null;
 
     public function get(string $path, array $query = []): ?array
     {
         $this->calls[] = [$path, $query];
         if ($this->fail) throw new RuntimeException('Synthetic TMDB outage');
+        if (str_ends_with($path, '/images')) {
+            if ($this->failImages) throw new RuntimeException('Synthetic TMDB artwork outage');
+            return $this->images ?? ['id' => (int) basename(dirname($path)),
+                'posters' => [['file_path' => '/tmdb-poster.jpg'], ['file_path' => '/alternate-poster.jpg'], ['file_path' => '/alternate-poster.jpg']],
+                'backdrops' => [['file_path' => '/tmdb-backdrop.jpg'], ['file_path' => '/alternate-backdrop.jpg'],
+                    ['file_path' => 'https://evil.invalid/image.jpg']]];
+        }
         if ($path === '/search/movie') return ['results' => $this->movieResults ?? [
             ['id' => 603, 'title' => 'Fixture Movie', 'original_title' => 'Fixture Movie', 'release_date' => '2020-05-01'],
             ['id' => 604, 'title' => 'Fixture Movie', 'original_title' => 'Fixture Movie', 'release_date' => '1999-05-01']]];

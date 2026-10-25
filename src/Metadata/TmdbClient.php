@@ -17,7 +17,7 @@ final class TmdbClient implements Gateway
 
     public function get(string $path, array $query = []): ?array
     {
-        if (!preg_match('~^/(?:search/(?:movie|tv)|movie/[1-9][0-9]{0,9}|tv/[1-9][0-9]{0,9}(?:/season/[0-9]{1,3}/episode/[1-9][0-9]{0,3})?|find/(?:tt[0-9]{5,10}|[1-9][0-9]{0,9}))$~D', $path)) {
+        if (!preg_match('~^/(?:search/(?:movie|tv)|movie/[1-9][0-9]{0,9}(?:/images)?|tv/[1-9][0-9]{0,9}(?:/images|/season/[0-9]{1,3}/episode/[1-9][0-9]{0,3})?|find/(?:tt[0-9]{5,10}|[1-9][0-9]{0,9}))$~D', $path)) {
             throw new RuntimeException('Ongeldig TMDB-endpoint.');
         }
         $settings = $this->repo->tmdbSettings();
