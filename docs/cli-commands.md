@@ -130,6 +130,7 @@ php bin/console retrieve --days=7 --comments-only --verbose
 - Herstel blijft gepind op de oorspronkelijke gepubliceerde releasetag/commit, ook als inmiddels een nieuwere release beschikbaar is; verplaatste tags worden geweigerd.
 - Een ontwikkelclone met eigen/nieuwere commits wordt niet gereset naar een oudere release. Er is geen force-optie.
 - De release-API moet publiek leesbaar zijn; Git gebruikt zijn bestaande SSH-/credential-helperconfiguratie. API-authenticatie voor private releases wordt niet ondersteund. Geen tokens in origin-URL's.
+- GitLab-projecten worden op volledig namespacepad gematcht en releases worden via het numerieke project-ID opgehaald; geencodeerde slashes in API-paden zijn niet nodig.
 - De GUI gebruikt exact dit CLI-commando via de PHP CLI-binary naast de web-PHP-installatie; bij afwijkende PHP-paden of webservertimeouts gebruik je de CLI.
 
 ### Webinterface

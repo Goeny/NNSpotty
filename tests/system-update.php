@@ -76,6 +76,39 @@ PHP);
     $releases = new Releases($process, $fetch);
     $log = static function (string $line): void {};
     $root = $clone('success');
+    $gitlabRoot = $clone('gitlab-discovery');
+    $git(['remote', 'set-url', 'origin', 'https://gitlab.example.invalid/group/sub/project.git'], $gitlabRoot);
+    $projectSearch = 'https://gitlab.example.invalid/api/v4/projects?search=project&simple=true&per_page=100';
+    $projectReleases = 'https://gitlab.example.invalid/api/v4/projects/42/releases?per_page=100';
+    $requests = [];
+    $gitlab = new Releases($process, static function (string $url) use (&$requests, $projectSearch, $projectReleases, $tag): array {
+        $requests[] = $url;
+        return match ($url) {
+            $projectSearch . '&page=1' => array_fill(0, 100, ['id' => 7, 'path_with_namespace' => 'another/project']),
+            $projectSearch . '&page=2' => [['id' => 42, 'path_with_namespace' => 'group/sub/project']],
+            $projectReleases . '&page=1' => array_fill(0, 100, ['tag_name' => 'main']),
+            $projectReleases . '&page=2' => [['tag_name' => $tag, 'released_at' => '2020-01-01T00:00:00Z']],
+            default => throw new RuntimeException('Unexpected GitLab endpoint: ' . $url),
+        };
+    });
+    check($gitlab->latest($gitlabRoot)['tag'] === $tag && count($requests) === 4,
+        'GitLab matcht exact namespacepad over projectpaginas en pagineert releases via numeriek ID');
+    check($gitlab->latest($gitlabRoot, $tag)['tag'] === $tag,
+        'GitLab-herstel vindt oorspronkelijke releasetag via project-ID');
+    foreach ([
+        [[], 'niet gevonden'],
+        [[['id' => 7, 'path_with_namespace' => 'another/project']], 'niet gevonden'],
+        [[['id' => '42', 'path_with_namespace' => 'group/sub/project']], 'ongeldig project'],
+        [['unexpected' => true], 'geen lijst'],
+        [array_fill(0, 100, ['id' => 7, 'path_with_namespace' => 'another/project']), 'limiet van 1000'],
+    ] as [$projects, $error]) {
+        $invalidGitlab = new Releases($process, static fn (string $url): array => $projects);
+        $throwsUpdate(static fn () => $invalidGitlab->latest($gitlabRoot), $error,
+            'GitLab-projectselectie faalt expliciet zonder verkeerd project of branchfallback');
+    }
+    $unavailableGitlab = new Releases($process, static function (string $url): array { throw new RuntimeException('Project API unavailable'); });
+    $throwsUpdate(static fn () => $unavailableGitlab->latest($gitlabRoot), 'Project API unavailable',
+        'GitLab-project-API-fout wordt expliciet doorgegeven');
     $updater = new Updater($root, $process, $releases);
     check($updater->check()['available'] && $git(['rev-parse', 'HEAD'], $root) === $baseline, 'Releasecontrole verandert geen HEAD');
     $throwsUpdate(static fn () => $updater->update($log, $tag . '-other'), 'gewijzigd', 'Verouderde GUI-bevestiging wordt geweigerd');

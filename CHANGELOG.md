@@ -2,6 +2,11 @@
 
 Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
+## [Unreleased]
+
+### Fixed
+- GitLab-releasecontrole zoekt het exacte originproject op en gebruikt het numerieke project-ID; werkt ook achter proxies die geencodeerde slashes in URL-paden weigeren.
+
 ## [0.1.0] - 2026-10-25 - Skyline GT-R
 
 ### Fixed

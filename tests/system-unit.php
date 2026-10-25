@@ -12,8 +12,8 @@ check(Releases::origin('git@github.com:Goeny/NNSpotty.git')['provider'] === 'git
     && Releases::origin('ssh://git@github.com/Goeny/NNSpotty.git')['provider'] === 'github',
     'SSH-clones gebruiken HTTPS voor releasecontrole');
 check(Releases::origin('https://gitlab.example.invalid/group/sub/project.git')['api']
-    === 'https://gitlab.example.invalid/api/v4/projects/group%2Fsub%2Fproject/releases?per_page=100',
-    'GitLab-subgroepen worden correct geencodeerd');
+    === 'https://gitlab.example.invalid/api/v4/projects?search=project&simple=true&per_page=100',
+    'GitLab-projectzoekactie vermijdt geencodeerde slashes in URL-paden');
 foreach (['file:///private/repo', 'https://token@github.com/owner/project', 'https://user:password@gitlab.example.invalid/a/b',
     'https://github.com/a/b?token=secret', 'https://github.com/a/../b', 'https://github.com/only-owner',
     'http://github.com/a/b', '-upload-pack=malicious'] as $invalidOrigin) {

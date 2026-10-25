@@ -34,17 +34,39 @@ final class Releases
             return ['provider' => 'github', 'api' => 'https://api.github.com/repos/' . $path . '/releases?per_page=100',
                 'web' => 'https://github.com/' . $path];
         }
-        return ['provider' => 'gitlab', 'api' => $base . '/api/v4/projects/' . rawurlencode($path) . '/releases?per_page=100',
+        return ['provider' => 'gitlab', 'api' => $base . '/api/v4/projects?search=' . rawurlencode(basename($path)) . '&simple=true&per_page=100',
             'web' => $base . '/' . $path];
     }
 
     public function latest(string $root, ?string $tag = null): ?array
     {
         $origin = self::origin($this->process->require(['git', 'config', '--get', 'remote.origin.url'], $root));
+        $fetch = $this->fetch ?? self::request(...);
+        if ($origin['provider'] === 'gitlab') {
+            $path = ltrim(parse_url($origin['web'], PHP_URL_PATH), '/');
+            $projectId = null;
+            for ($page = 1; $page <= 10; $page++) {
+                $projects = $fetch($origin['api'] . '&page=' . $page);
+                if (!is_array($projects) || !array_is_list($projects)) throw new RuntimeException('GitLab-project-API gaf geen lijst terug.');
+                foreach ($projects as $project) {
+                    if (!is_array($project) || !is_string($project['path_with_namespace'] ?? null)
+                        || !is_int($project['id'] ?? null) || $project['id'] < 1) {
+                        throw new RuntimeException('GitLab-project-API gaf een ongeldig project terug.');
+                    }
+                    if ($project['path_with_namespace'] === $path) {
+                        $projectId = $project['id'];
+                        break;
+                    }
+                }
+                if ($projectId !== null || count($projects) < 100) break;
+                if ($page === 10) throw new RuntimeException('GitLab-projectcontrole overschrijdt de limiet van 1000 projecten.');
+            }
+            if ($projectId === null) throw new RuntimeException('GitLab-originproject niet gevonden. Controleer het repositorypad en publieke API-toegang.');
+            $origin['api'] = strstr($origin['api'], '?', true) . '/' . $projectId . '/releases?per_page=100';
+        }
         $all = [];
         for ($page = 1; $page <= 10; $page++) {
-            $payload = $this->fetch !== null ? ($this->fetch)($origin['api'] . '&page=' . $page)
-                : self::request($origin['api'] . '&page=' . $page);
+            $payload = $fetch($origin['api'] . '&page=' . $page);
             if (!is_array($payload) || !array_is_list($payload)) throw new RuntimeException('Release-API gaf geen lijst terug.');
             $all = [...$all, ...$payload];
             if (count($payload) < 100) {
