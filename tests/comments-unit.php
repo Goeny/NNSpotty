@@ -39,8 +39,14 @@ namespace {
         . $publicationArticle['headers'] . "\r\n\r\n" . $publicationArticle['body'];
     $parsedPublication = SpotnetParser::comment($publicationId, $publicationWire);
     check($parsedPublication['spot_id'] === $publicationSpot['id'] && $parsedPublication['poster'] === 'Lezer'
+        && $parsedPublication['spotter_id'] === $publicationArticle['spotter_id']
+        && $parsedPublication['signature_state'] === 'verified'
         && str_contains($parsedPublication['body'], '[img=buigen]') && str_contains($parsedPublication['body'], '.punt'),
-        'Eigen publicatie roundtript via Spotnet-reactieparser');
+        'Eigen publicatie roundtript met geverifieerde eigen Spotnet-ID via de reactieparser');
+    $tamperedPublication = str_replace('[img=buigen]', '[img=buigen!]', $publicationWire);
+    check(SpotnetParser::comment($publicationId, $tamperedPublication)['spotter_id'] === null
+        && SpotnetParser::comment($publicationId, $tamperedPublication)['signature_state'] === 'invalid',
+        'Aangepaste reactie-inhoud verliest de geverifieerde Spotnet-ID');
     $dottedSpot = SpotnetParser::spot('original.with.dots@example.invalid', Fixtures::headers('original.with.dots@example.invalid'));
     $dottedId = Article::messageId($dottedSpot['message_id']);
     $dottedArticle = Article::build($dottedSpot, 'Lezer', 'Reactie', $dottedId, $publicationPem, $publicationPem);
@@ -49,7 +55,7 @@ namespace {
     preg_match('/X-User-Signature: ([^\r]+)/', $publicationArticle['headers'], $publicationSignature);
     $publicationSignatureBytes = base64_decode(strtr($publicationSignature[1], ['-s' => '/', '-p' => '+']), true);
     $publicationDetails = openssl_pkey_get_details($publicationKey);
-    $signedPublication = '<' . $publicationId . '>' . $publicationArticle['body'] . "\r\n" . $publicationArticle['from'];
+    $signedPublication = '<' . $publicationId . '>' . $publicationArticle['body'] . "\r\n" . '"Lezer"';
     check(openssl_verify($signedPublication, $publicationSignatureBytes, $publicationDetails['key'], OPENSSL_ALGO_SHA1) === 1
         && openssl_verify($signedPublication . 'changed', $publicationSignatureBytes, $publicationDetails['key'], OPENSSL_ALGO_SHA1) === 0,
         'Reactiehandtekening controleert message-ID plus exacte inhoud en From volgens Spotweb-verificatie');
@@ -72,6 +78,11 @@ namespace {
         && !str_contains($publicationPage, 'Lokale reactie plaatsen') && !str_contains($publicationPage, '</textarea><script>')
         && str_contains($publicationPage, '&lt;/textarea&gt;&lt;script&gt;') && str_contains($publicationPage, '/assets/comments.js'),
         'Formulier publiceert uitsluitend naar Usenet, vraagt toestemming en bewaart geescapete concepttekst');
+    check(str_contains(SpotDetailPageRenderer::commentList([[
+        'poster' => 'Lezer', 'spotter_id' => $publicationArticle['spotter_id'], 'posted_at' => '2026-01-01 00:00:00',
+        'source' => 'Usenet', 'body' => 'Reactie',
+    ]], false, true), 'Lezer (' . $publicationArticle['spotter_id'] . ')'),
+        'Reactielijst toont de geverifieerde Spotnet-ID naast de publieke naam');
     check(substr_count(SpotEmoticons::toolbar('comment'), 'data-emoticon-code=') === 28
         && str_contains(SpotEmoticons::toolbar('comment'), 'data-emoticon-code="[img=respekt]"')
         && !str_contains(SpotEmoticons::toolbar('comment'), '<img'),

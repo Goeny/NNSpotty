@@ -6,13 +6,32 @@ namespace NnSpotty\Moderation;
 
 final class SpotterIdentity
 {
-    /** @return array{spotter_key: ?string, signature_state: string} */
+    /** @return array{spotter_key: ?string, spotter_id: ?string, signature_state: string} */
     public static function fromHeaders(array $headers, string $messageId): array
     {
+        return self::verify($headers, $messageId, ['<' . $messageId . '>']);
+    }
+
+    /** @return array{spotter_key: ?string, spotter_id: ?string, signature_state: string} */
+    public static function fromCommentHeaders(array $headers, string $messageId, string $body): array
+    {
+        $from = $headers['from'][0] ?? '';
+        $fromName = trim(explode('<', $from, 2)[0]);
+        $body = str_replace(["\r\n", "\r"], "\n", $body);
+        $body = str_replace("\n", "\r\n", rtrim($body, "\r\n"));
+        return self::verify($headers, $messageId, [
+            '<' . $messageId . '>',
+            '<' . $messageId . '>' . $body . "\r\n" . $fromName,
+            '<' . $messageId . '>' . $body . "\r\n" . $from,
+        ]);
+    }
+
+    private static function verify(array $headers, string $messageId, array $signedMessages): array
+    {
         if (!isset($headers['x-user-key'], $headers['x-user-signature'])) {
-            return ['spotter_key' => null, 'signature_state' => 'missing'];
+            return ['spotter_key' => null, 'spotter_id' => null, 'signature_state' => 'missing'];
         }
-        $invalid = ['spotter_key' => null, 'signature_state' => 'invalid'];
+        $invalid = ['spotter_key' => null, 'spotter_id' => null, 'signature_state' => 'invalid'];
         if (count($headers['x-user-key']) !== 1 || count($headers['x-user-signature']) !== 1) {
             return $invalid;
         }
@@ -21,7 +40,10 @@ final class SpotterIdentity
             if (count($xml->Modulus) !== 1 || count($xml->Exponent) !== 1 || count($xml->children()) !== 2) {
                 return $invalid;
             }
-            $modulus = self::modulus((string) $xml->Modulus);
+            $encodedModulus = preg_replace('/\s+/', '', trim((string) $xml->Modulus));
+            $rawModulus = base64_decode($encodedModulus, true);
+            if ($rawModulus === false) return $invalid;
+            $modulus = self::modulus($encodedModulus);
             $exponent = base64_decode(trim((string) $xml->Exponent), true);
             // Spotlist publishes moduli, not exponents: never accept an attacker-chosen exponent.
             if ($exponent !== "\x01\x00\x01") {
@@ -36,16 +58,27 @@ final class SpotterIdentity
                 . "-----END RSA PUBLIC KEY-----\n";
             $key = openssl_pkey_get_public($pem);
             if ($key === false) return $invalid;
-            $verification = openssl_verify('<' . $messageId . '>', $signature, $key, OPENSSL_ALGO_SHA1);
-            if ($verification === -1 || $verification === false) {
-                throw new \RuntimeException('Spotnet RSA/SHA1-verificatie kon niet worden uitgevoerd door OpenSSL. '
-                    . 'Controleer de OpenSSL-providerconfiguratie en het cryptografiebeleid van deze PHP-runtime; '
-                    . 'de handtekening is niet als ongeldig beoordeeld.');
+            $verified = false;
+            foreach ($signedMessages as $message) {
+                $verification = openssl_verify($message, $signature, $key, OPENSSL_ALGO_SHA1);
+                if ($verification === -1 || $verification === false) {
+                    throw new \RuntimeException('Spotnet RSA/SHA1-verificatie kon niet worden uitgevoerd door OpenSSL. '
+                        . 'Controleer de OpenSSL-providerconfiguratie en het cryptografiebeleid van deze PHP-runtime; '
+                        . 'de handtekening is niet als ongeldig beoordeeld.');
+                }
+                if ($verification === 1) {
+                    $verified = true;
+                    break;
+                }
             }
-            if ($verification !== 1) {
+            if (!$verified) {
                 return $invalid;
             }
-            return ['spotter_key' => hash('sha256', $modulus), 'signature_state' => 'verified'];
+            return [
+                'spotter_key' => hash('sha256', $modulus),
+                'spotter_id' => self::spotterId($rawModulus),
+                'signature_state' => 'verified',
+            ];
         } catch (\UnexpectedValueException) {
             return $invalid;
         } finally {
@@ -53,6 +86,14 @@ final class SpotterIdentity
                 // Do not retain errors from untrusted signatures in the process-wide OpenSSL queue.
             }
         }
+    }
+
+    public static function spotterId(string $modulus): string
+    {
+        $checksum = crc32($modulus);
+        $bytes = chr($checksum & 0xFF) . chr(($checksum >> 8) & 0xFF)
+            . chr(($checksum >> 16) & 0xFF) . chr(($checksum >> 24) & 0xFF);
+        return str_replace(['/', '+', '='], '', base64_encode($bytes));
     }
 
     public static function modulus(string $encoded): string

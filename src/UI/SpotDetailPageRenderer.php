@@ -66,7 +66,7 @@ final class SpotDetailPageRenderer
       {$emoticons}
       <p class="form-text" id="comment-help">Klik op een emoticon om de bijbehorende [img=...]-code in te voegen. Maximaal 10000 UTF-8-bytes en 900 bytes per regel; West-Europese tekst voor klassieke Spotnet-readers.</p>
       <div class="alert alert-warning small">Je reactie, publieke naam en ingestelde handtekening worden openbaar op Usenet, ook voor andere Spotnet-/Spotweb-gebruikers. Publicatie is niet via NNSpotty in te trekken; verspreiding hangt af van de provider.</div>
-      <p class="small">Publiceren als: <strong>{$postingName}</strong>. Publieke namen zijn niet uniek; een naam bewijst geen identiteit.</p>
+      <p class="small">Publiceren als: <strong>{$postingName}</strong> met de persoonlijke Spotnet-ID van je accountgebonden sleutel. Publieke namen zijn niet uniek; de gecontroleerde sleutel-ID onderscheidt spotters.</p>
       <details class="mb-3" open><summary>Volledige publicatietekst</summary><pre class="text-wrap" data-comment-preview>{$fullDraft}</pre></details>
       <div class="small mb-3">Vaste handtekening (altijd toegevoegd indien ingesteld):<pre class="text-wrap" data-comment-signature>{$postingSignature}</pre></div>
       <div class="form-check mb-3"><input class="form-check-input" id="publish-consent" name="publish_consent" value="1" type="checkbox" required><label class="form-check-label" for="publish-consent">Ik wil deze reactie openbaar op Usenet publiceren.</label></div>
@@ -95,7 +95,11 @@ HTML;
     {
         $html = '';
         foreach ($comments as $comment) {
-            $html .= '<article class="border-bottom py-3"><div class="fw-semibold">' . h($comment['poster'])
+            $poster = h($comment['poster']);
+            if (is_string($comment['spotter_id'] ?? null) && $comment['spotter_id'] !== '') {
+                $poster .= ' (' . h($comment['spotter_id']) . ')';
+            }
+            $html .= '<article class="border-bottom py-3"><div class="fw-semibold">' . $poster
                 . '</div><small class="text-body-secondary">' . h($comment['posted_at']) . ' UTC &middot; ' . h($comment['source'])
                 . '</small><div class="comment-body spot-description mt-2">' . ($comment['source'] === 'Usenet'
                     ? SpotDescription::render($comment['body']) : SpotEmoticons::plainText($comment['body'])) . '</div></article>';
@@ -171,7 +175,11 @@ HTML;
                 $people = ($preview ? '' : \NnSpotty\Metadata\View::trailers($metadata)) . \NnSpotty\Metadata\View::people($metadata, $imagesEnabled);
             }
         }
-        $spotMetadata = '<div class="metadata-strip"><div><small>Spotter</small>' . h($spot['poster']) . \NnSpotty\Moderation\View::badge($spot)
+        $spotter = h($spot['poster']);
+        if (is_string($spot['spotter_id'] ?? null) && $spot['spotter_id'] !== '') {
+            $spotter .= ' (' . h($spot['spotter_id']) . ')';
+        }
+        $spotMetadata = '<div class="metadata-strip"><div><small>Spotter</small>' . $spotter . \NnSpotty\Moderation\View::badge($spot)
             . '</div><div><small>Geplaatst (UTC)</small>' . h($spot['posted_at']) . '</div><div><small>Grootte</small>'
             . SpotPresentation::size((int) $spot['size']) . '</div></div>';
         $description = '<section class="card mb-3"><div class="card-header d-flex justify-content-between gap-2"><span>Omschrijving</span>' . $website

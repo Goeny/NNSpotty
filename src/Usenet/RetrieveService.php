@@ -226,11 +226,14 @@ final class RetrieveService
                     $commentRows = [];
                     foreach ($candidates as $id => $candidate) {
                         $status = $known[$id] ?? null;
-                        if ($role === 'spots' ? ($status !== null && !$refreshSpots) : ($status !== null && ($status !== 'pending' || $lazyComments))) {
+                        $identityPending = $status === 'identity_pending';
+                        if ($role === 'spots'
+                            ? ($status !== null && !$refreshSpots && !$identityPending)
+                            : ($status !== null && !$identityPending && ($status !== 'pending' || $lazyComments))) {
                             $counts['bestaand']++;
                             continue;
                         }
-                        if ($role === 'comments' && $lazyComments) {
+                        if ($role === 'comments' && $lazyComments && !$identityPending) {
                             try {
                                 $stub = SpotnetParser::commentStub($candidate['message_id'], $candidate['references'], $candidate['from'], $candidate['date']);
                             } catch (UnexpectedValueException $exception) {
@@ -248,7 +251,12 @@ final class RetrieveService
                                 continue;
                             }
                         }
-                        $pending[] = ['message_id' => $candidate['message_id'], 'number' => $candidate['number'], 'exists' => $role === 'spots' && $status !== null];
+                        $pending[] = [
+                            'message_id' => $candidate['message_id'],
+                            'number' => $candidate['number'],
+                            'exists' => $role === 'spots' && $status !== null,
+                            'refresh' => $refreshSpots || $identityPending,
+                        ];
                     }
                     $this->pdo->beginTransaction();
                     try {
@@ -272,7 +280,7 @@ final class RetrieveService
                                         $counts['blacklist']++;
                                         continue;
                                     }
-                                    $repository->saveSpot($spot, $groupName, $refreshSpots);
+                                    $repository->saveSpot($spot, $groupName, $pending[$index]['refresh']);
                                 } else {
                                     $commentRows[] = SpotnetParser::comment($messageId, $article);
                                 }

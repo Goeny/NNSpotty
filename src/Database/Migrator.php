@@ -653,6 +653,11 @@ final class Migrator
                     WHERE d.status = \'sent\'
                     GROUP BY DATE(d.created_at), s.browse_type, s.is_erotica',
             ],
+            '20261026_0026_spotter_ids' => [
+                'ALTER TABLE spotnet_spots ADD COLUMN IF NOT EXISTS spotter_id VARCHAR(8) CHARACTER SET ascii NULL',
+                'ALTER TABLE spotnet_comments ADD COLUMN IF NOT EXISTS spotter_id VARCHAR(8) CHARACTER SET ascii NULL',
+                'ALTER TABLE spotnet_comments ADD COLUMN IF NOT EXISTS signature_state VARCHAR(16) NOT NULL DEFAULT \'unknown\'',
+            ],
         ];
     }
 }

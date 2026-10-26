@@ -11,12 +11,14 @@ $identityDetails = openssl_pkey_get_details($identityKey);
 $identityHash = hash('sha256', $identityDetails['rsa']['n']);
 $identityHeaders = Fixtures::signedHeaders('signed@example.invalid', $identityKey);
 $identitySpot = SpotnetParser::spot('signed@example.invalid', $identityHeaders);
-check($identitySpot['signature_state'] === 'verified' && $identitySpot['spotter_key'] === $identityHash,
+check($identitySpot['signature_state'] === 'verified' && $identitySpot['spotter_key'] === $identityHash
+    && $identitySpot['spotter_id'] === SpotterIdentity::spotterId($identityDetails['rsa']['n']),
     'RSA/SHA1 Spotnet-message-ID met -s/-p en ontbrekende base64padding levert geverifieerde sleutelfingerprint');
 $identitySpoof = str_replace('signed@example.invalid', 'copied@example.invalid', $identityHeaders);
 check(SpotnetParser::spot('copied@example.invalid', $identitySpoof)['signature_state'] === 'invalid',
     'Gekopieerde handtekening voor ander message-ID levert geen identiteit');
-check(SpotnetParser::spot('unsigned@example.invalid', Fixtures::headers('unsigned@example.invalid'))['signature_state'] === 'missing',
+check(SpotnetParser::spot('unsigned@example.invalid', Fixtures::headers('unsigned@example.invalid'))['signature_state'] === 'missing'
+    && SpotnetParser::spot('unsigned@example.invalid', Fixtures::headers('unsigned@example.invalid'))['spotter_id'] === null,
     'Legacy zonder sleutel/handtekening blijft bruikbaar zonder bevestigde identiteit');
 $badExponent = str_replace('<Exponent>AQAB</Exponent>', '<Exponent>AQ==</Exponent>', $identityHeaders);
 check(SpotnetParser::spot('signed@example.invalid', $badExponent)['spotter_key'] === null,
@@ -51,3 +53,6 @@ check(str_contains(\NnSpotty\UI\SpotDetailPageRenderer::summary($whiteIdentitySp
 check(!str_contains(\NnSpotty\UI\SpotDetailPageRenderer::summary($identitySpot, false), '>Whitelist</span>')
     && str_contains(\NnSpotty\UI\SpotDetailPageRenderer::summary($identitySpot, false), 'Sleutelfingerprint (SHA256)'),
     'Geldige identiteit zonder whitelist geeft technische sleutelinfo maar geen whitelistclaim');
+check(str_contains(\NnSpotty\UI\SpotDetailPageRenderer::summary($identitySpot, false),
+    'Testspotter (' . $identitySpot['spotter_id'] . ')'),
+    'Spotdetail toont de Spotweb-compatibele ID naast de naam na handtekeningcontrole');

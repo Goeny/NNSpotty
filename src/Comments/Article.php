@@ -78,7 +78,7 @@ final class Article
         throw new PublicationException('Publiceren is niet mogelijk door de serverconfiguratie: OpenSSL kan de vereiste RSA/SHA1-handtekening niet aanmaken of controleren. Laat de beheerder de PHP/OpenSSL-configuratie herstellen. Er is niets naar Usenet verstuurd.');
     }
 
-    /** @return array{from: string, subject: string, body: string, headers: string} */
+    /** @return array{from: string, subject: string, body: string, headers: string, spotter_id: string} */
     public static function build(array $spot, string $username, string $body, string $id, string $userPem, string $serverPem): array
     {
         $body = self::body($body);
@@ -92,10 +92,13 @@ final class Article
         if ($name === false || $title === false) {
             throw new \InvalidArgumentException('De gebruikersnaam of spottitel bevat tekens die klassieke Spotnet-reacties niet ondersteunen.');
         }
-        $from = '"' . addcslashes($name, "\\\"") . '" <' . substr(hash('sha256', $username), 0, 24) . '@spot.net>';
+        $fromName = '"' . addcslashes($name, "\\\"") . '"';
+        $from = $fromName . ' <' . substr(hash('sha256', $username), 0, 24) . '@spot.net>';
         $wireBody = str_replace("\n", "\r\n", (string) iconv('UTF-8', 'ISO-8859-1', $body));
         $user = self::privateKey($userPem);
         $server = self::privateKey($serverPem);
+        $userDetails = openssl_pkey_get_details($user);
+        if ($userDetails === false || !isset($userDetails['rsa']['n'])) self::configurationError();
         $headers = [
             'Message-ID: <' . $id . '>',
             'References: <' . $reference . '>',
@@ -106,12 +109,18 @@ final class Article
             'X-No-Archive: yes',
             'X-User-Rating: 0',
             'X-User-Key: ' . self::publicXml($user),
-            'X-User-Signature: ' . self::sign('<' . $id . '>' . $wireBody . "\r\n" . $from, $user),
+            'X-User-Signature: ' . self::sign('<' . $id . '>' . $wireBody . "\r\n" . $fromName, $user),
             'X-Server-Key: ' . self::publicXml($server),
             'X-Server-Signature: ' . self::sign('<' . $id . '>', $server),
         ];
         if (strlen($from) > 900 || strlen($title) > 900) throw new \InvalidArgumentException('Auteur of titel is te lang voor Usenet-publicatie.');
-        return ['from' => $from, 'subject' => $title, 'body' => $wireBody, 'headers' => implode("\r\n", $headers)];
+        return [
+            'from' => $from,
+            'subject' => $title,
+            'body' => $wireBody,
+            'headers' => implode("\r\n", $headers),
+            'spotter_id' => \NnSpotty\Moderation\SpotterIdentity::spotterId($userDetails['rsa']['n']),
+        ];
     }
 
     private static function publicXml(OpenSSLAsymmetricKey $key): string

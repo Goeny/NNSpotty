@@ -128,7 +128,9 @@ HTML;
                     . h($spot['title']) . '</a><div class="spot-subtitle">' . h($subtitle) . '</div></div></div>',
                 'format' => $format !== '' ? '<span class="format-badge">' . h($format) . '</span>' : '&mdash;',
                 'genre' => h($genre),
-                'poster' => h($spot['poster']) . \NnSpotty\Moderation\View::badge($spot),
+                'poster' => h($spot['poster'])
+                    . (is_string($spot['spotter_id'] ?? null) && $spot['spotter_id'] !== '' ? ' (' . h($spot['spotter_id']) . ')' : '')
+                    . \NnSpotty\Moderation\View::badge($spot),
                 'posted_at' => h(substr($spot['posted_at'], 0, 16)),
                 'size' => SpotPresentation::size((int) $spot['size']),
             ];

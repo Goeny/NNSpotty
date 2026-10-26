@@ -97,7 +97,8 @@ final class Publisher
             try {
                 (new SpotRepository($this->pdo))->saveComment([
                     'id' => hash('sha256', $id), 'message_id' => $id, 'spot_id' => $spot['id'],
-                    'poster' => $poster, 'body' => $body, 'posted_at' => gmdate('Y-m-d H:i:s'),
+                    'poster' => $poster, 'spotter_id' => $article['spotter_id'],
+                    'signature_state' => 'verified', 'body' => $body, 'posted_at' => gmdate('Y-m-d H:i:s'),
                 ]);
                 $this->status($username, $requestId, 'posted');
                 $this->pdo->commit();

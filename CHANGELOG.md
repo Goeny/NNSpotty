@@ -4,7 +4,11 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
 ## [Unreleased]
 
+### Added
+- Spotweb-compatibele Spotnet-ID naast spotnamen en geverifieerde reacties. Reacties tonen de ID uit de persoonlijke accountgebonden RSA-sleutel; alleen geldige handtekeningen leveren een zichtbare ID op. Bestaande gecachte items worden eenmalig bij retrieve bijgewerkt. Migratie `20261026_0026_spotter_ids`.
+
 ### Fixed
+- Reactiesignaturen binden de Spotnet-identiteit aan de publieke From-naam volgens Spotweb, zodat reacties met de persoonlijke sleutel herkenbaar zijn.
 - GitLab-releasecontrole zoekt het exacte originproject op en gebruikt het numerieke project-ID; werkt ook achter proxies die geencodeerde slashes in URL-paden weigeren.
 
 ## [0.1.0] - 2026-10-25 - Skyline GT-R

@@ -77,9 +77,12 @@ try {
                 check($decodedArticle['poster'] === 'Publieke poster'
                     && str_ends_with(trim(str_replace("\r\n", "\n", $decodedArticle['body'])), "-- \nVaste groet"),
                     'Publieke profielnaam en vaste handtekening worden werkelijk via NNTP gepubliceerd');
-                $cachedPoster = $pdo->query("SELECT poster FROM spotnet_comments WHERE message_id = '" . $postingRow['message_id'] . "'")->fetchColumn();
+                $cachedComment = $pdo->query("SELECT poster, spotter_id, signature_state FROM spotnet_comments WHERE message_id = '" . $postingRow['message_id'] . "'")->fetch();
+                $cachedPoster = $cachedComment['poster'];
                 check($cachedPoster === 'Publieke poster' && $postingRow['source_body'] !== $postingRow['body']
                     && $postingRow['poster'] === 'Publieke poster', 'Publicatiecache en poging bewaren de werkelijke publieke identiteit en volledige tekst');
+                check($cachedComment['spotter_id'] === $decodedArticle['spotter_id'] && $cachedComment['signature_state'] === 'verified',
+                    'Eigen geverifieerde reactie-ID uit de accountgebonden RSA-sleutel blijft in de cache bewaard');
                 (new UserRepository($pdo))->saveProfile('comment-publisher', 'Latere naam', 'Latere groet', '');
             }
         }

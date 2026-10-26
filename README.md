@@ -19,6 +19,7 @@ NNSpotty is een moderne Spotnet-webapplicatie voor het ophalen, browsen en downl
 - Gebruikers, rollen, rechten en persoonlijke preferences
 - Persoonlijke historie met tabs Bekeken/Gedownload (SABnzbd, Newznab API en NZB-bestanden); geaggregeerde statistieken met grafieken achter het groepsrecht `statistics.view`
 - Spotter moderatie (whitelist / blacklist)
+- Gecontroleerde Spotnet-ID’s naast spotter- en reactienamen; reacties gebruiken een persoonlijke accountsleutel
 - Light en dark thema (Plex-geïnspireerde UX)
 
 ## Vereisten

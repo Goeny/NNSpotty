@@ -177,11 +177,18 @@ final class SpotnetParser
         if (trim($body) === '') {
             throw new UnexpectedValueException('Lege Spotnet reactie.');
         }
+        $identity = \NnSpotty\Moderation\SpotterIdentity::fromCommentHeaders(
+            $headers,
+            self::messageId($messageId),
+            $parts[1]
+        );
         return [
             'id' => hash('sha256', self::messageId($messageId)),
             'message_id' => self::messageId($messageId),
             'spot_id' => hash('sha256', $spotMessageId),
             'poster' => self::commentPoster($headers['from'][0] ?? ''),
+            'spotter_id' => $identity['spotter_id'],
+            'signature_state' => $identity['signature_state'],
             'body' => $body,
             'posted_at' => self::date($headers['date'][0] ?? ''),
             'body_status' => 'loaded',
@@ -207,6 +214,7 @@ final class SpotnetParser
             'spot_id' => hash('sha256', $spotMessageId),
             'poster' => self::commentPoster($from),
             'body' => null,
+            'signature_state' => 'unknown',
             'posted_at' => self::date($date),
             'body_status' => 'pending',
         ];

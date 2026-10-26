@@ -33,8 +33,10 @@ final class SpotRepository
         }
         $placeholders = implode(', ', array_fill(0, count($ids), '?'));
         $statement = $this->pdo->prepare($role === 'spots'
-            ? 'SELECT id, \'loaded\' FROM spotnet_spots WHERE id IN (' . $placeholders . ')'
-            : 'SELECT id, body_status FROM spotnet_comments WHERE id IN (' . $placeholders . ')');
+            ? 'SELECT id, IF(signature_state = \'verified\' AND spotter_id IS NULL, \'identity_pending\', \'loaded\')
+               FROM spotnet_spots WHERE id IN (' . $placeholders . ')'
+            : 'SELECT id, IF(body_status = \'loaded\' AND signature_state = \'unknown\', \'identity_pending\', body_status)
+               FROM spotnet_comments WHERE id IN (' . $placeholders . ')');
         $statement->execute(array_values($ids));
         return $statement->fetchAll(PDO::FETCH_KEY_PAIR);
     }
@@ -64,21 +66,22 @@ final class SpotRepository
             $statement = $this->pdo->prepare(
                 'INSERT INTO spotnet_spots
                     (id, message_id, group_name, title, description, poster, newsreader, category, subcategories, size,
-                     posted_at, website, tag, image_url, image_segments, nzb_segments, full_xml, browse_type, is_erotica, spotter_key, signature_state, created_at)
+                     posted_at, website, tag, image_url, image_segments, nzb_segments, full_xml, browse_type, is_erotica, spotter_key, spotter_id, signature_state, created_at)
                  VALUES
                     (:id, :message_id, :group_name, :title, :description, :poster, :newsreader, :category, :subcategories, :size,
-                     :posted_at, :website, :tag, :image_url, :image_segments, :nzb_segments, :full_xml, :browse_type, :is_erotica, :spotter_key, :signature_state, UTC_TIMESTAMP(6))
+                     :posted_at, :website, :tag, :image_url, :image_segments, :nzb_segments, :full_xml, :browse_type, :is_erotica, :spotter_key, :spotter_id, :signature_state, UTC_TIMESTAMP(6))
                  ON DUPLICATE KEY UPDATE ' . ($refresh ? 'title = VALUES(title), description = VALUES(description),
                     poster = VALUES(poster), newsreader = VALUES(newsreader), category = VALUES(category),
                     subcategories = VALUES(subcategories), size = VALUES(size), posted_at = VALUES(posted_at),
                     website = VALUES(website), tag = VALUES(tag), image_url = VALUES(image_url),
                     image_segments = VALUES(image_segments), nzb_segments = VALUES(nzb_segments),
                     full_xml = VALUES(full_xml), browse_type = VALUES(browse_type), is_erotica = VALUES(is_erotica),
-                    spotter_key = VALUES(spotter_key), signature_state = VALUES(signature_state)'
+                    spotter_key = VALUES(spotter_key), spotter_id = VALUES(spotter_id), signature_state = VALUES(signature_state)'
                     : 'id = VALUES(id)')
             );
             $parameters = $spot;
             $parameters['spotter_key'] ??= null;
+            $parameters['spotter_id'] ??= null;
             $parameters['signature_state'] ??= 'missing';
             $parameters['group_name'] = $group;
             $parameters['full_xml'] = $parameters['xml'];
@@ -118,17 +121,20 @@ final class SpotRepository
             $rows = [];
             $parameters = [];
             foreach ($chunk as $comment) {
-                $rows[] = '(?, ?, ?, ?, ?, ?, ?)';
+                $rows[] = '(?, ?, ?, ?, ?, ?, ?, ?, ?)';
                 array_push($parameters, $comment['id'], $comment['message_id'], $comment['spot_id'], $comment['poster'],
-                    $comment['body'], $comment['body_status'] ?? 'loaded', $comment['posted_at']);
+                    $comment['body'], $comment['spotter_id'] ?? null, $comment['signature_state'] ?? 'unknown',
+                    $comment['body_status'] ?? 'loaded', $comment['posted_at']);
             }
             $statement = $this->pdo->prepare(
-                'INSERT INTO spotnet_comments (id, message_id, spot_id, poster, body, body_status, posted_at)
+                'INSERT INTO spotnet_comments (id, message_id, spot_id, poster, body, spotter_id, signature_state, body_status, posted_at)
                  VALUES ' . implode(', ', $rows) . '
                  ON DUPLICATE KEY UPDATE
                     spot_id = IF(VALUES(body_status) = \'loaded\', VALUES(spot_id), spot_id),
                     poster = IF(VALUES(body_status) = \'loaded\', VALUES(poster), poster),
                     body = IF(VALUES(body_status) = \'loaded\', VALUES(body), body),
+                    spotter_id = IF(VALUES(body_status) = \'loaded\', VALUES(spotter_id), spotter_id),
+                    signature_state = IF(VALUES(body_status) = \'loaded\', VALUES(signature_state), signature_state),
                     body_status = IF(VALUES(body_status) = \'loaded\', \'loaded\', body_status)'
             );
             $statement->execute($parameters);
@@ -247,7 +253,7 @@ final class SpotRepository
             return [];
         }
         $statement = $this->pdo->prepare('SELECT id, title, category, browse_type, subcategories, poster, size, posted_at,
-            image_url, image_segments, spotter_key, signature_state FROM spotnet_spots WHERE id IN ('
+            image_url, image_segments, spotter_key, spotter_id, signature_state FROM spotnet_spots WHERE id IN ('
             . implode(',', array_fill(0, count($page), '?')) . ')');
         $statement->execute(array_column($page, 'spot_id'));
         $spots = [];
@@ -412,9 +418,9 @@ final class SpotRepository
     public function comments(string $id): array
     {
         $statement = $this->pdo->prepare(
-            'SELECT poster, body, posted_at, \'Usenet\' AS source FROM spotnet_comments WHERE spot_id = :spot_id AND body_status = \'loaded\'
+            'SELECT poster, body, spotter_id, posted_at, \'Usenet\' AS source FROM spotnet_comments WHERE spot_id = :spot_id AND body_status = \'loaded\'
              UNION ALL
-             SELECT username AS poster, comment AS body, created_at AS posted_at, \'NNSpotty\' AS source
+             SELECT username AS poster, comment AS body, NULL AS spotter_id, created_at AS posted_at, \'NNSpotty\' AS source
              FROM post_comments WHERE post_id = :local_id
              ORDER BY posted_at ASC'
         );
