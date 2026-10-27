@@ -43,10 +43,9 @@ namespace {
         && $parsedPublication['signature_state'] === 'verified'
         && str_contains($parsedPublication['body'], '[img=buigen]') && str_contains($parsedPublication['body'], '.punt'),
         'Eigen publicatie roundtript met geverifieerde eigen Spotnet-ID via de reactieparser');
-    $tamperedPublication = str_replace('[img=buigen]', '[img=buigen!]', $publicationWire);
-    check(SpotnetParser::comment($publicationId, $tamperedPublication)['spotter_id'] === null
-        && SpotnetParser::comment($publicationId, $tamperedPublication)['signature_state'] === 'invalid',
-        'Aangepaste reactie-inhoud verliest de geverifieerde Spotnet-ID');
+    $changedPublication = str_replace('[img=buigen]', '[img=buigen!]', $publicationWire);
+    check(SpotnetParser::comment($publicationId, $changedPublication)['signature_state'] === 'verified',
+        'Spotweb-compatibele message-ID-handtekening bewijst geen reactie-inhoud');
     $dottedSpot = SpotnetParser::spot('original.with.dots@example.invalid', Fixtures::headers('original.with.dots@example.invalid'));
     $dottedId = Article::messageId($dottedSpot['message_id']);
     $dottedArticle = Article::build($dottedSpot, 'Lezer', 'Reactie', $dottedId, $publicationPem, $publicationPem);
@@ -55,10 +54,20 @@ namespace {
     preg_match('/X-User-Signature: ([^\r]+)/', $publicationArticle['headers'], $publicationSignature);
     $publicationSignatureBytes = base64_decode(strtr($publicationSignature[1], ['-s' => '/', '-p' => '+']), true);
     $publicationDetails = openssl_pkey_get_details($publicationKey);
-    $signedPublication = '<' . $publicationId . '>' . $publicationArticle['body'] . "\r\n" . '"Lezer"';
+    $signedPublication = '<' . $publicationId . '>';
     check(openssl_verify($signedPublication, $publicationSignatureBytes, $publicationDetails['key'], OPENSSL_ALGO_SHA1) === 1
         && openssl_verify($signedPublication . 'changed', $publicationSignatureBytes, $publicationDetails['key'], OPENSSL_ALGO_SHA1) === 0,
-        'Reactiehandtekening controleert message-ID plus exacte inhoud en From volgens Spotweb-verificatie');
+        'Uitgaande gebruikershandtekening omvat uitsluitend het message-ID, net als Spotweb');
+    foreach (['"Lezer"', $publicationArticle['from']] as $legacyFrom) {
+        $legacySignature = Article::sign($signedPublication . $publicationArticle['body'] . "\r\n" . $legacyFrom, $publicationKey);
+        $legacyWire = str_replace($publicationSignature[1], $legacySignature, $publicationWire);
+        check(SpotnetParser::comment($publicationId, $legacyWire)['signature_state'] === 'verified'
+            && SpotnetParser::comment($publicationId, str_replace('[img=buigen]', '[img=buigen!]', $legacyWire))['signature_state'] === 'invalid',
+            'Bestaande bodygebonden NNSpotty-reacties blijven leesbaar met hun oorspronkelijke verificatie');
+        check(!Fixtures::spotwebComment("Newsgroups: free.usenet\r\n" . $legacyWire, $publicationSpot['message_id'],
+            $publicationDetails['key'], $publicationDetails['key']),
+            'Onafhankelijke uitgaande protocolcontrole weigert oude bodygebonden handtekeningen');
+    }
     rejects(static fn () => Article::build($publicationSpot, "bad\r\nX: injected", 'Tekst', $publicationId, $publicationPem, $publicationPem),
         'Publicatie weigert headerinjectie via gebruikersnaam');
     try {
@@ -94,6 +103,34 @@ namespace {
     check($postSocket->written === $postCommand() . "\r\n.\r\n"
         && str_contains($postSocket->written, "\r\n..punt\r\n\r\nslot\r\n.\r\n"),
         'POST bewaart lege regels, dot-stuffing en terminator bij partiele writes');
+    $postingProcess = proc_open([PHP_BINARY, __DIR__ . '/comment-server.php', 'accept'],
+        [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']], $postingPipes);
+    if (!is_resource($postingProcess)) throw new \RuntimeException('Publicatiefixture kon niet starten.');
+    $postingClient = null;
+    try {
+        $postingPort = (int) trim(fgets($postingPipes[1]));
+        check($postingPort > 0, 'Zelfstandige TCP-publicatiefixture luistert zonder database');
+        $postingClient = \NnSpotty\Usenet\NntpClientFactory::connectFromSettings([
+            'server' => '127.0.0.1', 'port' => $postingPort, 'encryption' => 'none', 'username' => '', 'password' => '',
+        ]);
+        check($postingClient->sendCommand(new \Rvdv\Nntp\Command\PostCommand())->getStatusCode() === 340,
+            'TCP-provider is gereed voor POST');
+        $postingClient->getConnection()->publishComment(new \Rvdv\Nntp\Command\PostArticleCommand(
+            'free.usenet', $publicationArticle['subject'], $publicationArticle['body'], $publicationArticle['from'], $publicationArticle['headers']
+        ));
+        $capturedArticle = base64_decode(trim(fgets($postingPipes[1])), true);
+        check(is_string($capturedArticle)
+            && Fixtures::spotwebComment($capturedArticle, $publicationSpot['message_id'], $publicationDetails['key'], $publicationDetails['key']),
+            'Werkelijk verstuurde TCP-reactie voldoet aan Spotweb-groep, spotkoppeling, hashcash en beide sleutel/message-ID-handtekeningen');
+        check(str_ends_with($capturedArticle, $publicationArticle['body'] . "\r\n"),
+            'TCP POST bewaart de exacte Latin-1-tekst, regeleinden en regels met een punt');
+    } finally {
+        if ($postingClient !== null) $postingClient->getConnection()->disconnect();
+        $postingErrors = stream_get_contents($postingPipes[2]);
+        foreach ($postingPipes as $postingPipe) fclose($postingPipe);
+        $postingExit = proc_close($postingProcess);
+    }
+    check($postingExit === 0 && $postingErrors === '', 'Zelfstandige TCP-publicatiefixture correct afgesloten');
     foreach (["441 Rejected\r\n", "400 unavailable\r\n", '240 truncated', str_repeat('x', 513) . "\r\n"] as $postFailure) {
         try {
             (new \NnSpotty\Usenet\PipelineConnection('fixture.invalid', 119, false, new \PipelineSocketFixture($postFailure)))->publishComment($postCommand);

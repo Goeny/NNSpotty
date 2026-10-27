@@ -70,6 +70,12 @@ try {
             'Alleen bevestigde reactie komt in zichtbare Usenet-cache: ' . $postingMode);
         if ($postingMode !== 'deny') {
             $decodedArticle = SpotnetParser::comment($postingRow['message_id'], $capturedArticle);
+            $signingPem = $pdo->query("SELECT private_key FROM comment_signing_keys WHERE username = 'comment-publisher'")->fetchColumn();
+            $signingDetails = openssl_pkey_get_details(openssl_pkey_get_private($signingPem));
+            $serverSigningPem = $pdo->query("SELECT private_key FROM comment_signing_keys WHERE scope = 'server'")->fetchColumn();
+            $serverSigningDetails = openssl_pkey_get_details(openssl_pkey_get_private($serverSigningPem));
+            check(Fixtures::spotwebComment($capturedArticle, $commentSpot['message_id'], $signingDetails['key'], $serverSigningDetails['key']),
+                'Publisher verstuurt Spotweb-compatibele groep, spotkoppeling, hashcash en gebruikers/serverhandtekeningen: ' . $postingMode);
             check($decodedArticle['spot_id'] === $commentSpot['id'] && str_contains($decodedArticle['body'], "caf\u{00E9}")
                 && str_contains($decodedArticle['body'], ".punt") && str_contains($capturedArticle, 'Newsgroups: free.usenet'),
                 'Echte TCP POST heeft geldige framing, encoding en spotverwijzing: ' . $postingMode);

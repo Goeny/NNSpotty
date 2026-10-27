@@ -51,6 +51,43 @@ final class Fixtures
             . "Content-Type: text/plain; charset=UTF-8\r\n\r\nEen echte reactie.\r\n.Begint met een punt.";
     }
 
+    public static function spotwebComment(string $article, string $reference, string $publicKey, string $serverPublicKey): bool
+    {
+        // Check the emitted wire independently of NNSpotty's permissive comment parser.
+        [$header, $body] = explode("\r\n\r\n", $article, 2);
+        $headers = [];
+        foreach (explode("\r\n", $header) as $line) {
+            [$name, $value] = explode(':', $line, 2);
+            $headers[strtolower($name)][] = trim($value);
+        }
+        foreach (['newsgroups', 'message-id', 'references', 'x-user-key', 'x-user-signature',
+            'x-server-key', 'x-server-signature', 'x-user-rating'] as $name) {
+            if (count($headers[$name] ?? []) !== 1) return false;
+        }
+        $id = $headers['message-id'][0];
+        $referenceLocal = explode('@', $reference, 2)[0];
+        $idParts = explode('.', trim($id, '<>'));
+        $spotwebReference = $idParts[0] . substr(trim($id, '<>'), strpos(trim($id, '<>'), '@'));
+        if ($headers['newsgroups'][0] !== 'free.usenet' || $headers['references'][0] !== '<' . $reference . '>'
+            || $spotwebReference !== $reference || $idParts[1] !== '0'
+            || !str_starts_with($id, '<' . $referenceLocal . '.0.') || !str_ends_with($id, '>')
+            || !str_starts_with(sha1($id), '0000') || $headers['x-user-rating'][0] !== '0'
+            || trim($body) === '') {
+            return false;
+        }
+        foreach (['user' => $publicKey, 'server' => $serverPublicKey] as $scope => $pem) {
+            $details = openssl_pkey_get_details(openssl_pkey_get_public($pem));
+            $xml = simplexml_load_string($headers['x-' . $scope . '-key'][0]);
+            if ($xml === false || base64_decode((string) $xml->Modulus, true) !== $details['rsa']['n']
+                || base64_decode((string) $xml->Exponent, true) !== $details['rsa']['e']) {
+                return false;
+            }
+            $signature = base64_decode(strtr($headers['x-' . $scope . '-signature'][0], ['-s' => '/', '-p' => '+']), true);
+            if ($signature === false || openssl_verify($id, $signature, $pem, OPENSSL_ALGO_SHA1) !== 1) return false;
+        }
+        return true;
+    }
+
     public static function image(): string
     {
         return base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', true);

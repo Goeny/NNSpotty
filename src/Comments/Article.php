@@ -109,7 +109,7 @@ final class Article
             'X-No-Archive: yes',
             'X-User-Rating: 0',
             'X-User-Key: ' . self::publicXml($user),
-            'X-User-Signature: ' . self::sign('<' . $id . '>' . $wireBody . "\r\n" . $fromName, $user),
+            'X-User-Signature: ' . self::sign('<' . $id . '>', $user),
             'X-Server-Key: ' . self::publicXml($server),
             'X-Server-Signature: ' . self::sign('<' . $id . '>', $server),
         ];
