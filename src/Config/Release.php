@@ -6,6 +6,6 @@ namespace NnSpotty\Config;
 
 final class Release
 {
-    public const VERSION = '0.2.0';
-    public const CODENAME = 'Sierra RS Cosworth';
+    public const VERSION = '0.2.1';
+    public const CODENAME = 'Escort RS Cosworth';
 }

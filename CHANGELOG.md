@@ -4,6 +4,8 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-31 - Escort RS Cosworth
+
 ### Fixed
 - Updater: Composer draait met dezelfde PHP als de updater in plaats van de systeemstandaard-PHP uit PATH; de GUI kiest de versiespecifieke PHP CLI (bijv. `php8.3`). Een te oude PHP wordt vooraf geweigerd, zonder onderhoudsmodus.
 

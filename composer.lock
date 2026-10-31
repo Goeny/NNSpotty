@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "798978c4a23cf60f98153a07500aee2c",
+    "content-hash": "0dbf815ce510cca6c1bca20a65273db0",
     "packages": [
         {
             "name": "rvdv/nntp",
