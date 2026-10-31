@@ -45,9 +45,10 @@ final class SpotLayout
     {
         $overview = self::downloadTargets((bool) (self::$account['is_admin'] ?? false));
         $default = $overview['default'];
-        $client = \NnSpotty\Downloader\Targets::CLIENTS[explode(':', $default)[1]];
-        $button = '<button class="btn btn-sm btn-warning" type="button" data-download-send="' . h($spotId) . '" data-download-target="' . h($default)
-            . '" title="Verzenden naar ' . h(\NnSpotty\Downloader\Targets::label($default)) . '">' . h($client) . '</button>';
+        $label = 'Verzenden naar ' . \NnSpotty\Downloader\Targets::label($default);
+        $icon = '<svg class="send-icon" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 1a.75.75 0 0 1 .75.75v6.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 0 1 1.06-1.06l2.22 2.22V1.75A.75.75 0 0 1 8 1Z"/><path fill="currentColor" d="M2.75 11a.75.75 0 0 1 .75.75v1.5h9v-1.5a.75.75 0 0 1 1.5 0v2.25a.75.75 0 0 1-.75.75H2.75a.75.75 0 0 1-.75-.75v-2.25a.75.75 0 0 1 .75-.75Z"/></svg>';
+        $button = '<button class="btn btn-sm btn-warning send-button" type="button" data-download-send="' . h($spotId) . '" data-download-target="' . h($default)
+            . '" title="' . h($label) . '" aria-label="Client: ' . h($label) . '">' . $icon . '<span>Client</span></button>';
         $others = array_filter($overview['targets'], static fn (array $target): bool => $target['enabled'] && $target['id'] !== $default);
         if ($others === []) {
             return $button;

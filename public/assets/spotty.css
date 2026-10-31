@@ -134,7 +134,9 @@
 .user-menu-dropdown { position: absolute; z-index: 30; top: calc(100% + 8px); right: 0; min-width: 180px; padding: 6px; border: 1px solid var(--spot-border); border-radius: 8px; background: var(--spot-panel); box-shadow: 0 8px 24px #0005; }
 .dropdown-link { display: block; padding: 8px 10px; border-radius: 5px; color: var(--bs-body-color); }
 .dropdown-link:hover, .dropdown-link:focus { color: var(--bs-body-color); background: rgba(var(--plex-accent-rgb), .14); }
-.send-group { display: inline-flex; align-items: stretch; vertical-align: middle; }
+.send-group { display: inline-flex; align-items: stretch; vertical-align: middle; min-height: 36px; }
+.hero-actions .send-button, .send-menu > summary { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 36px; line-height: 1.2; }
+.send-icon { flex: 0 0 auto; }
 .send-group > .btn { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .send-menu { position: relative; display: inline-flex; }
 .send-menu > summary { list-style: none; height: 100%; border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 1px solid #0003; padding-inline: .45rem; }

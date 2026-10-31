@@ -149,7 +149,7 @@ try {
     check($targets->overview('http-tester', true)['default'] === 'central:nzbget' && $targets->overview('http-reader', false)['default'] === 'personal:sabnzbd',
         'Zonder voorkeur is de eerste ingeschakelde toegestane client de standaard');
     $detail = httpFixture($httpPort, '/spots/view?key=' . $nzbgetSpot['id'], $cookie)['body'];
-    check(str_contains($detail, 'data-download-target="central:nzbget"') && str_contains($detail, '>NZBGet</button>') && !str_contains($detail, 'send-menu'),
+    check(str_contains($detail, 'data-download-target="central:nzbget"') && str_contains($detail, 'title="Verzenden naar Centrale NZBGet (admin)"') && str_contains($detail, '<span>Client</span></button>') && !str_contains($detail, 'send-menu'),
         'Detailknop verstuurt naar de standaardclient; zonder alternatief geen keuzemenu');
     (new SabRepository($pdo))->save('user:http-tester', 'http-tester', 'http://127.0.0.1:' . $nzbgetPort . '/sab', str_repeat('a', 32), true, true);
     $default = $nzbgetPost(['action' => 'default', 'target' => 'personal:sabnzbd']);
