@@ -308,6 +308,8 @@ De POST-route controleert login, zichtbaarheid, globale reactie-instelling, CSRF
 
 `SpotEmoticons::toolbar` genereert 28 unieke knoppen uit de bestaande symbooltabel. `comments.js` voegt de compatibele code in met selection/cursorbehoud, bewaakt de maxlength, herstelt focus en geeft publicatievoortgang/dubbele-submitbescherming. Browser-paginacache herstelt de submitknop. Native form/publicatie en handmatig getypte codes werken zonder JavaScript.
 
+Citeren volgt Spotweb: `[quote=Naam]...[/quote]` rendert als blockquote met "Naam schreef:" (naam geescaped); zonder naam blijft het een kale blockquote. Bij publicatierecht krijgt elke reactie een citaaticoon. `SpotMarkup::quote` bouwt server-side de brontekst: handtekening (vanaf `-- `) en eerdere citaten vallen weg, `[`/`]`/controletekens in de naam worden spaties. `comments.js` voegt het citaat op eigen regels in bij de cursor, met dezelfde maxlength-bewaking.
+
 ## Web en beveiligingsgrenzen
 - `/spots`: individuele spots, stapelbare type-/subcategoriefilters, een header-titelzoekfunctie, keyset-batches, optionele thumbnails en een initieel gesloten preview. Alleen de eerste ingestelde batch wordt tijdens paginarendering geladen; exacte totaaltellingen worden niet synchroon berekend en rootpagina's slaan ongebruikte subcategorie-facetten over.
 - `/retrieve/status` en `POST /admin/retrieve`: ingelogde status van de laatste retrieve en admin-only incrementeel ophalen. Een databasegebonden MySQL/MariaDB advisory lock voorkomt gelijktijdige handmatige en cron-runs.

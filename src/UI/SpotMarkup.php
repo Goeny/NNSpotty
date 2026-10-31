@@ -18,6 +18,29 @@ final class SpotMarkup
         return self::sequence($tokens, $position, null, 0, $allowLinks);
     }
 
+    /**
+     * Builds Spotweb-compatible "[quote=Name]...[/quote]" source text for a reply.
+     * The signature and earlier quotes are left out so replies do not grow into quote pyramids.
+     */
+    public static function quote(string $poster, string $body): string
+    {
+        $body = str_replace(["\r\n", "\r"], "\n", $body);
+        $signature = strpos($body, "\n-- \n");
+        if ($signature !== false) {
+            $body = substr($body, 0, $signature);
+        }
+        do {
+            $body = (string) preg_replace('~\[quote(?:=[^\]\n]*)?\](?:(?!\[quote(?:=[^\]\n]*)?\]).)*?\[/quote\]~is', '', $body, -1, $count);
+        } while ($count > 0);
+        $body = trim((string) preg_replace("/\n{3,}/", "\n\n", $body));
+        if ($body === '') {
+            return '';
+        }
+        $name = trim((string) preg_replace('/[\[\]\x00-\x1F\x7F]+/u', ' ', $poster));
+        $name = mb_substr($name !== '' ? $name : 'Onbekend', 0, 64);
+        return '[quote=' . $name . ']' . $body . '[/quote]';
+    }
+
     public static function link(string $href, string $content): string
     {
         $href = trim($href);
@@ -80,6 +103,9 @@ final class SpotMarkup
                 } elseif ($tag === 'list') {
                     $listTag = ($match[2] ?? '') === '1' ? 'ol' : 'ul';
                     $html .= '<' . $listTag . '>' . $inner . '</' . $listTag . '>';
+                } elseif ($tag === 'quote' && trim($match[2] ?? '') !== '') {
+                    // Spotweb-compatible [quote=Name]: show who wrote the quoted text.
+                    $html .= '<blockquote><strong>' . h(trim($match[2])) . ' schreef:</strong><br>' . $inner . '</blockquote>';
                 } else {
                     $html .= '<' . $tags[$tag] . '>' . $inner . '</' . $tags[$tag] . '>';
                 }

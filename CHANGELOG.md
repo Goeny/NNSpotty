@@ -5,6 +5,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased]
 
 ### Added
+- Reacties citeren: citaaticoon per reactie zet de tekst als Spotweb-compatibele `[quote=Naam]...[/quote]` in je reactie (zonder handtekening en eerdere citaten). Citaten tonen "Naam schreef:".
 - NZBGet-ondersteuning naast SABnzbd: centrale (admin) en persoonlijke koppeling, verbindingstest, eigen categorietoewijzing, verzendhistorie en wachtrij/snelheid in het Downloads-paneel. Per gebruiker een standaard downloadclient in Voorkeuren; met meerdere ingeschakelde clients kies je eenmalig een andere via "Verzenden naar...". Geen automatische fallback. Migratie `20261031_0027_nzbget`.
 - Spotweb-compatibele Spotnet-ID naast spotnamen en geverifieerde reacties. Reacties tonen de ID uit de persoonlijke accountgebonden RSA-sleutel; alleen geldige handtekeningen leveren een zichtbare ID op. Bestaande gecachte items worden eenmalig bij retrieve bijgewerkt. Migratie `20261026_0026_spotter_ids`.
 

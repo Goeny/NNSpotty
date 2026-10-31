@@ -316,6 +316,7 @@
 .preview .technical dt { margin: 0; }
 .preview .technical dd { margin: 0; }
 .comment-body { overflow-wrap: anywhere; }
+.comment-quote { flex: none; display: inline-flex; align-items: center; justify-content: center; padding: .2rem .4rem; line-height: 1; }
 .skip-link { position: absolute; z-index: 100; background: var(--spot-panel); padding: 10px; }
 @media (min-width: 1700px) {
     .spot-table { font-size: .86rem !important; }

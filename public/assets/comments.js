@@ -1,15 +1,10 @@
 (() => {
     'use strict';
-    document.addEventListener('click', event => {
-        const button = event.target.closest('[data-emoticon-code]');
-        if (!button) return;
-        const textarea = document.getElementById(button.dataset.emoticonTarget);
-        if (!(textarea instanceof HTMLTextAreaElement)) return;
-        const code = button.dataset.emoticonCode;
+    const insert = (textarea, code, tooLong) => {
         const start = textarea.selectionStart;
         const end = textarea.selectionEnd;
         if (textarea.maxLength >= 0 && textarea.value.length - (end - start) + code.length > textarea.maxLength) {
-            textarea.setCustomValidity('De emoticon past niet meer in de reactie. Maak eerst ruimte vrij.');
+            textarea.setCustomValidity(tooLong);
             textarea.reportValidity();
             return;
         }
@@ -17,6 +12,24 @@
         textarea.setRangeText(code, start, end, 'end');
         textarea.dispatchEvent(new Event('input', {bubbles: true}));
         textarea.focus();
+    };
+    document.addEventListener('click', event => {
+        const button = event.target.closest('[data-emoticon-code]');
+        if (!button) return;
+        const textarea = document.getElementById(button.dataset.emoticonTarget);
+        if (!(textarea instanceof HTMLTextAreaElement)) return;
+        insert(textarea, button.dataset.emoticonCode, 'De emoticon past niet meer in de reactie. Maak eerst ruimte vrij.');
+    });
+    document.addEventListener('click', event => {
+        const button = event.target.closest('[data-comment-quote]');
+        if (!button) return;
+        const textarea = document.getElementById('comment');
+        if (!(textarea instanceof HTMLTextAreaElement)) return;
+        // Quote on its own lines, followed by an empty line for the reply.
+        const before = textarea.value.slice(0, textarea.selectionStart);
+        const prefix = before === '' || before.endsWith('\n\n') ? '' : (before.endsWith('\n') ? '\n' : '\n\n');
+        textarea.scrollIntoView({block: 'center', behavior: 'smooth'});
+        insert(textarea, prefix + button.dataset.commentQuote + '\n\n', 'Het citaat past niet meer in de reactie. Maak eerst ruimte vrij of kort het citaat in.');
     });
     document.addEventListener('input', event => {
         if (event.target.matches('[data-comment-form] textarea')) event.target.setCustomValidity('');

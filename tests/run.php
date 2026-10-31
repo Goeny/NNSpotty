@@ -380,6 +380,8 @@ try {
         '[b]Vet [i]cursief[/i][/b]' => '<strong>Vet <em>cursief</em></strong>',
         '[u]Onder[/u][s]door[/s]' => '<u>Onder</u><s>door</s>',
         '[quote]Citaat[/quote]' => '<blockquote>Citaat</blockquote>',
+        '[quote=Lezer]Citaat[/quote]' => '<blockquote><strong>Lezer schreef:</strong><br>Citaat</blockquote>',
+        '[quote=&lt;i&gt;x&lt;/i&gt;]Citaat[/quote]' => '<blockquote><strong>&lt;i&gt;x&lt;/i&gt; schreef:</strong><br>Citaat</blockquote>',
         '[list][*]Een[*][b]Twee[/b][/list]' => '<ul><li>Een</li><li><strong>Twee</strong></li></ul>',
         '[list=1][li]Een[/li][li]Twee[/li][/list]' => '<ol><li>Een</li><li>Twee</li></ol>',
         '[list][*]Een[list][*]Twee[/list][*]Drie[/list]' => '<ul><li>Een<ul><li>Twee</li></ul></li><li>Drie</li></ul>',

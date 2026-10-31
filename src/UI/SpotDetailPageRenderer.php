@@ -64,7 +64,7 @@ final class SpotDetailPageRenderer
       <label class="form-label" for="comment">Reactie op Usenet plaatsen</label>
       <textarea class="form-control mb-2" name="comment" id="comment" rows="4" maxlength="10000" aria-describedby="comment-help" required>{$draft}</textarea>
       {$emoticons}
-      <p class="form-text" id="comment-help">Klik op een emoticon om de bijbehorende [img=...]-code in te voegen. Maximaal 10000 UTF-8-bytes en 900 bytes per regel; West-Europese tekst voor klassieke Spotnet-readers.</p>
+      <p class="form-text" id="comment-help">Klik op een emoticon om de bijbehorende [img=...]-code in te voegen, of op het citaaticoon bij een reactie om die als [quote=...] over te nemen. Maximaal 10000 UTF-8-bytes en 900 bytes per regel; West-Europese tekst voor klassieke Spotnet-readers.</p>
       <div class="alert alert-warning small">Je reactie, publieke naam en ingestelde handtekening worden openbaar op Usenet, ook voor andere Spotnet-/Spotweb-gebruikers. Publicatie is niet via NNSpotty in te trekken; verspreiding hangt af van de provider.</div>
       <p class="small">Publiceren als: <strong>{$postingName}</strong> met de persoonlijke Spotnet-ID van je accountgebonden sleutel. Publieke namen zijn niet uniek; de gecontroleerde sleutel-ID onderscheidt spotters.</p>
       <details class="mb-3" open><summary>Volledige publicatietekst</summary><pre class="text-wrap" data-comment-preview>{$fullDraft}</pre></details>
@@ -94,14 +94,19 @@ HTML;
     public static function commentList(array $comments, bool $isAdmin, bool $retrieveComments, int $pendingComments = 0): string
     {
         $html = '';
+        $canQuote = SpotLayout::can('comments.publish');
         foreach ($comments as $comment) {
             $poster = h($comment['poster']);
             if (is_string($comment['spotter_id'] ?? null) && $comment['spotter_id'] !== '') {
                 $poster .= ' (' . h($comment['spotter_id']) . ')';
             }
-            $html .= '<article class="border-bottom py-3"><div class="fw-semibold">' . $poster
+            $quote = $canQuote ? SpotMarkup::quote((string) $comment['poster'], (string) $comment['body']) : '';
+            $quoteButton = $quote === '' ? '' : '<button class="btn btn-sm btn-outline-secondary comment-quote" type="button" data-comment-quote="' . h($quote)
+                . '" title="Citeren in je reactie" aria-label="Reactie van ' . h($comment['poster']) . ' citeren">'
+                . '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 12a1 1 0 0 0 1-1V8.558a1 1 0 0 0-1-1h-1.388q0-.527.062-1.054.093-.558.31-.992t.559-.683q.34-.279.868-.279V3q-.868 0-1.52.372a3.3 3.3 0 0 0-1.085.992 4.9 4.9 0 0 0-.62 1.458A7.7 7.7 0 0 0 9 7.558V11a1 1 0 0 0 1 1zm-6 0a1 1 0 0 0 1-1V8.558a1 1 0 0 0-1-1H4.612q0-.527.062-1.054.094-.558.31-.992.217-.434.559-.683.34-.279.868-.279V3q-.868 0-1.52.372a3.3 3.3 0 0 0-1.085.992 4.9 4.9 0 0 0-.62 1.458A7.7 7.7 0 0 0 3 7.558V11a1 1 0 0 0 1 1z"/></svg></button>';
+            $html .= '<article class="border-bottom py-3"><div class="d-flex justify-content-between align-items-start gap-2"><div><div class="fw-semibold">' . $poster
                 . '</div><small class="text-body-secondary">' . h($comment['posted_at']) . ' UTC &middot; ' . h($comment['source'])
-                . '</small><div class="comment-body spot-description mt-2">' . ($comment['source'] === 'Usenet'
+                . '</small></div>' . $quoteButton . '</div><div class="comment-body spot-description mt-2">' . ($comment['source'] === 'Usenet'
                     ? SpotDescription::render($comment['body']) : SpotEmoticons::plainText($comment['body'])) . '</div></article>';
         }
         if ($html === '' && $pendingComments === 0) {

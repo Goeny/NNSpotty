@@ -92,6 +92,22 @@ namespace {
         'source' => 'Usenet', 'body' => 'Reactie',
     ]], false, true), 'Lezer (' . $publicationArticle['spotter_id'] . ')'),
         'Reactielijst toont de geverifieerde Spotnet-ID naast de publieke naam');
+    $quoteList = SpotDetailPageRenderer::commentList([[
+        'poster' => 'Spotter "x" <y>', 'spotter_id' => null, 'posted_at' => '2026-01-01 00:00:00', 'source' => 'Usenet',
+        'body' => "[quote=Ander]Oud citaat[/quote]\nNieuw <b>antwoord</b>\n-- \nHandtekening",
+    ]], false, true);
+    check(str_contains($quoteList, 'data-comment-quote="[quote=Spotter &quot;x&quot; &lt;y&gt;]Nieuw &lt;b&gt;antwoord&lt;/b&gt;[/quote]"')
+        && str_contains($quoteList, 'aria-label="Reactie van Spotter &quot;x&quot; &lt;y&gt; citeren"'),
+        'Citaaticoon neemt escaped bron over zonder handtekening en eerder citaat');
+    \NnSpotty\UI\SpotLayout::account(['username' => 'lezer', 'active' => true, 'must_change_password' => false, 'is_admin' => false, 'permissions' => []]);
+    check(!str_contains(SpotDetailPageRenderer::commentList([[
+        'poster' => 'Lezer', 'spotter_id' => null, 'posted_at' => '2026-01-01 00:00:00', 'source' => 'Usenet', 'body' => 'Reactie',
+    ]], false, true), 'data-comment-quote'), 'Geen citaaticoon zonder publicatierecht');
+    \NnSpotty\UI\SpotLayout::account(null);
+    check(\NnSpotty\UI\SpotMarkup::quote("Na[am]\n", "Tekst\r\n\r\n\r\n\r\nmeer") === "[quote=Na am]Tekst\n\nmeer[/quote]"
+        && \NnSpotty\UI\SpotMarkup::quote('', '[quote=A][quote=B]x[/quote]y[/quote]Z') === '[quote=Onbekend]Z[/quote]'
+        && \NnSpotty\UI\SpotMarkup::quote('Lezer', "[quote]alleen citaat[/quote]\n-- \nsig") === '',
+        'Citaattekst: veilige naam, genest citaat verwijderd, leeg citaat geeft geen icoon');
     check(substr_count(SpotEmoticons::toolbar('comment'), 'data-emoticon-code=') === 28
         && str_contains(SpotEmoticons::toolbar('comment'), 'data-emoticon-code="[img=respekt]"')
         && !str_contains(SpotEmoticons::toolbar('comment'), '<img'),
