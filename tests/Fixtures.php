@@ -82,10 +82,34 @@ final class Fixtures
                 || base64_decode((string) $xml->Exponent, true) !== $details['rsa']['e']) {
                 return false;
             }
-            $signature = base64_decode(strtr($headers['x-' . $scope . '-signature'][0], ['-s' => '/', '-p' => '+']), true);
-            if ($signature === false || openssl_verify($id, $signature, $pem, OPENSSL_ALGO_SHA1) !== 1) return false;
+            // Spotweb's spotUnprepareBase64 and its commentsfull/commentsxover column limits (strict SQL mode).
+            $prepared = $headers['x-' . $scope . '-signature'][0];
+            $unprepared = str_replace(['-s', '-p'], ['/', '+'], $prepared . str_repeat('=', (4 - strlen($prepared) % 4) % 4));
+            $userKey = serialize(['exponent' => (string) $xml->Exponent, 'modulo' => (string) $xml->Modulus]);
+            if ($scope === 'user' && (strlen($unprepared) > 255 || strlen($userKey) > 512
+                || strlen(trim($id, '<>')) > 128 || strlen($spotwebReference) > 128)) {
+                return false;
+            }
+            $spotwebKey = openssl_pkey_get_public(self::spotwebPublicKey(base64_decode((string) $xml->Modulus), base64_decode((string) $xml->Exponent)));
+            if ($spotwebKey === false || openssl_verify($id, (string) base64_decode($unprepared), $spotwebKey) !== 1) return false;
         }
         return true;
+    }
+
+    /** Port of Spotweb's Services_Signing_Openssl::seclibToOpenSsl (modulus encoded without a leading zero byte). */
+    private static function spotwebPublicKey(string $modulus, string $exponent): string
+    {
+        $length = static function (int $length): string {
+            if ($length <= 0x7F) return chr($length);
+            $bytes = ltrim(pack('N', $length), "\0");
+            return chr(0x80 | strlen($bytes)) . $bytes;
+        };
+        $integers = "\x02" . $length(strlen($modulus)) . $modulus . "\x02" . $length(strlen($exponent)) . $exponent;
+        $sequence = "\x30" . $length(strlen($integers)) . $integers;
+        $bitString = "\x03" . $length(strlen($sequence) + 1) . "\0" . $sequence;
+        $algorithm = "\x30\x0d\x06\x09\x2a\x86\x48\x86\xf7\x0d\x01\x01\x01\x05\x00";
+        return "-----BEGIN PUBLIC KEY-----\n" . chunk_split(base64_encode("\x30" . $length(15 + strlen($bitString)) . $algorithm . $bitString), 64)
+            . "-----END PUBLIC KEY-----\n";
     }
 
     public static function image(): string

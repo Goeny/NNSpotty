@@ -13,6 +13,13 @@ $spots->saveSpot($commentSpot, 'free.pt');
 (new UserRepository($pdo))->create('comment-publisher', bin2hex(random_bytes(20)), false);
 $commentPublisher = new Publisher($pdo, $state);
 $localBeforePublication = (int) $pdo->query('SELECT COUNT(*) FROM post_comments')->fetchColumn();
+$legacyKeys = [];
+foreach (['user:' . hash('sha256', 'comment-publisher') => 'comment-publisher', 'server' => null] as $legacyScope => $legacyUser) {
+    $legacyKey = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA, 'config' => __DIR__ . '/openssl-test.cnf']);
+    openssl_pkey_export($legacyKey, $legacyKeys[$legacyScope], null, ['config' => __DIR__ . '/openssl-test.cnf']);
+    $pdo->prepare('INSERT INTO comment_signing_keys (scope, username, private_key) VALUES (?, ?, ?)')
+        ->execute([$legacyScope, $legacyUser, $legacyKeys[$legacyScope]]);
+}
 try {
     foreach ([['accept', 'default'], ['accept', 'inherited'], ['accept', 'custom'],
         ['reject', 'default'], ['deny', 'default'], ['drop', 'default']] as [$postingMode, $connectionMode]) {
@@ -119,6 +126,11 @@ try {
     }
     $keyCount = (int) $pdo->query('SELECT COUNT(*) FROM comment_signing_keys')->fetchColumn();
     check($keyCount === 2, 'Persoonlijke en server-RSA-identiteit worden over pogingen hergebruikt');
+    $rotatedKeys = $pdo->query('SELECT scope, private_key FROM comment_signing_keys')->fetchAll(PDO::FETCH_KEY_PAIR);
+    check(count($rotatedKeys) === 2 && array_diff_key($legacyKeys, $rotatedKeys) === []
+        && array_filter($rotatedKeys, static fn (string $pem, string $scope): bool => $pem === $legacyKeys[$scope]
+            || !\NnSpotty\Comments\Article::compatibleKey($pem), ARRAY_FILTER_USE_BOTH) === [],
+        'Bestaande 2048-bit reactiesleutels worden eenmalig vervangen door Spotweb-compatibele 1024-bit sleutels');
     check((int) $pdo->query('SELECT COUNT(*) FROM post_comments')->fetchColumn() === $localBeforePublication,
         'Geen publicatiepad maakt lokale reacties aan');
     try {

@@ -147,14 +147,20 @@ final class Publisher
         $statement = $this->pdo->prepare('SELECT private_key FROM comment_signing_keys WHERE scope = :scope');
         $statement->execute(['scope' => $scope]);
         $key = $statement->fetchColumn();
-        if (is_string($key)) return $key;
+        if (is_string($key) && Article::compatibleKey($key)) return $key;
         $pem = Article::key();
-        $insert = $this->pdo->prepare('INSERT INTO comment_signing_keys (scope, username, private_key) VALUES (:scope, :username, :key)
-            ON DUPLICATE KEY UPDATE scope = VALUES(scope)');
-        $insert->execute(['scope' => $scope, 'username' => $username, 'key' => $pem]);
+        if (is_string($key)) {
+            // Replace older 2048-bit keys once: their signatures do not fit in Spotweb's database. This changes the Spotnet-ID.
+            $replace = $this->pdo->prepare('UPDATE comment_signing_keys SET private_key = :new WHERE scope = :scope AND private_key = :old');
+            $replace->execute(['new' => $pem, 'scope' => $scope, 'old' => $key]);
+        } else {
+            $insert = $this->pdo->prepare('INSERT INTO comment_signing_keys (scope, username, private_key) VALUES (:scope, :username, :key)
+                ON DUPLICATE KEY UPDATE scope = VALUES(scope)');
+            $insert->execute(['scope' => $scope, 'username' => $username, 'key' => $pem]);
+        }
         $statement->execute(['scope' => $scope]);
         $stored = $statement->fetchColumn();
-        if (!is_string($stored)) throw new \RuntimeException('Reactiesleutel kon niet worden opgeslagen.');
+        if (!is_string($stored) || !Article::compatibleKey($stored)) throw new \RuntimeException('Reactiesleutel kon niet worden opgeslagen.');
         return $stored;
     }
 

@@ -29,11 +29,20 @@ final class Article
         return $body;
     }
 
+    /**
+     * Spotnet and Spotweb use 1024-bit RSA keys. Spotweb stores the user signature in VARCHAR(255) and the
+     * serialized key in VARCHAR(512); a 2048-bit signature (344 base64 chars) makes its strict-mode insert fail,
+     * so the comment is never shown there.
+     */
+    public const KEY_BITS = 1024;
+    // Spotweb stores comment message-IDs and spot references in VARCHAR(128).
+    public const MAX_MESSAGE_ID = 128;
+
     public static function messageId(string $reference): string
     {
         [$local, $domain] = explode('@', SpotnetParser::messageId($reference), 2);
         $prefix = $local . '.0.' . bin2hex(random_bytes(8)) . '.';
-        if (strlen($prefix . '@' . $domain) > 225) {
+        if (strlen($prefix . dechex(2000000) . '@' . $domain) > self::MAX_MESSAGE_ID) {
             throw new \InvalidArgumentException('Het message-ID van deze spot is te lang om een compatibele reactie te publiceren.');
         }
         $deadline = microtime(true) + 5;
@@ -47,11 +56,23 @@ final class Article
 
     public static function key(): string
     {
-        $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        $key = openssl_pkey_new(['private_key_bits' => self::KEY_BITS, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
         if ($key === false || !openssl_pkey_export($key, $pem)) {
             self::configurationError();
         }
         return $pem;
+    }
+
+    public static function compatibleKey(string $pem): bool
+    {
+        $key = openssl_pkey_get_private($pem);
+        if ($key === false) {
+            while (openssl_error_string() !== false) {
+            }
+            return false;
+        }
+        $details = openssl_pkey_get_details($key);
+        return is_array($details) && ($details['type'] ?? null) === OPENSSL_KEYTYPE_RSA && ($details['bits'] ?? 0) === self::KEY_BITS;
     }
 
     public static function privateKey(string $pem): OpenSSLAsymmetricKey
@@ -83,6 +104,10 @@ final class Article
     {
         $body = self::body($body);
         SpotnetParser::messageId($id);
+        if (strlen($id) > self::MAX_MESSAGE_ID) throw new \InvalidArgumentException('Het reactie-ID is te lang voor Spotnet-clients.');
+        if (!self::compatibleKey($userPem) || !self::compatibleKey($serverPem)) {
+            throw new PublicationException('Publiceren is niet mogelijk: de ondertekeningssleutel is geen Spotnet-compatibele 1024-bit RSA-sleutel. Er is niets naar Usenet verstuurd.');
+        }
         $reference = SpotnetParser::messageId($spot['message_id']);
         if (preg_match('/[\x00-\x1F\x7F]/', $username . $spot['title']) || preg_match('//u', $username . $spot['title']) !== 1) {
             throw new \InvalidArgumentException('Auteur of titel bevat ongeldige tekens voor Usenet-publicatie.');

@@ -70,6 +70,34 @@ namespace {
     }
     rejects(static fn () => Article::build($publicationSpot, "bad\r\nX: injected", 'Tekst', $publicationId, $publicationPem, $publicationPem),
         'Publicatie weigert headerinjectie via gebruikersnaam');
+    $wideKey = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA, 'config' => __DIR__ . '/openssl-test.cnf']);
+    check($wideKey !== false && openssl_pkey_export($wideKey, $widePem, null, ['config' => __DIR__ . '/openssl-test.cnf']),
+        'Synthetische 2048-bit sleutel exporteerbaar');
+    check(Article::compatibleKey($publicationPem) && !Article::compatibleKey($widePem) && !Article::compatibleKey('geen sleutel'),
+        'Alleen 1024-bit RSA-sleutels gelden als Spotnet/Spotweb-compatibel');
+    foreach ([[$widePem, $publicationPem], [$publicationPem, $widePem]] as [$userPem, $serverPem]) {
+        try {
+            Article::build($publicationSpot, 'Lezer', 'Tekst', $publicationId, $userPem, $serverPem);
+            check(false, '2048-bit sleutel moet publicatie blokkeren');
+        } catch (PublicationException $exception) {
+            check(str_contains($exception->getMessage(), '1024-bit') && str_contains($exception->getMessage(), 'niets naar Usenet verstuurd'),
+                'Publicatie weigert 2048-bit sleutels die niet in Spotweb passen');
+        }
+    }
+    $wideId = '<' . $publicationId . '>';
+    $wideHeaders = str_replace(
+        [explode("\r\n", explode('X-User-Signature: ', $publicationArticle['headers'], 2)[1], 2)[0]],
+        [Article::sign($wideId, openssl_pkey_get_private($widePem))],
+        $publicationArticle['headers']);
+    $wideKeyXml = '<RSAKeyValue><Modulus>' . base64_encode(openssl_pkey_get_details($wideKey)['rsa']['n']) . '</Modulus><Exponent>'
+        . base64_encode(openssl_pkey_get_details($wideKey)['rsa']['e']) . '</Exponent></RSAKeyValue>';
+    $wideHeaders = preg_replace('/X-User-Key: [^\r]+/', 'X-User-Key: ' . $wideKeyXml, $wideHeaders);
+    check(!Fixtures::spotwebComment("Newsgroups: free.usenet\r\n" . $wideHeaders . "\r\n\r\n" . $publicationArticle['body'],
+        $publicationSpot['message_id'], openssl_pkey_get_details($wideKey)['key'], $publicationDetails['key']),
+        'Spotweb-controle weigert 2048-bit handtekening die niet in VARCHAR(255) past');
+    $longSpot = SpotnetParser::spot(str_repeat('a', 100) . '@example.invalid', Fixtures::headers(str_repeat('a', 100) . '@example.invalid'));
+    rejects(static fn () => Article::messageId($longSpot['message_id']), 'Reactie-ID boven Spotwebs 128 tekens wordt geweigerd');
+    check(strlen(Article::messageId($publicationSpot['message_id'])) <= Article::MAX_MESSAGE_ID, 'Gegenereerd reactie-ID past in Spotwebs kolom');
     try {
         \NnSpotty\Comments\SigningTestResult::$fail = true;
         try {
