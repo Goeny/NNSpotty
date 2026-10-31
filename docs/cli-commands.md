@@ -124,6 +124,7 @@ php bin/console retrieve --days=7 --comments-only --verbose
 - Gebruik eerst `--check` als je alleen wilt zien of er updates klaarstaan.
 - Maak vooraf een database- en bestandenback-up. Een mislukte migratie wordt niet automatisch teruggedraaid.
 - Git, Composer, `proc_open`, netwerktoegang en schrijfrechten op de installatie/`var` zijn vereist. Gebruik PHP 8.2+ met de benodigde extensies.
+- Composer draait altijd met dezelfde PHP als de updater (lokale `composer.phar` of Composer uit PATH), niet met de systeemstandaard-PHP. Start de CLI-update dus met de juiste versie, bijvoorbeeld `php8.3 bin/console system update`. Is die PHP te oud voor de release, dan stopt de update vooraf zonder iets te wijzigen.
 - Bij een fout na codewisseling blijft onderhoudsmodus actief. Bekijk `var/update.log`, verhelp de fout en voer hetzelfde commando opnieuw uit. Verwijder de onderhoudsmarker niet om een half bijgewerkte installatie online te zetten.
 - Twee updates kunnen niet tegelijk draaien. Bij timeout of een verbroken verbinding eerst controleren of het proces nog actief is; niet blind opnieuw starten.
 - Een actieve retrieve blokkeert de update; nieuwe retrieve-/CLI-wijzigingen worden tijdens onderhoud geweigerd. Plan updates buiten cron-/onderhoudsruns.
@@ -131,7 +132,7 @@ php bin/console retrieve --days=7 --comments-only --verbose
 - Een ontwikkelclone met eigen/nieuwere commits wordt niet gereset naar een oudere release. Er is geen force-optie.
 - De release-API moet publiek leesbaar zijn; Git gebruikt zijn bestaande SSH-/credential-helperconfiguratie. API-authenticatie voor private releases wordt niet ondersteund. Geen tokens in origin-URL's.
 - GitLab-projecten worden op volledig namespacepad gematcht en releases worden via het numerieke project-ID opgehaald; geencodeerde slashes in API-paden zijn niet nodig.
-- De GUI gebruikt exact dit CLI-commando via de PHP CLI-binary naast de web-PHP-installatie; bij afwijkende PHP-paden of webservertimeouts gebruik je de CLI.
+- De GUI gebruikt exact dit CLI-commando via de PHP CLI-binary naast de web-PHP-installatie (versiespecifiek, zoals `php8.3`, heeft voorrang op `php`); bij afwijkende PHP-paden of webservertimeouts gebruik je de CLI.
 
 ### Webinterface
 

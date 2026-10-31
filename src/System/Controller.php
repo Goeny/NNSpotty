@@ -50,8 +50,8 @@ final class Controller
                 if (preg_match('/^v?[0-9]+\.[0-9]+\.[0-9]+$/D', $tag) !== 1) {
                     return Response::privateJson(['error' => 'Ongeldige releasetag. Controleer opnieuw.'], 400);
                 }
-                $php = in_array(PHP_SAPI, ['cli', 'cli-server'], true) ? PHP_BINARY : PHP_BINDIR . '/php';
-                if (!is_file($php)) throw new \RuntimeException('PHP CLI ontbreekt naast de PHP-webinstallatie. Gebruik de CLI-updater met de juiste PHP-versie.');
+                $php = self::phpCli();
+                if ($php === null) throw new \RuntimeException('PHP CLI ontbreekt naast de PHP-webinstallatie. Gebruik de CLI-updater met de juiste PHP-versie.');
                 $audit = new AuditLogRepository($this->pdo);
                 $audit->log($user['username'], 'system.update.started', 'release', $tag, [], $request->clientIp());
                 ignore_user_abort(true);
@@ -78,6 +78,18 @@ final class Controller
             error_log('Release updater: ' . $exception->getMessage());
             return Response::privateJson(['error' => 'Releasecontrole/updater mislukt. Controleer Git, PHP CLI, Composer, rechten en de serverlog.'], 500);
         }
+    }
+
+    /** Prefers the version-specific CLI (e.g. php8.3) so a different system default PHP is never used. */
+    public static function phpCli(string $sapi = PHP_SAPI, string $binary = PHP_BINARY, string $bindir = PHP_BINDIR): ?string
+    {
+        if (in_array($sapi, ['cli', 'cli-server'], true)) return is_file($binary) ? $binary : null;
+        $version = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
+        foreach (['php' . $version, 'php' . str_replace('.', '', $version), 'php', 'php.exe'] as $name) {
+            $candidate = $bindir . DIRECTORY_SEPARATOR . $name;
+            if (is_file($candidate)) return $candidate;
+        }
+        return null;
     }
 
     private function status(Process $process, bool $refresh = false): array

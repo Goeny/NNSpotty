@@ -49,9 +49,18 @@ PHP;
     $git(['commit', '-m', 'Baseline'], $source);
     $baseline = $git(['rev-parse', 'HEAD'], $source);
     $write($source . '/src/Config/Release.php', $manifest($next));
+    $write($source . '/composer.json', json_encode(['require' => ['php' => '^' . PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION]]));
     $git(['add', '.'], $source);
     $git(['commit', '-m', 'Release'], $source);
     $git(['tag', $tag], $source);
+    $futureTag = 'v' . ((int) $parts[0] + 2) . '.0.0';
+    $git(['checkout', '-b', 'future-php', $tag], $source);
+    $write($source . '/src/Config/Release.php', $manifest(ltrim($futureTag, 'v')));
+    $write($source . '/composer.json', json_encode(['require' => ['php' => '^99.0']]));
+    $git(['add', '.'], $source);
+    $git(['commit', '-m', 'Release requiring future PHP'], $source);
+    $git(['tag', $futureTag], $source);
+    $git(['checkout', 'main'], $source);
     $releaseCommit = $git(['rev-parse', 'HEAD'], $source);
     $write($source . '/unreleased.txt', 'Do not install development commits');
     $git(['add', '.'], $source);
@@ -172,6 +181,38 @@ PHP);
     check($process->run([PHP_BINARY, '-r', 'fwrite(STDERR, str_repeat("e", 100000)); echo "stdout";'], $root)['code'] === 0,
         'Grote stdout/stderr blokkeert procesrunner niet');
     $throwsUpdate(static fn () => $process->run([PHP_BINARY, '-r', 'sleep(3);'], $root, 1), 'tijd-', 'Procesrunner begrenst vastgelopen subprocessen');
+    $futureRoot = $clone('future-php');
+    $futureReleases = new Releases($process, static fn (string $url): array => [['tag_name' => $futureTag, 'published_at' => '2020-01-01T00:00:00Z']]);
+    $throwsUpdate(static fn () => (new Updater($futureRoot, $process, $futureReleases))->update($log), 'vereist PHP',
+        'Te oude PHP voor de release wordt vooraf geweigerd');
+    check(!is_file($futureRoot . '/var/update-maintenance.json') && $git(['rev-parse', 'HEAD'], $futureRoot) === $baseline,
+        'PHP-versieweigering laat installatie en onderhoudsmodus ongemoeid');
+    $bin = $updateTemp . '/composer-bin';
+    $phpBinary = $updateTemp . '/php-fixture';
+    if (PHP_OS_FAMILY === 'Windows') {
+        $write($bin . '/composer.bat', "@php \"%~dp0composer.phar\" %*\r\n");
+        $write($bin . '/composer.phar', "#!/usr/bin/env php\n<?php\n");
+        check(Updater::composerCommand($updateTemp, $phpBinary, $bin) === [$phpBinary, $bin . DIRECTORY_SEPARATOR . 'composer.phar'],
+            'Composer uit PATH (Windows-wrapper) draait met de PHP van de updater');
+    } else {
+        $write($bin . '/composer', "#!/usr/bin/env php\n<?php\n");
+        check(Updater::composerCommand($updateTemp, $phpBinary, '/nonexistent' . PATH_SEPARATOR . $bin) === [$phpBinary, $bin . '/composer'],
+            'Composer uit PATH draait met de PHP van de updater, niet de systeemstandaard');
+        $write($bin . '/composer', "#!/bin/sh\nexec something \"$@\"\n");
+        check(Updater::composerCommand($updateTemp, $phpBinary, $bin) === [$bin . '/composer'], 'Niet-PHP Composer-wrapper wordt direct gestart');
+    }
+    $throwsUpdate(static fn () => Updater::composerCommand($updateTemp, $phpBinary, $updateTemp . '/missing'), 'Composer niet gevonden',
+        'Ontbrekende Composer geeft duidelijke fout');
+    check(Updater::composerCommand($root, $phpBinary, '') === [$phpBinary, $root . '/composer.phar'], 'Lokale composer.phar heeft voorrang');
+    check(\NnSpotty\System\Controller::phpCli('cli', PHP_BINARY) === PHP_BINARY, 'CLI-updater gebruikt de draaiende PHP');
+    $phpDir = $updateTemp . '/php-bindir';
+    $versioned = 'php' . PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
+    $write($phpDir . '/php', '');
+    $write($phpDir . '/' . $versioned, '');
+    check(\NnSpotty\System\Controller::phpCli('fpm-fcgi', PHP_BINARY, $phpDir) === $phpDir . DIRECTORY_SEPARATOR . $versioned,
+        'GUI-updater kiest versiespecifieke PHP CLI boven systeemstandaard');
+    unlink($phpDir . '/' . $versioned);
+    check(\NnSpotty\System\Controller::phpCli('fpm-fcgi', PHP_BINARY, $phpDir) === $phpDir . DIRECTORY_SEPARATOR . 'php', 'GUI-updater valt terug op php');
 } finally {
     $resolved = realpath($updateTemp);
     if ($resolved !== false && str_starts_with(basename($resolved), 'nnspotty-updater-')) {
