@@ -4,6 +4,8 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-31 - Impreza 22B
+
 ### Fixed
 - Reacties uit NNSpotty verschijnen nu ook in Spotweb: ze worden ondertekend met 1024-bit RSA-sleutels zoals Spotnet/Spotweb (2048-bit handtekeningen passen niet in Spotwebs database). Bestaande sleutels worden eenmalig vervangen, waardoor je Spotnet-ID eenmalig wijzigt; eerder geplaatste reacties blijven onzichtbaar in Spotweb.
 

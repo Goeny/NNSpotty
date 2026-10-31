@@ -17,11 +17,12 @@ Voorbeelden van geschikte stijl:
 - Alpine A110 S
 
 ## Actuele release
-- **Versie:** `0.2.1`
-- **Codenaam:** `Escort RS Cosworth`
-- **Status:** 0.x-patchrelease: de updater draait Composer met de juiste PHP-versie. Bevat verder 0.2.0 met NZBGet naast SABnzbd, reacties citeren, Spotnet-ID's en MySQL 8-compatibiliteit; nog geen 1.0-productierelease
+- **Versie:** `0.2.2`
+- **Codenaam:** `Impreza 22B`
+- **Status:** 0.x-patchrelease: reacties uit NNSpotty zijn weer zichtbaar in Spotweb (1024-bit RSA-ondertekening). Bevat verder de updaterfix uit 0.2.1 en 0.2.0 met NZBGet naast SABnzbd, reacties citeren, Spotnet-ID's en MySQL 8-compatibiliteit; nog geen 1.0-productierelease
 
 ## Eerdere releases
+- `0.2.1` - Escort RS Cosworth
 - `0.2.0` - Sierra RS Cosworth
 - `0.1.0` - Skyline GT-R
 
