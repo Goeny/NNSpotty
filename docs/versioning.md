@@ -17,9 +17,12 @@ Voorbeelden van geschikte stijl:
 - Alpine A110 S
 
 ## Actuele release
-- **Versie:** `0.1.0`
-- **Codenaam:** `Skyline GT-R`
-- **Status:** Eerste gepubliceerde 0.x-release met Spotnet, Newznab, metadata, downloadintegratie, historie/statistieken en release-updater; nog geen 1.0-productierelease
+- **Versie:** `0.2.0`
+- **Codenaam:** `Sierra RS Cosworth`
+- **Status:** 0.x-release met NZBGet naast SABnzbd, reacties citeren, Spotnet-ID's en MySQL 8-compatibiliteit; nog geen 1.0-productierelease
+
+## Eerdere releases
+- `0.1.0` - Skyline GT-R
 
 ## Releaseadministratie
 Alleen een expliciet gevraagde nieuwe release verandert versie **en** codenaam; reguliere commits veranderen die niet.

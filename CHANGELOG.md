@@ -4,6 +4,8 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-31 - Sierra RS Cosworth
+
 ### Added
 - Reacties citeren: citaaticoon per reactie zet de tekst als Spotweb-compatibele `[quote=Naam]...[/quote]` in je reactie (zonder handtekening en eerdere citaten). Citaten tonen "Naam schreef:".
 - NZBGet-ondersteuning naast SABnzbd: centrale (admin) en persoonlijke koppeling, verbindingstest, eigen categorietoewijzing, verzendhistorie en wachtrij/snelheid in het Downloads-paneel. Per gebruiker een standaard downloadclient in Voorkeuren; met meerdere ingeschakelde clients kies je eenmalig een andere via "Verzenden naar...". Geen automatische fallback. Migratie `20261031_0027_nzbget`.

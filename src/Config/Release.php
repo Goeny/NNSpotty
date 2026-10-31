@@ -6,6 +6,6 @@ namespace NnSpotty\Config;
 
 final class Release
 {
-    public const VERSION = '0.1.0';
-    public const CODENAME = 'Skyline GT-R';
+    public const VERSION = '0.2.0';
+    public const CODENAME = 'Sierra RS Cosworth';
 }
