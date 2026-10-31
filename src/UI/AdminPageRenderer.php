@@ -138,7 +138,7 @@ HTML;
       <a class="nav-link" href="#usenet">Usenet</a>
       <a class="nav-link" href="#appearance">Inhoud en weergave</a>
       <a class="nav-link" href="#newznab">Newznab</a>
-      <a class="nav-link" href="#downloads">SABnzbd</a>
+      <a class="nav-link" href="#downloads">Downloadclients</a>
       <a class="nav-link" href="#metadata">Metadata</a>
       <a class="nav-link" href="#moderation">Moderatie en reacties</a>
       <a class="nav-link" href="#audit">Auditlog</a>

@@ -155,7 +155,7 @@ HTML;
         $action = \NnSpotty\Favorites\View::button($spot) . $action;
         if ($spot['nzb_segments'] !== []) {
             if (SpotLayout::can('nzb.download')) $action .= ' <a class="btn btn-sm btn-primary" href="/spots/nzb?key=' . rawurlencode($spot['id']) . '">NZB</a>';
-            if (SpotLayout::can('nzb.forward')) $action .= ' <button class="btn btn-sm btn-warning" type="button" data-sab-send="' . h($spot['id']) . '">SABnzbd</button>';
+            if (SpotLayout::can('nzb.forward')) $action .= ' ' . SpotLayout::sendButton($spot['id']);
         }
         $link = $metadataLink && !$preview ? ($spot['category'] === 'Geluid'
             ? \NnSpotty\Music\View::link() : \NnSpotty\Metadata\View::link()) : '';
@@ -202,7 +202,7 @@ HTML;
             $technical .= '<dt>Gepost met</dt><dd>' . h($spot['newsreader']) . '</dd>';
         }
         $nzb = count($spot['nzb_segments']) > 0
-            ? count($spot['nzb_segments']) . ' NZB-segment(en). Download of stuur naar je ingestelde SABnzbd-koppeling.'
+            ? count($spot['nzb_segments']) . ' NZB-segment(en). Download of stuur naar je ingestelde downloadclient (SABnzbd of NZBGet).'
             : 'Geen NZB-verwijzing aanwezig.';
         $technical .= '<dt>Message-ID</dt><dd>' . h($spot['message_id']) . '</dd><dt>NZB</dt><dd>' . $nzb . '</dd>';
         $technical = '<section class="card mb-3"><div class="card-header">Technische details</div><div class="card-body"><dl class="technical">' . $technical . '</dl></div></section>';

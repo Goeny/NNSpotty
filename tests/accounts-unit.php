@@ -36,6 +36,6 @@ check(str_contains($accountHeader, 'Public reader') && str_contains($accountHead
     && str_contains($accountHeader, 'action="/admin/retrieve"') && !str_contains($accountHeader, 'href="/admin"'),
     'Header toont publieke naam/avatar en retrieve voor bevoegde niet-admin zonder systeembeheerlink');
 $limitedHeader = \NnSpotty\UI\SpotLayout::render('Test', 'reader', true, '', 'inhoud');
-check(!str_contains($limitedHeader, 'data-sab-open="personal"') && !str_contains($limitedHeader, '<option value="central">'),
+check(!str_contains($limitedHeader, 'data-download-open=') && !str_contains($limitedHeader, '<option value="central:'),
     'Actuele accountrechten gaan voor legacy renderer-adminvlag en verbergen verboden downloadacties');
 \NnSpotty\UI\SpotLayout::account(null);

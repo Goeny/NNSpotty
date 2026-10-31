@@ -108,7 +108,7 @@ check(!str_contains(httpFixture($httpPort, '/manage', $accountCookie)['body'], '
 $accountRepo->saveGroup($httpCustomGroup, 'HTTP beperkte groep', ['settings.manage']);
 $accountRepo->manage('account-http', true, [$httpCustomGroup]);
 $limitedSettings = httpFixture($httpPort, '/admin', $accountCookie);
-check($limitedSettings['status'] === 200 && !str_contains($limitedSettings['body'], 'id="sab-url-central"')
+check($limitedSettings['status'] === 200 && !str_contains($limitedSettings['body'], 'id="sab-url-central"') && !str_contains($limitedSettings['body'], 'id="nzbget-url-central"')
     && str_contains($limitedSettings['body'], 'uitsluitend voor beheerders'),
     'Systeeminstellingenrecht geeft geen centrale downloadercredentials of interne netwerkprivileges');
 $accountRepo->manage('account-http', false, [$groupsByKey['moderators']]);

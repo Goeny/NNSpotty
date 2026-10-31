@@ -2,13 +2,13 @@
     'use strict';
     const dialog = document.getElementById('download-drawer');
     if (!dialog || typeof dialog.showModal !== 'function') return;
-    const connection = dialog.querySelector('#sab-connection');
-    const message = dialog.querySelector('[data-sab-message]');
-    const confirm = dialog.querySelector('[data-sab-confirm]');
-    const queue = dialog.querySelector('[data-sab-queue]');
-    const history = dialog.querySelector('[data-sab-history]');
-    const previous = dialog.querySelector('[data-sab-prev]');
-    const next = dialog.querySelector('[data-sab-next]');
+    const connection = dialog.querySelector('#download-connection');
+    const message = dialog.querySelector('[data-download-message]');
+    const confirm = dialog.querySelector('[data-download-confirm]');
+    const queue = dialog.querySelector('[data-download-queue]');
+    const history = dialog.querySelector('[data-download-history]');
+    const previous = dialog.querySelector('[data-download-prev]');
+    const next = dialog.querySelector('[data-download-next]');
     let trigger = null;
     let pendingSpot = null;
     let prepared = null;
@@ -20,18 +20,22 @@
     let offset = 0;
     let samples = [];
 
+    const target = () => {
+        const [scope, client] = connection.value.split(':');
+        return {connection: scope, client: client || 'sabnzbd'};
+    };
     const notice = (text, error = false) => {
         message.textContent = text;
         message.className = error ? 'alert alert-warning' : 'alert alert-info';
     };
     const clearQueue = () => {
         queue.replaceChildren();
-        dialog.querySelector('[data-sab-state]').textContent = 'Niet verbonden';
-        dialog.querySelector('[data-sab-speed]').textContent = '--';
-        dialog.querySelector('[data-sab-chart]').setAttribute('points', '');
-        dialog.querySelector('[data-sab-dot]').setAttribute('hidden', '');
-        dialog.querySelector('[data-sab-peak]').textContent = '--';
-        dialog.querySelector('[data-sab-total]').textContent = '';
+        dialog.querySelector('[data-download-state]').textContent = 'Niet verbonden';
+        dialog.querySelector('[data-download-speed]').textContent = '--';
+        dialog.querySelector('[data-download-chart]').setAttribute('points', '');
+        dialog.querySelector('[data-download-dot]').setAttribute('hidden', '');
+        dialog.querySelector('[data-download-peak]').textContent = '--';
+        dialog.querySelector('[data-download-total]').textContent = '';
         previous.disabled = true;
         next.disabled = true;
     };
@@ -53,7 +57,7 @@
             headers: {'Accept': 'application/json'}
         });
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || data.message || 'SABnzbd-aanvraag mislukt.');
+        if (!response.ok) throw new Error(data.error || data.message || 'Downloadclient-aanvraag mislukt.');
         return data;
     }
     function card(title, detail) {
@@ -72,17 +76,17 @@
         if (!Array.isArray(data.slots) || !Array.isArray(data.history) || typeof data.speed !== 'number' || !Number.isFinite(data.speed)) {
             throw new Error('Onvolledige downloaderstatus.');
         }
-        dialog.querySelector('[data-sab-state]').textContent = data.status;
-        dialog.querySelector('[data-sab-speed]').textContent = (data.speed / 1048576).toLocaleString('nl-NL', {maximumFractionDigits: 2}) + ' MiB/s';
+        dialog.querySelector('[data-download-state]').textContent = data.status;
+        dialog.querySelector('[data-download-speed]').textContent = (data.speed / 1048576).toLocaleString('nl-NL', {maximumFractionDigits: 2}) + ' MiB/s';
         const now = Date.now();
         samples.push({time: now, speed: data.speed});
         samples = samples.filter(sample => sample.time >= now - 300000).slice(-61);
         const peak = Math.max(1, ...samples.map(sample => sample.speed));
-        dialog.querySelector('[data-sab-peak]').textContent = (peak / 1048576).toLocaleString('nl-NL', {maximumFractionDigits: 2}) + ' MiB/s';
-        const dot = dialog.querySelector('[data-sab-dot]');
+        dialog.querySelector('[data-download-peak]').textContent = (peak / 1048576).toLocaleString('nl-NL', {maximumFractionDigits: 2}) + ' MiB/s';
+        const dot = dialog.querySelector('[data-download-dot]');
         dot.removeAttribute('hidden');
         dot.setAttribute('cy', String(98 - data.speed / peak * 94));
-        dialog.querySelector('[data-sab-chart]').setAttribute('points',
+        dialog.querySelector('[data-download-chart]').setAttribute('points',
             samples.map(sample => `${480 - (now - sample.time) / 300000 * 480},${98 - sample.speed / peak * 94}`).join(' '));
         queue.replaceChildren();
         for (const slot of data.slots) {
@@ -97,7 +101,7 @@
         if (data.slots.length === 0) queue.textContent = 'Geen downloads op deze wachtrijpagina.';
         previous.disabled = offset === 0;
         next.disabled = offset + data.slots.length >= data.total;
-        dialog.querySelector('[data-sab-total]').textContent = `${data.total} ${data.total === 1 ? 'download' : 'downloads'}`;
+        dialog.querySelector('[data-download-total]').textContent = `${data.total} ${data.total === 1 ? 'download' : 'downloads'}`;
         renderHistory(data.history);
     }
     function renderHistory(entries) {
@@ -115,10 +119,10 @@
         const current = generation;
         request = new AbortController();
         try {
-            const local = await api({action: 'history', connection: connection.value}, null, request.signal);
+            const local = await api({action: 'history', ...target()}, null, request.signal);
             if (current !== generation || !dialog.open) return;
             renderHistory(local.history);
-            const data = await api({connection: connection.value, offset}, null, request.signal);
+            const data = await api({...target(), offset}, null, request.signal);
             if (current !== generation || !dialog.open) return;
             render(data);
             if (!pendingSpot && !preserveNotice) notice('Live verbonden met ' + connection.selectedOptions[0].textContent + '.');
@@ -139,13 +143,14 @@
         request = new AbortController();
         notice('Download voorbereiden...');
         try {
-            const data = await api({action: 'prepare', connection: connection.value, id: pendingSpot}, null, request.signal);
+            const data = await api({action: 'prepare', ...target(), id: pendingSpot}, null, request.signal);
             if (current !== generation || !dialog.open) return;
             prepared = data;
-            dialog.querySelector('[data-sab-spot-title]').textContent = data.title;
-            dialog.querySelector('[data-sab-category]').textContent = data.category;
+            dialog.querySelector('[data-download-spot-title]').textContent = data.title;
+            dialog.querySelector('[data-download-client-name]').textContent = data.client;
+            dialog.querySelector('[data-download-category]').textContent = data.category;
             confirm.hidden = false;
-            notice('Controleer de koppeling en categorie voordat je verzendt.');
+            notice('Controleer de downloadclient en categorie voordat je verzendt. Kies hierboven eventueel eenmalig een andere client.');
         } catch (error) {
             if (error.name !== 'AbortError' && current === generation) notice(error.message, true);
         }
@@ -158,7 +163,8 @@
         offset = 0;
         samples = [];
         clearData();
-        if (opener.dataset.sabOpen) connection.value = opener.dataset.sabOpen;
+        const wanted = opener.dataset.downloadOpen || opener.dataset.downloadTarget;
+        if (wanted && [...connection.options].some(option => option.value === wanted)) connection.value = wanted;
         if (!dialog.open) dialog.showModal();
         if (spot) prepare();
         else {
@@ -179,11 +185,12 @@
         }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 200);
     }
     document.addEventListener('click', event => {
-        const send = event.target.closest('[data-sab-send]');
-        const opener = event.target.closest('[data-sab-open]');
-        if (send || opener) open(send || opener, send?.dataset.sabSend || null);
+        const send = event.target.closest('[data-download-send]');
+        const opener = event.target.closest('[data-download-open]');
+        if (send || opener) open(send || opener, send?.dataset.downloadSend || null);
+        if (send) send.closest('details')?.removeAttribute('open');
     });
-    dialog.querySelector('[data-sab-close]').addEventListener('click', close);
+    dialog.querySelector('[data-download-close]').addEventListener('click', close);
     dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
     dialog.addEventListener('keydown', event => {
         if (event.key === 'Escape') {
@@ -210,12 +217,12 @@
         if (document.hidden) stop();
         else if (dialog.open && !pendingSpot) refresh();
     });
-    dialog.querySelector('[data-sab-refresh]').addEventListener('click', () => {
+    dialog.querySelector('[data-download-refresh]').addEventListener('click', () => {
         if (!busy) pendingSpot ? prepare() : refresh();
     });
     previous.addEventListener('click', () => { offset = Math.max(0, offset - 30); refresh(); });
     next.addEventListener('click', () => { offset += 30; refresh(); });
-    dialog.querySelector('[data-sab-cancel]').addEventListener('click', () => {
+    dialog.querySelector('[data-download-cancel]').addEventListener('click', () => {
         if (busy) return;
         pendingSpot = null;
         prepared = null;
@@ -228,7 +235,8 @@
         stop();
         busy = true;
         const form = new FormData(confirm);
-        form.set('connection', connection.value);
+        form.set('connection', target().connection);
+        form.set('client', target().client);
         form.set('action', 'send');
         form.set('id', pendingSpot);
         form.set('token', prepared.token);
@@ -236,38 +244,39 @@
         const submit = confirm.querySelector('[type=submit]');
         submit.disabled = true;
         connection.disabled = true;
-        dialog.querySelector('[data-sab-close]').disabled = true;
+        dialog.querySelector('[data-download-close]').disabled = true;
         notice('NZB ophalen en versturen... Sluit dit venster nog niet.');
         try {
             const data = await api({}, form);
             notice(data.message);
         } catch (error) {
-            notice(error.message + ' Controleer bij twijfel eerst de SABnzbd-wachtrij; verstuur niet blind opnieuw.', true);
+            notice(error.message + ' Controleer bij twijfel eerst de wachtrij van de downloadclient; verstuur niet blind opnieuw.', true);
         } finally {
             pendingSpot = null;
             prepared = null;
             confirm.hidden = true;
             submit.disabled = false;
             connection.disabled = false;
-            dialog.querySelector('[data-sab-close]').disabled = false;
+            dialog.querySelector('[data-download-close]').disabled = false;
             busy = false;
             refresh(true);
         }
     });
     document.addEventListener('click', async event => {
-        const test = event.target.closest('[data-sab-test]');
+        const test = event.target.closest('[data-download-test]');
         if (!test) return;
         const form = test.closest('form');
-        const result = form.querySelector('[data-sab-test-result]');
+        const result = form.querySelector('[data-download-test-result]');
         const body = new FormData();
         body.set('_csrf', form.querySelector('[name=_csrf]').value);
-        body.set('connection', test.dataset.sabTest);
+        body.set('connection', test.dataset.downloadTest);
+        body.set('client', test.dataset.downloadClient || 'sabnzbd');
         body.set('action', 'test');
         test.disabled = true;
         result.textContent = 'Verbinding testen...';
         try {
             const data = await api({}, body);
-            result.textContent = data.message + ' ' + data.categories.join(', ');
+            result.textContent = data.message + ' ' + (data.categories || []).join(', ');
             result.className = 'alert alert-success mt-3';
         } catch (error) {
             result.textContent = error.message;

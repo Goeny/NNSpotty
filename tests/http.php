@@ -605,6 +605,7 @@ try {
     $state->setEroticaAllowed(false);
     require __DIR__ . '/newznab-http.php';
     require __DIR__ . '/sab-http.php';
+    require __DIR__ . '/nzbget-http.php';
     require __DIR__ . '/tvdb-http.php';
     require __DIR__ . '/music-http.php';
     require __DIR__ . '/accounts-http.php';

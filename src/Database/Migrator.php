@@ -658,6 +658,30 @@ final class Migrator
                 'ALTER TABLE spotnet_comments ADD COLUMN IF NOT EXISTS spotter_id VARCHAR(8) CHARACTER SET ascii NULL',
                 'ALTER TABLE spotnet_comments ADD COLUMN IF NOT EXISTS signature_state VARCHAR(16) NOT NULL DEFAULT \'unknown\'',
             ],
+            // The ALTER runs last so a failed run can be retried; plain ADD COLUMN also works on MySQL 8.
+            '20261031_0027_nzbget' => [
+                'CREATE TABLE IF NOT EXISTS nzbget_connections (
+                    scope VARCHAR(200) PRIMARY KEY,
+                    username VARCHAR(191) NULL UNIQUE,
+                    url VARCHAR(1000) NOT NULL,
+                    control_username VARCHAR(100) NOT NULL,
+                    control_password VARCHAR(255) NOT NULL,
+                    enabled BOOLEAN NOT NULL DEFAULT 0,
+                    FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS nzbget_category_mapping (
+                    type VARCHAR(50) PRIMARY KEY,
+                    category VARCHAR(100) NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS downloader_preferences (
+                    username VARCHAR(191) PRIMARY KEY,
+                    target VARCHAR(32) CHARACTER SET ascii NOT NULL,
+                    FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'ALTER TABLE sabnzbd_downloads
+                    ADD COLUMN client VARCHAR(16) CHARACTER SET ascii NOT NULL DEFAULT \'sabnzbd\' AFTER scope,
+                    ADD INDEX idx_download_client_history (scope, client, id)',
+            ],
         ];
     }
 }

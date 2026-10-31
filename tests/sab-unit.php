@@ -36,5 +36,5 @@ $sabForm = \NnSpotty\UI\SabSettings::render(['url' => 'https://example.com', 'ap
     'enabled' => true, 'mappings' => ['Films' => 'movies']], '', true, true);
 check(!str_contains($sabForm, 'never-render-this-key') && str_contains($sabForm, 'name="api_key" value=""')
     && str_contains($sabForm, 'value="movies"'), 'Instellingen tonen host/mapping maar nooit opgeslagen SABnzbd-key');
-check(str_contains($emoticonPage, 'data-sab-send=') && str_contains($emoticonPage, 'download-drawer')
-    && !str_contains($emoticonPage, '<option value="central">'), 'Gewone detailgebruiker krijgt SABnzbd-knop en paneel zonder centrale optie');
+check(str_contains($emoticonPage, 'data-download-send=') && str_contains($emoticonPage, 'download-drawer')
+    && !str_contains($emoticonPage, '<option value="central:'), 'Gewone detailgebruiker krijgt SABnzbd-knop en paneel zonder centrale optie');

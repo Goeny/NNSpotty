@@ -215,6 +215,13 @@ Voor een upload schrijft de repository een poging met unieke `(scope, bevestigin
 
 `downloader.js` bestuurt een native modaal slide-in/out-dialoog met focusbegrenzing, Escape/focusherstel en reduced-motion. Wachtrijpagina's bevatten maximaal 30 items, de statusresponse stuurt alleen expliciet geselecteerde velden door, niet wachtwoorden/serverpaden. Externe namen worden met `textContent` weergegeven. De volledige eigen SAB-wachtrij kan ook externe/adult jobs bevatten; NNSpotty kan die inhoud niet betrouwbaar classificeren. De client verzamelt een vluchtige snelheidsgrafiek (maximaal 61 samples/vijf minuten), pollt elke vijf seconden alleen bij zichtbare pagina en open paneel, annuleert verouderde requests bij wisselen/sluiten en stopt automatische retries na fouten. Er is nog geen remote completed-history-sync of wachtrijmutatie (pauze/verwijder).
 
+## NZBGet en meerdere downloadclients
+`/downloader` kiest de client via `client=sabnzbd|nzbget` (standaard `sabnzbd`) naast `connection=personal|central`. Beide clients implementeren `Downloader\DownloadClient` (categorieen, genormaliseerde wachtrij, toevoegen) en delen `HttpTransport` (DNS-pinning, geen redirects/proxy, 2 MiB-limiet), `CategoryMapping` en `DownloadHistory`. Migratie `20261031_0027_nzbget` voegt `nzbget_connections`, `nzbget_category_mapping` en `downloader_preferences` toe en een `client`-kolom aan `sabnzbd_downloads`; bestaande regels worden `sabnzbd`. Historie, bevestigingstokens en revisies zijn per client gescheiden; de revisie bevat ook de client. Activiteit krijgt bron `nzbget`.
+
+`NzbgetClient` gebruikt JSON-RPC via POST op `<basis>/jsonrpc` met Basic-auth (vereist NZBGet 16+). `config` wordt alleen gelezen om `CategoryN.Name` te extraheren; andere configuratiewaarden worden direct genegeerd. Een beperkte NZBGet-gebruiker die `config` niet mag lezen kan zonder categorie versturen; een niet-lege mapping wordt altijd tegen de host gecontroleerd. `append` krijgt base64-NZB, gesaneerde bestandsnaam en categorie; ID 0 is `failed`, onleesbare bevestiging `unknown`. Remote foutteksten worden nooit doorgegeven. De wachtrij gebruikt `status`/`listgroups` met voortgang uit `FileSizeMB`/`RemainingSizeMB` en cumulatieve ETA.
+
+Een doel is `<connection>:<client>`. `Downloader\Targets` bepaalt per gebruiker de toegestane doelen (centraal alleen admin), welke zijn ingeschakeld en de standaard: de opgeslagen voorkeur als die ingeschakeld is, anders de eerste ingeschakelde. De detailknop verstuurt naar de standaard; bij meerdere ingeschakelde doelen biedt een `<details>`-menu "Verzenden naar..." en kan het paneel eenmalig een ander doel kiezen. Er is geen automatische fallback naar een andere client.
+
 Adminsecties gebruiken gewone fragmentlinks met een JavaScript-verrijking die slechts de geselecteerde sectie toont. Zonder JavaScript blijven de formulieren zichtbaar; bestaande `#columns` en `#spot-content` worden naar Inhoud en weergave geleid.
 
 ## Muziekmetadata
@@ -325,5 +332,5 @@ Deze bronnen dienen als protocolreferentie. NNSpotty heeft een eigen parser, ser
 ## Volgende uitbreidingen
 - Handtekeningverificatie en toepassen van moderatie op geverifieerde identiteiten.
 - Verdere Spotnet-tagcompatibiliteit en expliciete compatibiliteit voor afwijkende legacy-XML.
-- NZBGet-forwarding, afgeronde SABnzbd-historie, klikbare cast-/bedrijfsfilters en Newznab-ID-zoekfunctionaliteit.
+- Downloadclient per categorie, afgeronde SABnzbd-/NZBGet-historie, klikbare cast-/bedrijfsfilters en Newznab-ID-zoekfunctionaliteit.
 - Indexing-jobs, scheduling en performance-optimalisatie van grote backfills.

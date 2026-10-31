@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace NnSpotty\Downloader;
 
 use InvalidArgumentException;
-use NnSpotty\Usenet\SpotCategories;
 use PDO;
 
-final class SabRepository
+final class SabRepository implements ConnectionRepository
 {
-    public const TYPES = ['Films', 'Series', 'Boeken', 'Erotica', 'Afbeeldingen', 'Muziek', 'Livesets', 'Podcasts', 'Luisterboeken', 'Spellen', 'Applicaties', 'Overig'];
+    public const TYPES = ConnectionRepository::TYPES;
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -22,23 +21,21 @@ final class SabRepository
             return 'central';
         }
         if ($selection !== 'personal') {
-            throw new InvalidArgumentException('Geen toegang tot deze SABnzbd-koppeling.');
+            throw new InvalidArgumentException('Geen toegang tot deze downloadclient-koppeling.');
         }
         return 'user:' . $username;
     }
 
-    /** @return array{url: string, api_key: string, enabled: bool, mappings: array<string,string>} */
+    /** @return array{url: string, api_key: string, enabled: bool, configured: bool, mappings: array<string,string>} */
     public function settings(string $scope): array
     {
         $select = $this->pdo->prepare('SELECT url, api_key, enabled FROM sabnzbd_connections WHERE scope = ?');
         $select->execute([$scope]);
         $settings = $select->fetch();
-        $mapping = $this->pdo->prepare("SELECT type, category FROM sabnzbd_category_mapping");
-        $mapping->execute();
         return [
             'url' => $settings['url'] ?? '', 'api_key' => $settings['api_key'] ?? '',
-            'enabled' => (bool) ($settings['enabled'] ?? false),
-            'mappings' => array_column($mapping->fetchAll(), 'category', 'type'),
+            'enabled' => (bool) ($settings['enabled'] ?? false), 'configured' => $settings !== false,
+            'mappings' => CategoryMapping::load($this->pdo, 'sabnzbd_category_mapping'),
         ];
     }
 
@@ -65,83 +62,38 @@ final class SabRepository
     /** @param array<string, string> $mapping */
     public function saveMappings(array $mapping): void
     {
-        if (array_diff(array_keys($mapping), self::TYPES) !== []) {
-            throw new InvalidArgumentException('Onbekend spottype in SABnzbd-mapping.');
-        }
-        foreach ($mapping as $category) {
-            if (!is_string($category) || strlen($category) > 100 || preg_match('/[\x00-\x1f\x7f]/', $category)) {
-                throw new InvalidArgumentException('Ongeldige SABnzbd-categorienaam.');
-            }
-        }
-        $this->pdo->beginTransaction();
-        try {
-            $this->pdo->exec('DELETE FROM sabnzbd_category_mapping');
-            $insert = $this->pdo->prepare('INSERT INTO sabnzbd_category_mapping (type, category) VALUES (?, ?)');
-            foreach ($mapping as $type => $category) {
-                $insert->execute([$type, trim($category)]);
-            }
-            $this->pdo->commit();
-        } catch (\Throwable $exception) {
-            $this->pdo->rollBack();
-            throw $exception;
-        }
+        CategoryMapping::save($this->pdo, 'sabnzbd_category_mapping', $mapping, 'SABnzbd');
     }
 
     public function category(array $spot, array $settings): string
     {
-        $type = SpotCategories::classify($spot['category'], $spot['subcategories'])['type'];
-        return $settings['mappings'][$type] ?? '';
+        return CategoryMapping::category($spot, $settings);
+    }
+
+    public function client(array $settings, bool $internalAllowed): SabClient
+    {
+        return new SabClient($settings['url'], $settings['api_key'], $internalAllowed);
+    }
+
+    public function revisionSecret(array $settings): string
+    {
+        return $settings['api_key'];
     }
 
     /** @return list<array<string,mixed>> */
     public function history(string $scope, bool $adult): array
     {
-        $select = $this->pdo->prepare('SELECT h.id, h.title, h.category, h.status, h.nzo_id, h.created_at
-            FROM sabnzbd_downloads h JOIN spotnet_spots s ON s.id = h.spot_id
-            WHERE h.scope = ?' . ($adult ? '' : ' AND s.is_erotica = 0') . ' ORDER BY h.id DESC LIMIT 30');
-        $select->execute([$scope]);
-        return $select->fetchAll();
+        return (new DownloadHistory($this->pdo))->history($scope, 'sabnzbd', $adult);
     }
 
     /** @return array<string,mixed> */
     public function begin(string $scope, string $username, array $spot, string $category, string $token): array
     {
-        if (preg_match('/^[a-f0-9]{32}$/D', $token) !== 1) {
-            throw new InvalidArgumentException('Ongeldige downloadbevestiging.');
-        }
-        $insert = $this->pdo->prepare("INSERT INTO sabnzbd_downloads (scope, username, spot_id, title, category, token, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'sending', UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)");
-        $insert->execute([$scope, $username, $spot['id'], $spot['title'], $category, $token]);
-        $fresh = $insert->rowCount() === 1;
-        $select = $this->pdo->prepare('SELECT id, status, nzo_id, spot_id FROM sabnzbd_downloads WHERE scope = ? AND token = ?');
-        $select->execute([$scope, $token]);
-        $row = $select->fetch();
-        if ($row['spot_id'] !== $spot['id']) {
-            throw new InvalidArgumentException('Downloadbevestiging hoort bij een andere spot.');
-        }
-        return $row + ['fresh' => $fresh];
+        return (new DownloadHistory($this->pdo))->begin($scope, 'sabnzbd', $username, $spot, $category, $token);
     }
 
     public function finish(int $id, string $status, ?string $nzoId = null): void
     {
-        $this->pdo->beginTransaction();
-        try {
-            $select = $this->pdo->prepare('SELECT username, spot_id, status FROM sabnzbd_downloads WHERE id = ? FOR UPDATE');
-            $select->execute([$id]);
-            $download = $select->fetch();
-            if ($download === false) throw new InvalidArgumentException('Downloadpoging niet gevonden.');
-            if ($download['status'] !== 'sent') {
-                $this->pdo->prepare('UPDATE sabnzbd_downloads SET status = ?, nzo_id = ? WHERE id = ?')->execute([$status, $nzoId, $id]);
-                if ($status === 'sent') {
-                    $spot = (new \NnSpotty\Usenet\SpotRepository($this->pdo))->getSpot($download['spot_id'], true);
-                    if ($spot === null) throw new \RuntimeException('Spot voor downloadhistorie niet gevonden.');
-                    (new \NnSpotty\Activity\Repository($this->pdo))->record($download['username'], $spot, 'sabnzbd');
-                }
-            }
-            $this->pdo->commit();
-        } catch (\Throwable $exception) {
-            $this->pdo->rollBack();
-            throw $exception;
-        }
+        (new DownloadHistory($this->pdo))->finish($id, $status, $nzoId);
     }
 }

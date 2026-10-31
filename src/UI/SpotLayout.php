@@ -10,10 +10,55 @@ use NnSpotty\Usenet\SpotFilters;
 final class SpotLayout
 {
     private static ?array $account = null;
+    /** @var (callable(): ?array)|null */
+    private static $downloadResolver = null;
+    private static ?array $downloadOverview = null;
 
     public static function account(?array $account): void
     {
         self::$account = $account;
+    }
+
+    /** @param callable(): ?array $resolver Lazily returns Targets::overview() for the current user, or null. */
+    public static function downloads(callable $resolver): void
+    {
+        self::$downloadResolver = $resolver;
+        self::$downloadOverview = null;
+    }
+
+    /** @return array{targets: list<array{id: string, label: string, client: string, enabled: bool}>, default: string} */
+    public static function downloadTargets(bool $admin): array
+    {
+        if (self::$downloadOverview === null && self::$downloadResolver !== null) {
+            self::$downloadOverview = (self::$downloadResolver)();
+        }
+        if (self::$downloadOverview !== null) {
+            return self::$downloadOverview;
+        }
+        $targets = array_map(static fn (string $target): array => ['id' => $target, 'label' => \NnSpotty\Downloader\Targets::label($target),
+            'client' => explode(':', $target)[1], 'enabled' => false], \NnSpotty\Downloader\Targets::permitted($admin));
+        return ['targets' => $targets, 'default' => 'personal:sabnzbd'];
+    }
+
+    /** Send button for the default target, with a compact menu for other enabled targets. */
+    public static function sendButton(string $spotId): string
+    {
+        $overview = self::downloadTargets((bool) (self::$account['is_admin'] ?? false));
+        $default = $overview['default'];
+        $client = \NnSpotty\Downloader\Targets::CLIENTS[explode(':', $default)[1]];
+        $button = '<button class="btn btn-sm btn-warning" type="button" data-download-send="' . h($spotId) . '" data-download-target="' . h($default)
+            . '" title="Verzenden naar ' . h(\NnSpotty\Downloader\Targets::label($default)) . '">' . h($client) . '</button>';
+        $others = array_filter($overview['targets'], static fn (array $target): bool => $target['enabled'] && $target['id'] !== $default);
+        if ($others === []) {
+            return $button;
+        }
+        $menu = '';
+        foreach ($others as $target) {
+            $menu .= '<button class="dropdown-link" type="button" data-download-send="' . h($spotId) . '" data-download-target="' . h($target['id']) . '">'
+                . 'Verzenden naar ' . h($target['label']) . '</button>';
+        }
+        return '<span class="send-group">' . $button . '<details class="send-menu"><summary class="btn btn-sm btn-warning" aria-label="Verzenden naar andere downloadclient" title="Verzenden naar...">'
+            . '<span aria-hidden="true">&#9662;</span></summary><div class="send-menu-dropdown">' . $menu . '</div></details></span>';
     }
 
     public static function currentAccount(): ?array
@@ -93,9 +138,15 @@ final class SpotLayout
             ? '<form method="post" action="/admin/retrieve" data-retrieve-form>' . $csrfField
                 . '<button class="btn btn-sm btn-outline-primary" type="submit">Retrieve</button></form>'
             : '';
-        $connectionOptions = '<option value="personal">Mijn SABnzbd</option>' . ($isAdmin ? '<option value="central">Centrale SABnzbd (admin)</option>' : '');
-        $downloadButton = $account === null || \NnSpotty\Users\Permissions::allows($account, 'nzb.forward')
-            ? '<button class="btn btn-sm btn-outline-secondary" type="button" data-sab-open="personal">Downloads</button>' : '';
+        $downloadOverview = $account === null || \NnSpotty\Users\Permissions::allows($account, 'nzb.forward')
+            ? self::downloadTargets($isAdmin) : null;
+        $connectionOptions = '';
+        foreach ($downloadOverview['targets'] ?? [] as $target) {
+            $connectionOptions .= '<option value="' . h($target['id']) . '"' . ($target['id'] === $downloadOverview['default'] ? ' selected' : '') . '>'
+                . h($target['label']) . ($target['enabled'] ? '' : ' (niet ingeschakeld)') . '</option>';
+        }
+        $downloadButton = $downloadOverview !== null
+            ? '<button class="btn btn-sm btn-outline-secondary" type="button" data-download-open="' . h($downloadOverview['default']) . '">Downloads</button>' : '';
         $releaseLabel = h(\NnSpotty\Config\Release::VERSION) . ' &middot; ' . h(\NnSpotty\Config\Release::CODENAME);
         $updateNotice = ($account !== null ? \NnSpotty\Users\Permissions::allows($account, 'system.update') : $isAdmin)
             ? '<a class="small d-block mt-1" href="/system/update" data-update-notice>Releases controleren</a>' : '';
@@ -189,37 +240,37 @@ final class SpotLayout
   <dialog class="download-drawer" id="download-drawer" aria-labelledby="download-title">
     <div class="download-toolbar">
       <h2 class="h5 m-0" id="download-title">Downloads</h2>
-      <button class="btn btn-sm btn-outline-secondary" type="button" data-sab-close>Sluiten &times;</button>
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-download-close>Sluiten &times;</button>
     </div>
     <div class="download-body">
-      <label class="form-label" for="sab-connection">Koppeling</label>
-      <select class="form-select mb-3" id="sab-connection">{$connectionOptions}</select>
-      <p class="small text-body-secondary">Je ziet de volledige wachtrij van de gekozen host. De centrale koppeling is uitsluitend voor admins.</p>
-      <div role="status" class="alert alert-info" data-sab-message>Open het paneel om de wachtrij te laden.</div>
-      <form data-sab-confirm hidden class="card p-3 mb-3">
+      <label class="form-label" for="download-connection">Downloadclient</label>
+      <select class="form-select mb-3" id="download-connection">{$connectionOptions}</select>
+      <p class="small text-body-secondary">Je ziet de volledige wachtrij van de gekozen host. Bij verzenden kun je hier eenmalig een andere client kiezen. Centrale koppelingen zijn uitsluitend voor admins.</p>
+      <div role="status" class="alert alert-info" data-download-message>Open het paneel om de wachtrij te laden.</div>
+      <form data-download-confirm hidden class="card p-3 mb-3">
         {$csrfField}
         <h3 class="h6">Spot versturen</h3>
-        <p data-sab-spot-title></p>
-        <p class="small">Categorie: <strong data-sab-category></strong></p>
-        <p class="small text-body-secondary">Bij een onzekere uitkomst eerst SABnzbd controleren om dubbele downloads te voorkomen.</p>
+        <p data-download-spot-title></p>
+        <p class="small">Naar: <strong data-download-client-name></strong> &middot; Categorie: <strong data-download-category></strong></p>
+        <p class="small text-body-secondary">Bij een onzekere uitkomst eerst de downloadclient controleren om dubbele downloads te voorkomen.</p>
         <button class="btn btn-primary" type="submit">Bevestigen en verzenden</button>
-        <button class="btn btn-outline-secondary mt-2" type="button" data-sab-cancel>Annuleren</button>
+        <button class="btn btn-outline-secondary mt-2" type="button" data-download-cancel>Annuleren</button>
       </form>
       <section class="card p-3 mb-3" aria-label="Downloadsnelheid">
-        <div class="d-flex justify-content-between gap-2"><span data-sab-state>Niet verbonden</span><strong data-sab-speed>--</strong></div>
-        <small class="text-body-secondary">Schaal: 0 - <span data-sab-peak>--</span></small>
+        <div class="d-flex justify-content-between gap-2"><span data-download-state>Niet verbonden</span><strong data-download-speed>--</strong></div>
+        <small class="text-body-secondary">Schaal: 0 - <span data-download-peak>--</span></small>
         <svg viewBox="0 0 480 100" class="download-chart mt-3" role="img" aria-label="Downloadsnelheid tijdens deze panelsessie; laatste vijf minuten">
-          <path d="M0 99H480" class="chart-grid"></path><polyline points="" data-sab-chart></polyline><circle cx="480" cy="99" r="3" data-sab-dot hidden></circle>
+          <path d="M0 99H480" class="chart-grid"></path><polyline points="" data-download-chart></polyline><circle cx="480" cy="99" r="3" data-download-dot hidden></circle>
         </svg>
         <div class="d-flex justify-content-between small text-body-secondary"><span>-5 minuten</span><span>Nu</span></div>
         <p class="small text-body-secondary mb-0">Live snelheid, laatste vijf minuten. Pauzeert als het paneel of tabblad gesloten is.</p>
       </section>
-      <section aria-labelledby="sab-queue-title"><h3 class="h6" id="sab-queue-title">Wachtrij</h3><div data-sab-queue></div>
-        <div class="d-flex justify-content-between my-3"><button type="button" class="btn btn-sm btn-outline-secondary" data-sab-prev disabled>Vorige</button><span data-sab-total></span><button type="button" class="btn btn-sm btn-outline-secondary" data-sab-next disabled>Volgende</button></div>
+      <section aria-labelledby="download-queue-title"><h3 class="h6" id="download-queue-title">Wachtrij</h3><div data-download-queue></div>
+        <div class="d-flex justify-content-between my-3"><button type="button" class="btn btn-sm btn-outline-secondary" data-download-prev disabled>Vorige</button><span data-download-total></span><button type="button" class="btn btn-sm btn-outline-secondary" data-download-next disabled>Volgende</button></div>
       </section>
-      <section class="mt-4"><h3 class="h6">Verzonden vanuit NNSpotty</h3><p class="small text-body-secondary">De laatste 30 pogingen op deze koppeling. Verzonden betekent geaccepteerd door SABnzbd, niet voltooid.</p><div data-sab-history></div></section>
-      <button class="btn btn-outline-secondary mt-3" type="button" data-sab-refresh>Vernieuwen / opnieuw proberen</button>
-      <a class="btn btn-link" href="/preferences#downloads">Mijn koppeling instellen</a>
+      <section class="mt-4"><h3 class="h6">Verzonden vanuit NNSpotty</h3><p class="small text-body-secondary">De laatste 30 pogingen op deze koppeling. Verzonden betekent geaccepteerd door de downloadclient, niet voltooid.</p><div data-download-history></div></section>
+      <button class="btn btn-outline-secondary mt-3" type="button" data-download-refresh>Vernieuwen / opnieuw proberen</button>
+      <a class="btn btn-link" href="/preferences#downloads">Mijn koppelingen instellen</a>
     </div>
   </dialog>
 </body>

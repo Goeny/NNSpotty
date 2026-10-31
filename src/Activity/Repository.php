@@ -11,7 +11,7 @@ use Throwable;
 
 final class Repository
 {
-    public const SOURCES = ['detail' => 'Detailpagina', 'nzb' => 'NZB-bestand', 'sabnzbd' => 'SABnzbd', 'newznab' => 'Newznab API'];
+    public const SOURCES = ['detail' => 'Detailpagina', 'nzb' => 'NZB-bestand', 'sabnzbd' => 'SABnzbd', 'nzbget' => 'NZBGet', 'newznab' => 'Newznab API'];
     public const PAGE_SIZE = 30;
 
     public function __construct(private readonly PDO $pdo) {}

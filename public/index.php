@@ -231,7 +231,8 @@ $router->get('/admin', static function (Request $request) use ($state, $auth, $c
         apiEnabled: $state->apiEnabled(),
         sabSettings: $auth->isAdmin()
             ? \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('central'), $csrf->field(), true, true)
-            : '<p>De centrale SABnzbd-koppeling en categorietoewijzing zijn uitsluitend voor beheerders.</p>',
+                . \NnSpotty\UI\NzbgetSettings::render((new \NnSpotty\Downloader\NzbgetRepository($pdo))->settings('central'), $csrf->field(), true, true)
+            : '<p>De centrale downloadclient-koppelingen en categorietoewijzing zijn uitsluitend voor beheerders.</p>',
         metadataSettings: AdminPageRenderer::metadataPanel(
             \NnSpotty\Metadata\View::settings($metadataRepo = new \NnSpotty\Metadata\Repository($pdo), $csrf->field())
                 . \NnSpotty\Metadata\View::tmdbSettings($metadataRepo, $csrf->field())
@@ -556,7 +557,9 @@ $router->get('/preferences', static function (Request $request) use ($state, $au
         hasApiKey: (new \NnSpotty\Newznab\ApiKeys($pdo))->exists($username),
         newApiKey: is_array($newKey) && $newKey['username'] === $username ? $newKey['key'] : null,
         sabSettings: $auth->can('nzb.forward')
-            ? \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('user:' . $username), $csrf->field(), false, $currentUser['is_admin'])
+            ? \NnSpotty\UI\DownloaderSettings::defaults((new \NnSpotty\Downloader\Targets($pdo))->overview($username, $currentUser['is_admin']), $csrf->field())
+                . \NnSpotty\UI\SabSettings::render((new \NnSpotty\Downloader\SabRepository($pdo))->settings('user:' . $username), $csrf->field(), false, $currentUser['is_admin'])
+                . \NnSpotty\UI\NzbgetSettings::render((new \NnSpotty\Downloader\NzbgetRepository($pdo))->settings('user:' . $username), $csrf->field(), false, $currentUser['is_admin'])
             : '<p>Je account heeft geen recht om NZB-bestanden door te sturen.</p>',
         metadataSettings: \NnSpotty\Metadata\View::settings(new \NnSpotty\Metadata\Repository($pdo), $csrf->field(), $username),
         musicSettings: \NnSpotty\Music\View::settings(new \NnSpotty\Music\Repository($pdo), $csrf->field(), $username),
@@ -570,7 +573,7 @@ $sabHandler = static function (Request $request) use ($pdo, $state, $auth, $csrf
     $user = $auth->user();
     // Release the browser session before provider requests and uploads.
     session_write_close();
-    return (new \NnSpotty\Downloader\SabController($pdo, $state))->handle($request, $user, $csrf);
+    return (new \NnSpotty\Downloader\DownloaderController($pdo, $state))->handle($request, $user, $csrf);
 };
 $router->get('/downloader', $sabHandler);
 $router->post('/downloader', $sabHandler);
@@ -1079,6 +1082,11 @@ $router->get('/account/avatar', static function (Request $request) use ($auth, $
 });
 $request = Request::fromGlobals($_SERVER, $_GET, $_POST);
 \NnSpotty\UI\SpotLayout::account($auth->user());
+\NnSpotty\UI\SpotLayout::downloads(static function () use ($auth, $pdo): ?array {
+    $user = $auth->user();
+    return $user === null || !$auth->can('nzb.forward') ? null
+        : (new \NnSpotty\Downloader\Targets($pdo))->overview($user['username'], $user['is_admin']);
+});
 $account = $auth->user();
 if ($account !== null && $account['must_change_password']
     && !in_array($request->path(), ['/account/password', '/account/profile', '/logout', '/health'], true)) {

@@ -75,7 +75,7 @@ final class PreferencesPageRenderer
       <a class="nav-link" href="#profile">Profiel</a>
       <a class="nav-link" href="#general">Algemeen</a>
       <a class="nav-link" href="#columns">Kolommen</a>
-      <a class="nav-link" href="#downloads">SABnzbd</a>
+      <a class="nav-link" href="#downloads">Downloadclients</a>
       <a class="nav-link" href="#metadata">Film- en seriemetadata</a>
       <a class="nav-link" href="#music-metadata">Muziekmetadata</a>
       <a class="nav-link" href="#api-key">Newznab API</a>

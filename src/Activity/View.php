@@ -42,7 +42,7 @@ final class View
         if ($page > 1) $html .= '<a class="btn btn-sm btn-outline-primary" href="/history?' . h(http_build_query(['tab' => $tab, 'page' => $page - 1])) . '">Vorige</a>';
         $html .= '<span class="text-body-secondary">Pagina ' . $page . '</span>';
         if ($result['more']) $html .= '<a class="btn btn-sm btn-outline-primary" href="/history?' . h(http_build_query(['tab' => $tab, 'page' => $page + 1])) . '">Volgende</a>';
-        return $html . '</nav><p class="small text-body-secondary mt-4">Gedownload betekent dat het NZB-bestand is aangeboden of door SABnzbd is geaccepteerd, niet dat de download is voltooid. '
+        return $html . '</nav><p class="small text-body-secondary mt-4">Gedownload betekent dat het NZB-bestand is aangeboden of door SABnzbd/NZBGet is geaccepteerd, niet dat de download is voltooid. '
             . 'Historie begint bij deze update; beschikbare bevestigde SABnzbd-verzendingen zijn overgenomen.</p></section>';
     }
 

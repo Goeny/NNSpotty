@@ -98,7 +98,7 @@
 .download-item { padding: .8rem 0; border-bottom: 1px solid var(--spot-border); }
 .download-item progress { width: 100%; height: .5rem; accent-color: var(--bs-primary); }
 .settings-navigation { position: sticky; top: 0; z-index: 3; background: var(--spot-bg); padding-block: .75rem; border-bottom: 1px solid var(--spot-border); }
-[data-admin-panel][hidden], [data-preferences-panel][hidden], [data-sab-confirm][hidden] { display: none !important; }
+[data-admin-panel][hidden], [data-preferences-panel][hidden], [data-download-confirm][hidden] { display: none !important; }
 @keyframes download-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
 @keyframes download-out { to { transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) { .download-drawer[open], .download-drawer.is-closing { animation: none; } }
@@ -134,6 +134,13 @@
 .user-menu-dropdown { position: absolute; z-index: 30; top: calc(100% + 8px); right: 0; min-width: 180px; padding: 6px; border: 1px solid var(--spot-border); border-radius: 8px; background: var(--spot-panel); box-shadow: 0 8px 24px #0005; }
 .dropdown-link { display: block; padding: 8px 10px; border-radius: 5px; color: var(--bs-body-color); }
 .dropdown-link:hover, .dropdown-link:focus { color: var(--bs-body-color); background: rgba(var(--plex-accent-rgb), .14); }
+.send-group { display: inline-flex; align-items: stretch; vertical-align: middle; }
+.send-group > .btn { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.send-menu { position: relative; display: inline-flex; }
+.send-menu > summary { list-style: none; height: 100%; border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 1px solid #0003; padding-inline: .45rem; }
+.send-menu > summary::-webkit-details-marker { display: none; }
+.send-menu-dropdown { position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; min-width: 230px; padding: 6px; border: 1px solid var(--spot-border); border-radius: 8px; background: var(--spot-panel); box-shadow: 0 8px 24px #0005; text-align: left; }
+.send-menu-dropdown .dropdown-link { width: 100%; border: 0; background: transparent; text-align: left; font-size: .875rem; }
 .retrieve-control { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .retrieve-control form { margin: 0; flex-shrink: 0; }
 .retrieve-status { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }

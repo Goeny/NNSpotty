@@ -56,7 +56,7 @@ check($metadata->lookup($copy)['state'] === 'matched' && count($metaApi->calls) 
 $html = \NnSpotty\UI\SpotDetailPageRenderer::summary($metaSpot, false, true, true, $movieResult['metadata']);
 check(str_contains($html, 'metadata-hero') && str_contains($html, 'Cast &amp; Crew') && str_contains($html, 'Oorspronkelijke spottitel:')
     && str_contains($html, '&lt;script&gt;niet uitvoeren&lt;/script&gt;') && !str_contains($html, '<script>niet uitvoeren')
-    && str_contains($html, 'Omschrijving') && str_contains($html, 'data-sab-send='),
+    && str_contains($html, 'Omschrijving') && str_contains($html, 'data-download-send='),
     'Metadata verrijkt hero en cast veilig; originele titel, omschrijving en acties blijven aanwezig');
 $hiddenHtml = \NnSpotty\UI\SpotDetailPageRenderer::summary($metaSpot, false, false, true, $movieResult['metadata']);
 foreach ([$html, $hiddenHtml] as $attributedHtml) {

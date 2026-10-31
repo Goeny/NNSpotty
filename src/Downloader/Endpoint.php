@@ -19,10 +19,10 @@ final class Endpoint
             || preg_match('/[\x00-\x20\x7f\\\\]/', $url) || strlen($url) > 1000
             || preg_match('~(?:%|\.{2})~', $parts['path'] ?? '')
             || !preg_match('~^(/[a-zA-Z0-9_/-]+)?$~D', $parts['path'] ?? '')) {
-            throw new InvalidArgumentException('Gebruik een HTTP(S)-basisadres, eventueel met /sabnzbd, zonder login, query, /api of fragment.');
+            throw new InvalidArgumentException('Gebruik een HTTP(S)-basisadres, eventueel met padprefix zoals /sabnzbd of /nzbget, zonder login, query, /api, /jsonrpc of fragment.');
         }
-        if (str_ends_with($parts['path'] ?? '', '/api')) {
-            throw new InvalidArgumentException('Voer het basisadres zonder /api in.');
+        if (preg_match('~/(?:api|jsonrpc|xmlrpc)$~D', $parts['path'] ?? '') === 1) {
+            throw new InvalidArgumentException('Voer het basisadres zonder /api of /jsonrpc in.');
         }
         return $url;
     }
@@ -56,17 +56,17 @@ final class Endpoint
     public static function checkAddresses(array $addresses, bool $internalAllowed): void
     {
         if ($addresses === []) {
-            throw new RuntimeException('SABnzbd-host kon niet naar een IP-adres worden vertaald.');
+            throw new RuntimeException('Downloadclient-host kon niet naar een IP-adres worden vertaald.');
         }
         foreach ($addresses as $address) {
             if (filter_var($address, FILTER_VALIDATE_IP) === false || (!$internalAllowed && !self::publicIp($address))) {
-                throw new InvalidArgumentException('Alleen admins mogen SABnzbd op lokale, interne of gereserveerde adressen benaderen.');
+                throw new InvalidArgumentException('Alleen admins mogen downloadclients op lokale, interne of gereserveerde adressen benaderen.');
             }
         }
     }
 
     /** @return array{url: string, host: string, port: int, ip: string} */
-    public static function resolve(string $url, bool $internalAllowed): array
+    public static function resolve(string $url, bool $internalAllowed, string $suffix = '/api'): array
     {
         $url = self::normalize($url);
         $parts = parse_url($url);
@@ -76,11 +76,11 @@ final class Endpoint
             $addresses[] = $host;
         } else {
             if (filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false) {
-                throw new InvalidArgumentException('Ongeldige SABnzbd-hostnaam.');
+                throw new InvalidArgumentException('Ongeldige downloadclient-hostnaam.');
             }
             $records = @dns_get_record($host, DNS_A | DNS_AAAA);
             if ($records === false) {
-                throw new RuntimeException('DNS-opvraag voor SABnzbd is mislukt.');
+                throw new RuntimeException('DNS-opvraag voor downloadclient is mislukt.');
             }
             foreach ($records as $record) {
                 if (isset($record['ip']) || isset($record['ipv6'])) {
@@ -89,6 +89,6 @@ final class Endpoint
             }
         }
         self::checkAddresses($addresses, $internalAllowed);
-        return ['url' => $url . '/api', 'host' => $host, 'port' => $parts['port'] ?? ($parts['scheme'] === 'https' ? 443 : 80), 'ip' => $addresses[0]];
+        return ['url' => $url . $suffix, 'host' => $host, 'port' => $parts['port'] ?? ($parts['scheme'] === 'https' ? 443 : 80), 'ip' => $addresses[0]];
     }
 }
