@@ -159,7 +159,7 @@ final class SpotBrowseIndex
         // Without stopwords "The Who" stays searchable; the setting is stored with the index.
         $this->pdo->exec('SET SESSION innodb_ft_enable_stopword = 0');
         try {
-            $this->pdo->exec('ALTER TABLE spot_browse ADD FULLTEXT INDEX IF NOT EXISTS ft_browse_title (title)');
+            (new \NnSpotty\Database\Schema($this->pdo))->addIndex('spot_browse', 'ft_browse_title', 'title', 'FULLTEXT INDEX');
         } finally {
             $this->pdo->exec('SET SESSION innodb_ft_enable_stopword = 1');
         }

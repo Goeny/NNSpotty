@@ -17,15 +17,20 @@ final class Migrator
     {
         $this->ensureMigrationsTable();
         $executed = $this->executedMigrations();
+        $schema = new Schema($this->pdo);
 
-        foreach ($this->migrations() as $name => $sqlStatements) {
+        foreach ($this->migrations() as $name => $steps) {
             if (in_array($name, $executed, true)) {
                 continue;
             }
 
             try {
-                foreach ($sqlStatements as $sql) {
-                    $this->pdo->exec($sql);
+                foreach ($steps as $step) {
+                    if (is_string($step)) {
+                        $this->pdo->exec($step);
+                    } else {
+                        $step($schema);
+                    }
                 }
                 // Earlier hooks run before the overview read model exists; migration 0024 builds it in one pass.
                 if ($name === '20261018_0008_category_backfill') {
@@ -135,8 +140,25 @@ final class Migrator
         return array_map(static fn (array $row): string => (string) $row['name'], $rows);
     }
 
+    private static function addColumn(string $table, string $column, string $definition): \Closure
+    {
+        return static fn (Schema $schema) => $schema->addColumn($table, $column, $definition);
+    }
+
+    private static function addIndex(string $table, string $index, string $columns): \Closure
+    {
+        return static fn (Schema $schema) => $schema->addIndex($table, $index, $columns);
+    }
+
+    private static function dropIndex(string $table, string $index): \Closure
+    {
+        return static fn (Schema $schema) => $schema->dropIndex($table, $index);
+    }
+
     /**
-     * @return array<string, string[]>
+     * Steps are plain SQL or schema closures. Never use ALTER ... IF [NOT] EXISTS: MySQL 8 rejects it.
+     *
+     * @return array<string, list<string|\Closure(Schema): void>>
      */
     private function migrations(): array
     {
@@ -241,9 +263,9 @@ final class Migrator
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             ],
             '20261017_0005_release_index' => [
-                'ALTER TABLE usenet_posts ADD COLUMN IF NOT EXISTS release_key CHAR(40) NULL AFTER subject',
-                'ALTER TABLE usenet_posts ADD COLUMN IF NOT EXISTS release_title VARCHAR(255) NULL AFTER release_key',
-                'ALTER TABLE usenet_posts ADD INDEX IF NOT EXISTS idx_usenet_posts_release_key (release_key)',
+                self::addColumn('usenet_posts', 'release_key', 'CHAR(40) NULL AFTER subject'),
+                self::addColumn('usenet_posts', 'release_title', 'VARCHAR(255) NULL AFTER release_key'),
+                self::addIndex('usenet_posts', 'idx_usenet_posts_release_key', 'release_key'),
                 'CREATE TABLE IF NOT EXISTS spot_releases (
                     release_key CHAR(40) PRIMARY KEY,
                     release_title VARCHAR(255) NOT NULL,
@@ -304,10 +326,10 @@ final class Migrator
                    AND JSON_UNQUOTE(JSON_EXTRACT(`value`, \'$.explicit_groups\')) = \'spots:free.pt,comments:free.ptd\'',
             ],
             '20261018_0007_categories_visibility' => [
-                'ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS show_erotica TINYINT(1) NOT NULL DEFAULT 0',
-                'ALTER TABLE spotnet_spots ADD COLUMN IF NOT EXISTS browse_type VARCHAR(32) NOT NULL DEFAULT \'Overig\'',
-                'ALTER TABLE spotnet_spots ADD COLUMN IF NOT EXISTS is_erotica TINYINT(1) NOT NULL DEFAULT 1',
-                'ALTER TABLE spotnet_spots ADD INDEX IF NOT EXISTS idx_spotnet_visibility (is_erotica, browse_type, posted_at)',
+                self::addColumn('user_preferences', 'show_erotica', 'TINYINT(1) NOT NULL DEFAULT 0'),
+                self::addColumn('spotnet_spots', 'browse_type', 'VARCHAR(32) NOT NULL DEFAULT \'Overig\''),
+                self::addColumn('spotnet_spots', 'is_erotica', 'TINYINT(1) NOT NULL DEFAULT 1'),
+                self::addIndex('spotnet_spots', 'idx_spotnet_visibility', 'is_erotica, browse_type, posted_at'),
                 'CREATE TABLE IF NOT EXISTS spotnet_spot_categories (
                     spot_id CHAR(64) CHARACTER SET ascii NOT NULL,
                     code VARCHAR(16) CHARACTER SET ascii NOT NULL,
@@ -327,7 +349,7 @@ final class Migrator
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             ],
             '20261018_0010_spot_details_comments' => [
-                'ALTER TABLE spotnet_spots ADD COLUMN IF NOT EXISTS newsreader VARCHAR(512) NOT NULL DEFAULT \'\'',
+                self::addColumn('spotnet_spots', 'newsreader', 'VARCHAR(512) NOT NULL DEFAULT \'\''),
                 'UPDATE spotnet_comments
                  SET spot_id = SHA2(CONCAT(SUBSTRING_INDEX(SUBSTRING_INDEX(message_id, \'@\', 1), \'.\', 1),
                      \'@\', SUBSTRING_INDEX(message_id, \'@\', -1)), 256)
@@ -414,17 +436,15 @@ final class Migrator
                     FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
                 'ALTER TABLE spotnet_spots MODIFY COLUMN created_at DATETIME(6) NOT NULL',
-                'ALTER TABLE spotnet_spots ADD INDEX IF NOT EXISTS idx_spotnet_created_at (created_at)',
+                self::addIndex('spotnet_spots', 'idx_spotnet_created_at', 'created_at'),
             ],
             '20261019_0015_browse_performance' => [
-                'ALTER TABLE spotnet_spots
-                    ADD INDEX IF NOT EXISTS idx_spotnet_visible_date (is_erotica, posted_at, id),
-                    ADD INDEX IF NOT EXISTS idx_spotnet_type_date (browse_type, posted_at, id)',
+                self::addIndex('spotnet_spots', 'idx_spotnet_visible_date', 'is_erotica, posted_at, id'),
+                self::addIndex('spotnet_spots', 'idx_spotnet_type_date', 'browse_type, posted_at, id'),
             ],
             '20261019_0016_spotter_keys' => [
-                'ALTER TABLE spotnet_spots
-                    ADD COLUMN IF NOT EXISTS spotter_key CHAR(64) CHARACTER SET ascii NULL,
-                    ADD COLUMN IF NOT EXISTS signature_state VARCHAR(16) NOT NULL DEFAULT \'missing\'',
+                self::addColumn('spotnet_spots', 'spotter_key', 'CHAR(64) CHARACTER SET ascii NULL'),
+                self::addColumn('spotnet_spots', 'signature_state', 'VARCHAR(16) NOT NULL DEFAULT \'missing\''),
                 'CREATE TABLE IF NOT EXISTS spotter_keys (
                     list_type VARCHAR(16) NOT NULL,
                     key_hash CHAR(64) CHARACTER SET ascii NOT NULL,
@@ -460,10 +480,9 @@ final class Migrator
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             ],
             '20261019_0018_music_fanart' => [
-                'ALTER TABLE music_settings
-                    ADD COLUMN IF NOT EXISTS fanart_enabled BOOLEAN NOT NULL DEFAULT 0,
-                    ADD COLUMN IF NOT EXISTS fanart_key VARCHAR(255) NOT NULL DEFAULT \'\'',
-                'ALTER TABLE music_preferences ADD COLUMN IF NOT EXISTS fanart_enabled BOOLEAN NOT NULL DEFAULT 0',
+                self::addColumn('music_settings', 'fanart_enabled', 'BOOLEAN NOT NULL DEFAULT 0'),
+                self::addColumn('music_settings', 'fanart_key', 'VARCHAR(255) NOT NULL DEFAULT \'\''),
+                self::addColumn('music_preferences', 'fanart_enabled', 'BOOLEAN NOT NULL DEFAULT 0'),
             ],
             '20261019_0019_favorites' => [
                 'CREATE TABLE IF NOT EXISTS spot_favorites (
@@ -499,15 +518,14 @@ final class Migrator
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             ],
             '20261020_0021_accounts' => [
-                'ALTER TABLE app_users
-                    ADD COLUMN IF NOT EXISTS active TINYINT(1) NOT NULL DEFAULT 1,
-                    ADD COLUMN IF NOT EXISTS must_change_password TINYINT(1) NOT NULL DEFAULT 0,
-                    ADD COLUMN IF NOT EXISTS auth_version INT NOT NULL DEFAULT 1,
-                    ADD COLUMN IF NOT EXISTS display_name VARCHAR(80) NOT NULL DEFAULT \'\',
-                    ADD COLUMN IF NOT EXISTS signature VARCHAR(200) NOT NULL DEFAULT \'\',
-                    ADD COLUMN IF NOT EXISTS email VARCHAR(254) NOT NULL DEFAULT \'\',
-                    ADD COLUMN IF NOT EXISTS avatar_data MEDIUMBLOB NULL,
-                    ADD COLUMN IF NOT EXISTS avatar_mime VARCHAR(64) NULL',
+                self::addColumn('app_users', 'active', 'TINYINT(1) NOT NULL DEFAULT 1'),
+                self::addColumn('app_users', 'must_change_password', 'TINYINT(1) NOT NULL DEFAULT 0'),
+                self::addColumn('app_users', 'auth_version', 'INT NOT NULL DEFAULT 1'),
+                self::addColumn('app_users', 'display_name', 'VARCHAR(80) NOT NULL DEFAULT \'\''),
+                self::addColumn('app_users', 'signature', 'VARCHAR(200) NOT NULL DEFAULT \'\''),
+                self::addColumn('app_users', 'email', 'VARCHAR(254) NOT NULL DEFAULT \'\''),
+                self::addColumn('app_users', 'avatar_data', 'MEDIUMBLOB NULL'),
+                self::addColumn('app_users', 'avatar_mime', 'VARCHAR(64) NULL'),
                 'CREATE TABLE IF NOT EXISTS user_groups (
                     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                     name VARCHAR(80) NOT NULL UNIQUE,
@@ -541,15 +559,13 @@ final class Migrator
                         SELECT \'metadata.manage\' AS permission UNION ALL SELECT \'spotters.manage\'
                         UNION ALL SELECT \'retrieve.run\' UNION ALL SELECT \'audit.view\'
                     ) p ON g.system_key = \'moderators\'',
-                'ALTER TABLE comment_publications
-                    ADD COLUMN IF NOT EXISTS poster VARCHAR(191) NULL,
-                    ADD COLUMN IF NOT EXISTS source_body TEXT NULL',
+                self::addColumn('comment_publications', 'poster', 'VARCHAR(191) NULL'),
+                self::addColumn('comment_publications', 'source_body', 'TEXT NULL'),
             ],
             '20261021_0022_lazy_comments' => [
-                'ALTER TABLE spotnet_comments
-                    MODIFY body MEDIUMTEXT NULL,
-                    ADD COLUMN IF NOT EXISTS body_status ENUM(\'loaded\', \'pending\', \'unavailable\', \'invalid\') NOT NULL DEFAULT \'loaded\',
-                    ADD INDEX IF NOT EXISTS idx_spotnet_comments_date (posted_at)',
+                'ALTER TABLE spotnet_comments MODIFY body MEDIUMTEXT NULL',
+                self::addColumn('spotnet_comments', 'body_status', 'ENUM(\'loaded\', \'pending\', \'unavailable\', \'invalid\') NOT NULL DEFAULT \'loaded\''),
+                self::addIndex('spotnet_comments', 'idx_spotnet_comments_date', 'posted_at'),
                 'INSERT IGNORE INTO group_permissions (group_id, permission)
                     SELECT id, \'comments.load\' FROM user_groups',
             ],
@@ -606,11 +622,10 @@ final class Migrator
                     expires_at DATETIME NOT NULL
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
                 // Superseded by spot_browse; idx_spotnet_spots_date and idx_spotnet_visible_date stay for retention and Newznab.
-                'ALTER TABLE spotnet_spots
-                    DROP INDEX IF EXISTS idx_spotnet_visibility,
-                    DROP INDEX IF EXISTS idx_spotnet_type_date,
-                    DROP INDEX IF EXISTS idx_spotnet_spots_category_date,
-                    DROP INDEX IF EXISTS idx_spotnet_created_at',
+                self::dropIndex('spotnet_spots', 'idx_spotnet_visibility'),
+                self::dropIndex('spotnet_spots', 'idx_spotnet_type_date'),
+                self::dropIndex('spotnet_spots', 'idx_spotnet_spots_category_date'),
+                self::dropIndex('spotnet_spots', 'idx_spotnet_created_at'),
             ],
             '20261025_0025_activity' => [
                 'CREATE TABLE IF NOT EXISTS activity_history (
@@ -654,11 +669,10 @@ final class Migrator
                     GROUP BY DATE(d.created_at), s.browse_type, s.is_erotica',
             ],
             '20261026_0026_spotter_ids' => [
-                'ALTER TABLE spotnet_spots ADD COLUMN IF NOT EXISTS spotter_id VARCHAR(8) CHARACTER SET ascii NULL',
-                'ALTER TABLE spotnet_comments ADD COLUMN IF NOT EXISTS spotter_id VARCHAR(8) CHARACTER SET ascii NULL',
-                'ALTER TABLE spotnet_comments ADD COLUMN IF NOT EXISTS signature_state VARCHAR(16) NOT NULL DEFAULT \'unknown\'',
+                self::addColumn('spotnet_spots', 'spotter_id', 'VARCHAR(8) CHARACTER SET ascii NULL'),
+                self::addColumn('spotnet_comments', 'spotter_id', 'VARCHAR(8) CHARACTER SET ascii NULL'),
+                self::addColumn('spotnet_comments', 'signature_state', 'VARCHAR(16) NOT NULL DEFAULT \'unknown\''),
             ],
-            // The ALTER runs last so a failed run can be retried; plain ADD COLUMN also works on MySQL 8.
             '20261031_0027_nzbget' => [
                 'CREATE TABLE IF NOT EXISTS nzbget_connections (
                     scope VARCHAR(200) PRIMARY KEY,
@@ -678,9 +692,8 @@ final class Migrator
                     target VARCHAR(32) CHARACTER SET ascii NOT NULL,
                     FOREIGN KEY (username) REFERENCES app_users(username) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
-                'ALTER TABLE sabnzbd_downloads
-                    ADD COLUMN client VARCHAR(16) CHARACTER SET ascii NOT NULL DEFAULT \'sabnzbd\' AFTER scope,
-                    ADD INDEX idx_download_client_history (scope, client, id)',
+                self::addColumn('sabnzbd_downloads', 'client', 'VARCHAR(16) CHARACTER SET ascii NOT NULL DEFAULT \'sabnzbd\' AFTER scope'),
+                self::addIndex('sabnzbd_downloads', 'idx_download_client_history', 'scope, client, id'),
             ],
         ];
     }

@@ -35,6 +35,17 @@ try {
     $migrator->migrate();
     $migrator->migrate();
     check(count(array_filter($migrator->status(), static fn (array $row): bool => !$row['executed'])) === 0, 'Alle migraties werken en zijn herhaalbaar');
+    // Simulates migrations that failed halfway: every schema step must be safe to run again (MariaDB and MySQL 8).
+    $pdo->exec('DELETE FROM migrations');
+    $migrator->migrate();
+    check(count(array_filter($migrator->status(), static fn (array $row): bool => !$row['executed'])) === 0, 'Alle migraties opnieuw uitvoerbaar op bestaand schema');
+    $schemaHelper = new \NnSpotty\Database\Schema($pdo);
+    check($schemaHelper->hasColumn('sabnzbd_downloads', 'client') && $schemaHelper->hasIndex('sabnzbd_downloads', 'idx_download_client_history')
+        && !$schemaHelper->hasIndex('spotnet_spots', 'idx_spotnet_visibility'), 'Schema-helper ziet toegevoegde en verwijderde kolommen/indexen');
+    $browseIndex = new \NnSpotty\Usenet\SpotBrowseIndex($pdo);
+    $browseIndex->ensureFulltext();
+    $browseIndex->ensureFulltext();
+    check($schemaHelper->hasIndex('spot_browse', 'ft_browse_title'), 'FULLTEXT-titelindex herhaalbaar zonder IF NOT EXISTS');
     require __DIR__ . '/moderation-integration.php';
     $state = new AppStateRepository($pdo);
     require __DIR__ . '/accounts-integration.php';

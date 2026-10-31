@@ -4,6 +4,7 @@
 - Nieuwe, modulaire implementatie; geen overname van Spotweb-code.
 - `rvdv/nntp` verzorgt NNTP-transport. Spotnet-protocollogica staat apart van transport, opslag en weergave.
 - MySQL/MariaDB is de primaire datastore.
+- Schemawijzigingen in migraties lopen via `Database\Schema` (`addColumn`/`addIndex`/`dropIndex`): eerst controle in `information_schema`, dan een gewone `ALTER`. Geen `ALTER ... IF [NOT] EXISTS`, want MySQL 8 kent dat niet; een unittest bewaakt dit. Migraties blijven zo herhaalbaar na een halverwege mislukte run.
 - `.env` bevat app-/databaseconfiguratie; operationele Usenet-instellingen worden in admin beheerd.
 
 ## Accounts, groepsrechten en profielen

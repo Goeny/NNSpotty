@@ -475,6 +475,7 @@ try {
     require __DIR__ . '/avatar-unit.php';
     require __DIR__ . '/system-unit.php';
     require __DIR__ . '/system-update.php';
+    require __DIR__ . '/schema-unit.php';
     if (in_array('--integration', $argv, true)) {
         require __DIR__ . '/integration.php';
     }

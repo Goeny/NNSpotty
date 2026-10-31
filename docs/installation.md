@@ -6,7 +6,7 @@ Deze handleiding is voor een normale serverinstallatie (Apache/Nginx + PHP + MyS
 
 - PHP 8.2 of hoger
 - Composer 2.x
-- MySQL of MariaDB
+- MySQL 8.0+ of MariaDB 10.6+
 - PHP-extensies: `curl`, `dom`, `iconv`, `mbstring`, `openssl`, `pdo_mysql`, `simplexml`, `zlib`
 
 ## Snelle productie-installatie

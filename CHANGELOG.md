@@ -9,6 +9,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 - Spotweb-compatibele Spotnet-ID naast spotnamen en geverifieerde reacties. Reacties tonen de ID uit de persoonlijke accountgebonden RSA-sleutel; alleen geldige handtekeningen leveren een zichtbare ID op. Bestaande gecachte items worden eenmalig bij retrieve bijgewerkt. Migratie `20261026_0026_spotter_ids`.
 
 ### Fixed
+- MySQL 8-compatibiliteit: migraties en de FULLTEXT-titelindex gebruiken geen MariaDB-specifieke `ALTER ... IF [NOT] EXISTS` meer, maar controleren kolommen/indexen eerst in `information_schema`. Herhaalbaar op MySQL 8.0 en MariaDB; bestaande installaties hoeven niets te doen.
 - Reacties publiceren met dezelfde RSA/SHA1-handtekening over uitsluitend `<Message-ID>` als Spotweb, in plaats van de alleen door sommige lezers ondersteunde body/From-variant. De reactiegroep blijft standaard `free.usenet`. TCP-regressietest controleert het daadwerkelijk verzonden bericht onafhankelijk van de NNSpotty-parser; bestaande bodygebonden reacties blijven leesbaar.
 - GitLab-releasecontrole zoekt het exacte originproject op en gebruikt het numerieke project-ID; werkt ook achter proxies die geencodeerde slashes in URL-paden weigeren.
 

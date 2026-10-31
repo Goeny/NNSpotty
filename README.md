@@ -25,7 +25,7 @@ NNSpotty is een moderne Spotnet-webapplicatie voor het ophalen, browsen en downl
 ## Vereisten
 
 - PHP 8.2+
-- MySQL of MariaDB
+- MySQL 8.0+ of MariaDB 10.6+
 - Composer
 - PHP extensies: curl, dom, iconv, mbstring, openssl, pdo_mysql, simplexml, zlib
 
