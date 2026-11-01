@@ -10,6 +10,8 @@ use PDO;
 
 final class Search
 {
+    private ?bool $metadataSearch = null;
+
     public function __construct(private readonly PDO $pdo)
     {
     }
@@ -67,6 +69,44 @@ final class Search
             $where[] = 'EXISTS (SELECT 1 FROM spotnet_newznab_categories c WHERE c.spot_id = s.id AND c.category_id IN ('
                 . implode(',', $placeholders) . '))';
         }
+        $metadataSearch = $this->metadataSearchEnabled();
+        $idFilters = [];
+        $imdbId = $request->queryScalar('imdbid');
+        if ($imdbId !== null) {
+            if (preg_match('/^tt\d{5,10}$/D', $imdbId) !== 1) {
+                throw new InvalidArgumentException('Ongeldige imdbid-parameter.');
+            }
+            if ($metadataSearch) {
+                $idFilters[] = 'm.imdb_id = :imdb_id';
+                $parameters['imdb_id'] = $imdbId;
+            }
+        }
+        $tvdbId = $request->queryScalar('tvdbid');
+        if ($tvdbId !== null) {
+            if (!ctype_digit($tvdbId) || strlen($tvdbId) > 10 || (int) $tvdbId < 1) {
+                throw new InvalidArgumentException('Ongeldige tvdbid-parameter.');
+            }
+            if ($metadataSearch) {
+                $idFilters[] = 'm.tvdb_id = :tvdb_id';
+                $parameters['tvdb_id'] = $tvdbId;
+            }
+        }
+        $tmdbId = $request->queryScalar('tmdbid');
+        if ($tmdbId !== null) {
+            if (!ctype_digit($tmdbId) || strlen($tmdbId) > 10 || (int) $tmdbId < 1) {
+                throw new InvalidArgumentException('Ongeldige tmdbid-parameter.');
+            }
+            if ($metadataSearch) {
+                $idFilters[] = 'm.tmdb_id = :tmdb_id';
+                $parameters['tmdb_id'] = $tmdbId;
+            }
+        }
+        if (($imdbId !== null || $tvdbId !== null || $tmdbId !== null) && !$metadataSearch) {
+            throw new InvalidArgumentException('ID-zoeken vereist metadata-index. Voer db migrate uit en activeer metadataverrijking.');
+        }
+        if ($idFilters !== []) {
+            $where[] = 'EXISTS (SELECT 1 FROM metadata_search_index m WHERE m.spot_id = s.id AND (' . implode(' OR ', $idFilters) . '))';
+        }
         // Every word must occur as a whole word; FULLTEXT preselects candidates and the expressions confirm word boundaries.
         $terms = $query === '' ? null : \NnSpotty\Usenet\SearchTerms::parse($query);
         $fulltextWhere = null;
@@ -77,7 +117,9 @@ final class Search
                 $parameters['fulltext'] = $fulltext;
             }
             foreach ($terms->wordPatterns() as $index => $pattern) {
-                $where[] = 's.title REGEXP :word' . $index;
+                $where[] = $metadataSearch
+                    ? '(s.title REGEXP :word' . $index . ' OR EXISTS (SELECT 1 FROM metadata_search_index m WHERE m.spot_id = s.id AND m.search_text REGEXP :word' . $index . '))'
+                    : 's.title REGEXP :word' . $index;
                 $parameters['word' . $index] = $pattern;
             }
         }
@@ -108,8 +150,12 @@ final class Search
             if ($type !== 'movie') {
                 throw new InvalidArgumentException('year vereist movie.');
             }
-            $parameters['year'] = '(^|[^0-9])' . self::number($request, 'year', 1900, 1888, 2100) . '([^0-9]|$)';
-            $where[] = 's.title REGEXP :year';
+            $yearNumber = self::number($request, 'year', 1900, 1888, 2100);
+            $parameters['year'] = '(^|[^0-9])' . $yearNumber . '([^0-9]|$)';
+            $parameters['year_number'] = $yearNumber;
+            $where[] = $metadataSearch
+                ? '(s.title REGEXP :year OR EXISTS (SELECT 1 FROM metadata_search_index m WHERE m.spot_id = s.id AND m.year = :year_number))'
+                : 's.title REGEXP :year';
         }
         try {
             return $this->fetch($where, $parameters, $limit, $offset);
@@ -135,7 +181,12 @@ final class Search
         $count->execute($parameters);
         $total = (int) $count->fetchColumn();
         $select = $this->pdo->prepare('SELECT s.id, s.title, s.description, s.category, s.subcategories, s.size, s.posted_at, s.poster'
-            . $sql . ' ORDER BY s.posted_at DESC, s.id DESC LIMIT :limit OFFSET :offset');
+            . ($this->metadataSearchEnabled() ? ', m.imdb_id, m.tvdb_id, m.tmdb_id, m.year AS metadata_year
+                FROM spotnet_spots s LEFT JOIN metadata_search_index m ON m.spot_id = s.id'
+                : ', \'\' AS imdb_id, \'\' AS tvdb_id, \'\' AS tmdb_id, NULL AS metadata_year
+                FROM spotnet_spots s')
+            . (empty($where) ? '' : ' WHERE ' . implode(' AND ', $where))
+            . ' ORDER BY s.posted_at DESC, s.id DESC LIMIT :limit OFFSET :offset');
         foreach ($parameters as $key => $value) {
             $select->bindValue(':' . $key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
         }
@@ -148,5 +199,14 @@ final class Search
         }
         unset($item);
         return ['items' => $items, 'total' => $total, 'offset' => $offset];
+    }
+
+    private function metadataSearchEnabled(): bool
+    {
+        if ($this->metadataSearch !== null) {
+            return $this->metadataSearch;
+        }
+        $this->metadataSearch = $this->pdo->query("SHOW TABLES LIKE 'metadata_search_index'")->fetchColumn() !== false;
+        return $this->metadataSearch;
     }
 }

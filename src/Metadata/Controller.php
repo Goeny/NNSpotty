@@ -100,6 +100,7 @@ final class Controller
                 throw new InvalidArgumentException('Onbekende metadata-actie.');
             }
             $result = $service->lookup($spot);
+            (new EnrichmentRepository($this->pdo))->syncFromResult($spot, 'video', $result);
             if (!$repo->allowed($user['username'])) return Response::privateJson(['error' => 'Film-/seriemetadata is intussen uitgeschakeld.'], 403);
             $content = $this->state->spotContentSettings();
             return Response::privateJson(['state' => $result['state'], 'message' => View::message($result),

@@ -28,6 +28,7 @@ final class SpotBrowseQuery
 
     private ?int $minimumToken = null;
     private ?bool $mariaDb = null;
+    private ?bool $metadataSearch = null;
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -320,11 +321,28 @@ final class SpotBrowseQuery
             return;
         }
         if ($fulltext) {
-            $where[] = 'MATCH (b.title) AGAINST (:search_ft IN BOOLEAN MODE)';
+            $extra = $this->metadataSearchEnabled()
+                ? ' OR EXISTS (SELECT 1 FROM metadata_search_index m
+                    WHERE m.spot_id = b.spot_id AND MATCH (m.search_text) AGAINST (:search_ft IN BOOLEAN MODE))'
+                : '';
+            $where[] = '(MATCH (b.title) AGAINST (:search_ft IN BOOLEAN MODE)' . $extra . ')';
             $parameters['search_ft'] = $this->fulltextQuery($terms);
         }
-        $where[] = 'b.title REGEXP :search_phrase';
+        $extra = $this->metadataSearchEnabled()
+            ? ' OR EXISTS (SELECT 1 FROM metadata_search_index m
+                WHERE m.spot_id = b.spot_id AND m.search_text REGEXP :search_phrase)'
+            : '';
+        $where[] = '(b.title REGEXP :search_phrase' . $extra . ')';
         $parameters['search_phrase'] = $terms->phrasePattern();
+    }
+
+    private function metadataSearchEnabled(): bool
+    {
+        if ($this->metadataSearch !== null) {
+            return $this->metadataSearch;
+        }
+        $this->metadataSearch = $this->pdo->query("SHOW TABLES LIKE 'metadata_search_index'")->fetchColumn() !== false;
+        return $this->metadataSearch;
     }
 
     private function fulltextQuery(SearchTerms $terms): ?string

@@ -695,6 +695,61 @@ final class Migrator
                 self::addColumn('sabnzbd_downloads', 'client', 'VARCHAR(16) CHARACTER SET ascii NOT NULL DEFAULT \'sabnzbd\' AFTER scope'),
                 self::addIndex('sabnzbd_downloads', 'idx_download_client_history', 'scope, client, id'),
             ],
+            '20261101_0028_metadata_enrichment' => [
+                'CREATE TABLE IF NOT EXISTS metadata_enrichment_settings (
+                    id TINYINT PRIMARY KEY,
+                    enabled TINYINT(1) NOT NULL DEFAULT 0,
+                    start_at DATETIME(6) NULL,
+                    batch_size INT UNSIGNED NOT NULL DEFAULT 25,
+                    max_retries INT UNSIGNED NOT NULL DEFAULT 5
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'INSERT IGNORE INTO metadata_enrichment_settings (id) VALUES (1)',
+                'CREATE TABLE IF NOT EXISTS metadata_enrichment_queue (
+                    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    spot_id CHAR(64) CHARACTER SET ascii NOT NULL UNIQUE,
+                    media_kind VARCHAR(16) CHARACTER SET ascii NOT NULL,
+                    status VARCHAR(16) CHARACTER SET ascii NOT NULL,
+                    attempts INT UNSIGNED NOT NULL DEFAULT 0,
+                    next_retry_at DATETIME(6) NULL,
+                    last_error VARCHAR(500) NULL,
+                    started_at DATETIME(6) NULL,
+                    finished_at DATETIME(6) NULL,
+                    created_at DATETIME(6) NOT NULL,
+                    updated_at DATETIME(6) NOT NULL,
+                    INDEX idx_metadata_queue_status (status, next_retry_at, id),
+                    FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS metadata_search_index (
+                    spot_id CHAR(64) CHARACTER SET ascii PRIMARY KEY,
+                    media_kind VARCHAR(16) CHARACTER SET ascii NOT NULL,
+                    provider VARCHAR(20) CHARACTER SET ascii NOT NULL,
+                    title VARCHAR(255) NOT NULL,
+                    subtitle VARCHAR(255) NOT NULL,
+                    year SMALLINT UNSIGNED NULL,
+                    genres TEXT NOT NULL,
+                    people TEXT NOT NULL,
+                    companies TEXT NOT NULL,
+                    aliases TEXT NOT NULL,
+                    imdb_id VARCHAR(16) CHARACTER SET ascii NOT NULL DEFAULT \'\',
+                    tvdb_id VARCHAR(16) CHARACTER SET ascii NOT NULL DEFAULT \'\',
+                    tmdb_id VARCHAR(16) CHARACTER SET ascii NOT NULL DEFAULT \'\',
+                    search_text MEDIUMTEXT NOT NULL,
+                    updated_at DATETIME(6) NOT NULL,
+                    INDEX idx_metadata_index_year (year, provider),
+                    FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                self::addIndex('metadata_search_index', 'ft_metadata_search', 'title, subtitle, genres, people, companies, aliases, search_text', 'FULLTEXT INDEX'),
+                'CREATE TABLE IF NOT EXISTS spot_metadata_entities (
+                    spot_id CHAR(64) CHARACTER SET ascii NOT NULL,
+                    entity_type VARCHAR(16) CHARACTER SET ascii NOT NULL,
+                    entity_key CHAR(40) CHARACTER SET ascii NOT NULL,
+                    entity_name VARCHAR(191) NOT NULL,
+                    PRIMARY KEY (spot_id, entity_type, entity_key),
+                    INDEX idx_entity_lookup (entity_type, entity_key, spot_id),
+                    INDEX idx_entity_name (entity_type, entity_name, spot_id),
+                    FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+            ],
         ];
     }
 }

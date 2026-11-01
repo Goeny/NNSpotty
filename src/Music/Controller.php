@@ -11,6 +11,7 @@ use NnSpotty\Security\Csrf;
 use NnSpotty\State\AppStateRepository;
 use NnSpotty\UI\SpotDetailPageRenderer;
 use NnSpotty\Usenet\SpotRepository;
+use NnSpotty\Metadata\EnrichmentRepository;
 use PDO;
 
 final class Controller
@@ -73,6 +74,7 @@ final class Controller
                 $this->audit($user, $action, $request, $id);
             } elseif ($action !== 'load') throw new \InvalidArgumentException('Onbekende muziekmetadata-actie.');
             $result = $service->lookup($spot);
+            (new EnrichmentRepository($this->pdo))->syncFromResult($spot, 'music', $result);
             if (!$repo->allowed($user['username'])) return Response::privateJson(['error' => 'Muziekmetadata is intussen uitgeschakeld.'], 403);
             $content = $this->state->spotContentSettings();
             if (isset($result['metadata']) && $content['images_enabled'] && $repo->fanartAllowed($user['username'])) {

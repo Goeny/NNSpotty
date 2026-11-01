@@ -104,6 +104,28 @@ php bin/console retrieve --days=7 --comments-only --verbose
 
 ---
 
+## Metadata-cron (alleen nieuwe spots)
+
+- `php bin/console metadata status`  
+  Toont metadataqueue-instellingen en queue-aantallen.
+
+- `php bin/console metadata enable --batch=25 --retries=5`  
+  Schakelt automatische metadataqueue in en zet het startpunt op **nu** (alleen toekomstige spots).
+
+- `php bin/console metadata disable`  
+  Schakelt automatische metadataqueue uit.
+
+- `php bin/console metadata run --limit=25`  
+  Verwerkt een queuebatch (bedoeld voor cron).
+
+### Cronvoorbeeld
+
+```bash
+* * * * * php /path/to/NNSpotty/bin/console metadata run --limit=25
+```
+
+---
+
 ## System update
 
 - `php bin/console system update --check`  

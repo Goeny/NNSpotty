@@ -79,7 +79,7 @@ final class Api
             if (!in_array($type, ['search', 'tvsearch', 'movie'], true)) {
                 return self::error(203, 'Functie niet beschikbaar.');
             }
-            foreach (['rid', 'tvdbid', 'tvmazeid', 'imdbid', 'tmdbid', 'traktid', 'genre', 'artist', 'album', 'author', 'title'] as $unsupported) {
+            foreach (['rid', 'tvmazeid', 'traktid', 'genre', 'artist', 'album', 'author', 'title'] as $unsupported) {
                 if ($request->queryScalar($unsupported) !== null) {
                     return self::error(203, 'Niet ondersteunde zoekparameter: ' . $unsupported . '. Gebruik titelzoeken via q.');
                 }
@@ -123,9 +123,9 @@ final class Api
     {
         $xml = '<caps><server version="1.0" title="NNSpotty" url="' . self::x($base) . '"/>'
             . '<limits max="100" default="100"/><registration available="no" open="no"/>'
-            . '<searching><search available="yes" supportedParams="q"/>'
-            . '<tv-search available="yes" supportedParams="q,season,ep"/>'
-            . '<movie-search available="yes" supportedParams="q,year"/>'
+            . '<searching><search available="yes" supportedParams="q,imdbid,tvdbid,tmdbid"/>'
+            . '<tv-search available="yes" supportedParams="q,season,ep,tvdbid,imdbid"/>'
+            . '<movie-search available="yes" supportedParams="q,year,imdbid,tmdbid"/>'
             . '<audio-search available="no"/><book-search available="no"/></searching><categories>';
         $definitions = Categories::definitions();
         foreach ($definitions as $id => $name) {
@@ -160,6 +160,18 @@ final class Api
                 . '<newznab:attr name="size" value="' . (int) $item['size'] . '"/>'
                 . '<newznab:attr name="poster" value="' . self::x($item['poster']) . '"/>'
                 . '<newznab:attr name="guid" value="' . $item['id'] . '"/>';
+            if (is_string($item['imdb_id'] ?? null) && $item['imdb_id'] !== '') {
+                $xml .= '<newznab:attr name="imdbid" value="' . self::x($item['imdb_id']) . '"/>';
+            }
+            if (is_string($item['tvdb_id'] ?? null) && $item['tvdb_id'] !== '') {
+                $xml .= '<newznab:attr name="tvdbid" value="' . self::x($item['tvdb_id']) . '"/>';
+            }
+            if (is_string($item['tmdb_id'] ?? null) && $item['tmdb_id'] !== '') {
+                $xml .= '<newznab:attr name="tmdbid" value="' . self::x($item['tmdb_id']) . '"/>';
+            }
+            if (($item['metadata_year'] ?? null) !== null && (int) $item['metadata_year'] > 0) {
+                $xml .= '<newznab:attr name="year" value="' . (int) $item['metadata_year'] . '"/>';
+            }
             foreach (Categories::forSpot($item['category'], $item['subcategories']) as $category) {
                 $xml .= '<category>' . self::x(Categories::definitions()[$category]) . '</category>'
                     . '<newznab:attr name="category" value="' . $category . '"/>';

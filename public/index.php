@@ -234,7 +234,7 @@ $router->get('/admin', static function (Request $request) use ($state, $auth, $c
                 . \NnSpotty\UI\NzbgetSettings::render((new \NnSpotty\Downloader\NzbgetRepository($pdo))->settings('central'), $csrf->field(), true, true)
             : '<p>De centrale downloadclient-koppelingen en categorietoewijzing zijn uitsluitend voor beheerders.</p>',
         metadataSettings: AdminPageRenderer::metadataPanel(
-            \NnSpotty\Metadata\View::settings($metadataRepo = new \NnSpotty\Metadata\Repository($pdo), $csrf->field())
+            \NnSpotty\Metadata\View::settings($metadataRepo = new \NnSpotty\Metadata\Repository($pdo), $csrf->field(), enrichment: (new \NnSpotty\Metadata\EnrichmentRepository($pdo))->settings())
                 . \NnSpotty\Metadata\View::tmdbSettings($metadataRepo, $csrf->field())
                 . \NnSpotty\Music\View::fanartCard($musicRepo = new \NnSpotty\Music\Repository($pdo), $csrf->field()),
             \NnSpotty\Metadata\View::providerForm($metadataRepo, $csrf->field(), 'movie'),
@@ -320,6 +320,37 @@ $router->post('/admin/spot-content', static function (Request $request) use ($st
     }
     $auditLogs->log($auth->user()['username'], 'admin.spot_content.updated', 'settings', 'spot_content', $settings + ['comment_retrieval' => $commentRetrieval], $request->clientIp());
     return Response::redirect('/admin?status=' . rawurlencode('Inhoudsinstellingen opgeslagen.') . '#spot-content');
+});
+
+$router->post('/admin/metadata-enrichment', static function (Request $request) use ($auth, $csrf, $pdo, $auditLogs): Response {
+    if (!$auth->can('settings.manage')) {
+        return new Response(403, 'Admin login vereist.');
+    }
+    if (!$csrf->verify($request->input('_csrf'))) {
+        return Response::redirect('/admin?status=' . rawurlencode('Ongeldige CSRF token.') . '#metadata-enrichment');
+    }
+    try {
+        $enabled = $request->inputScalar('enabled');
+        $reset = $request->inputScalar('reset_start');
+        if (($enabled !== null && $enabled !== '1') || ($reset !== null && $reset !== '1')) {
+            throw new InvalidArgumentException('Ongeldige metadataqueue-instelling.');
+        }
+        $batch = trim($request->inputScalar('batch_size') ?? '');
+        $retries = trim($request->inputScalar('max_retries') ?? '');
+        if (preg_match('/^\d{1,3}$/D', $batch) !== 1 || preg_match('/^\d{1,2}$/D', $retries) !== 1) {
+            throw new InvalidArgumentException('Batchgrootte en retries moeten geldige gehele getallen zijn.');
+        }
+        (new \NnSpotty\Metadata\EnrichmentRepository($pdo))->configure($enabled === '1', (int) $batch, (int) $retries, $reset === '1');
+        $auditLogs->log($auth->user()['username'], 'admin.metadata_enrichment.updated', 'settings', 'metadata_enrichment',
+            ['enabled' => $enabled === '1', 'batch_size' => (int) $batch, 'max_retries' => (int) $retries, 'reset_start' => $reset === '1'],
+            $request->clientIp());
+    } catch (InvalidArgumentException $exception) {
+        return Response::redirect('/admin?status=' . rawurlencode($exception->getMessage()) . '#metadata-enrichment');
+    } catch (Throwable $exception) {
+        error_log('Metadataqueue-instellingen: ' . $exception->getMessage());
+        return Response::redirect('/admin?status=' . rawurlencode('Metadataqueue-instellingen opslaan mislukt. Controleer de serverlog.') . '#metadata-enrichment');
+    }
+    return Response::redirect('/admin?status=' . rawurlencode('Metadataqueue-instellingen opgeslagen.') . '#metadata-enrichment');
 });
 
 $router->post('/preferences/columns', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {
@@ -691,6 +722,11 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
         $batch = $spots->batch($selectedCategory, (int) $preferences['items_per_page'], $showErotica, $filters, $search, $cursor,
             $favoritesOnly ? $currentUser['username'] : null);
         $batch['spots'] = (new \NnSpotty\Favorites\Repository($pdo))->annotate($batch['spots'], $currentUser['username']);
+        $batch['spots'] = (new \NnSpotty\Metadata\EnrichmentRepository($pdo))->attachSummaries(
+            $batch['spots'],
+            (new \NnSpotty\Metadata\Repository($pdo))->allowed($currentUser['username']),
+            (new \NnSpotty\Music\Repository($pdo))->allowed($currentUser['username'])
+        );
     } catch (InvalidArgumentException $exception) {
         return Response::privateJson(['error' => $exception->getMessage()], 400);
     }
@@ -822,6 +858,9 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
     session_write_close();
     $spot = (new \NnSpotty\Favorites\Repository($pdo))->annotate([$spot], $currentUser['username'])[0];
     $content = $state->spotContentSettings();
+    $metadata = $spot['category'] === 'Geluid'
+        ? (new \NnSpotty\Music\Repository($pdo))->previewMetadata($spot, $currentUser['username'], $content['images_enabled'])
+        : (new \NnSpotty\Metadata\Repository($pdo))->previewMetadata($spot, $currentUser['username']);
     $html = SpotDetailPageRenderer::render(
         username: $currentUser['username'],
         isAdmin: $auth->isAdmin(),
@@ -840,7 +879,8 @@ $router->get('/spots/view', static function (Request $request) use ($auth, $csrf
             : ((new \NnSpotty\Metadata\Repository($pdo))->allowed($currentUser['username'])
                 ? \NnSpotty\Metadata\View::controls($spot, $auth->can('metadata.manage'), $csrfField, new \NnSpotty\Metadata\Repository($pdo)) : ''),
         facets: null,
-        pendingComments: $content['show_comments'] ? $spots->pendingCommentCount($spotId) : 0
+        pendingComments: $content['show_comments'] ? $spots->pendingCommentCount($spotId) : 0,
+        metadata: $metadata
     );
 
     if ($request->method() === 'GET') {
@@ -953,6 +993,9 @@ $router->post('/spots/comment', static function (Request $request) use ($auth, $
     }
     $content = $state->spotContentSettings();
     $spot = (new \NnSpotty\Favorites\Repository($pdo))->annotate([$spot], $user['username'])[0];
+    $metadata = $spot['category'] === 'Geluid'
+        ? (new \NnSpotty\Music\Repository($pdo))->previewMetadata($spot, $user['username'], $content['images_enabled'])
+        : (new \NnSpotty\Metadata\Repository($pdo))->previewMetadata($spot, $user['username']);
     $html = SpotDetailPageRenderer::render(
         $user['username'], $user['is_admin'], $spot, $spots->comments($id), $csrfField,
         $message, theme: $preferences['theme'], showErotica: $state->canViewErotica($user['username']),
@@ -964,7 +1007,8 @@ $router->post('/spots/comment', static function (Request $request) use ($auth, $
         commentDraft: strlen($body) <= 10000 && preg_match('//u', $body) === 1 ? $body : '',
         commentRequestId: $publicationId !== null && preg_match('/^[a-f0-9]{64}$/D', $publicationId) ? $publicationId : null,
         commentError: true,
-        pendingComments: $content['show_comments'] ? $spots->pendingCommentCount($id) : 0
+        pendingComments: $content['show_comments'] ? $spots->pendingCommentCount($id) : 0,
+        metadata: $metadata
     );
     return new Response($status, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
 });

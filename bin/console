@@ -5,6 +5,8 @@ declare(strict_types=1);
 
 use NnSpotty\Database\ConnectionFactory;
 use NnSpotty\Database\Migrator;
+use NnSpotty\Metadata\EnrichmentRepository;
+use NnSpotty\Metadata\EnrichmentWorker;
 use NnSpotty\Usenet\RetrieveService;
 use NnSpotty\Users\UserRepository;
 use NnSpotty\State\AppStateRepository;
@@ -59,6 +61,9 @@ try {
             break;
         case 'retrieve':
             handleRetrieveCommand($argv, new RetrieveService($pdo, $state));
+            break;
+        case 'metadata':
+            handleMetadataCommand($argv, $pdo);
             break;
         case 'spotters':
             $lists = new \NnSpotty\Moderation\SpotterLists($pdo);
@@ -302,6 +307,37 @@ function handleSystemCommand(array $argv): void
     }
 }
 
+function handleMetadataCommand(array $argv, PDO $pdo): void
+{
+    $repo = new EnrichmentRepository($pdo);
+    $action = $argv[2] ?? 'status';
+    if ($action === 'status') {
+        $settings = $repo->settings();
+        $counts = $repo->queueCounts();
+        fwrite(STDOUT, json_encode(['settings' => $settings, 'queue' => $counts], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . PHP_EOL);
+        return;
+    }
+    if ($action === 'enable' || $action === 'disable') {
+        $batch = optionInt($argv, '--batch', $repo->settings()['batch_size']) ?? 25;
+        $retries = optionInt($argv, '--retries', $repo->settings()['max_retries']) ?? 5;
+        $repo->configure($action === 'enable', $batch, $retries, $action === 'enable' || optionBool($argv, '--reset-start', false));
+        fwrite(STDOUT, 'Metadata-cron ' . ($action === 'enable' ? 'ingeschakeld' : 'uitgeschakeld') . ".\n");
+        return;
+    }
+    if ($action === 'run') {
+        $limit = optionInt($argv, '--limit', null);
+        $stats = (new EnrichmentWorker($pdo, \NnSpotty\Config\AppConfig::fromEnvironment()->url))->run(
+            $limit,
+            static function (string $line): void {
+                fwrite(STDOUT, '[metadata] ' . $line . PHP_EOL);
+            }
+        );
+        fwrite(STDOUT, json_encode($stats, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) . PHP_EOL);
+        return;
+    }
+    throw new RuntimeException('Gebruik: bin/console metadata status|enable|disable|run [--batch=25] [--retries=5] [--limit=25]');
+}
+
 function optionValue(array $argv, string $name): ?string
 {
     foreach ($argv as $argument) {
@@ -352,5 +388,6 @@ function showHelp(): void
     fwrite(STDOUT, "  bin/console user password <username> <newPassword>\n");
     fwrite(STDOUT, "  bin/console retrieve [--all|--full|--since-last|--days=30] [--comments-only|--refresh-spots] [--verbose]\n");
     fwrite(STDOUT, "  bin/console spotters status|sync|enable|disable\n");
+    fwrite(STDOUT, "  bin/console metadata status|enable|disable|run [--batch=25] [--retries=5] [--limit=25]\n");
     fwrite(STDOUT, "  bin/console system update [--check]\n");
 }

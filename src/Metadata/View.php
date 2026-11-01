@@ -8,7 +8,8 @@ use NnSpotty\UI\SpotPresentation;
 
 final class View
 {
-    public static function settings(Repository $repo, string $csrf, ?string $username = null): string
+    /** @param array{enabled: bool, start_at: ?string, batch_size: int, max_retries: int}|null $enrichment */
+    public static function settings(Repository $repo, string $csrf, ?string $username = null, ?array $enrichment = null): string
     {
         $settings = $repo->settings();
         if ($username !== null) {
@@ -20,7 +21,7 @@ final class View
                 . self::switch('enabled', 'Film- en seriemetadata (TVDB/TMDB) voor mij ophalen en tonen', $repo->preference($username))
                 . '<button class="btn btn-primary mt-3" type="submit">Metadatavoorkeur opslaan</button></form></div></section>';
         }
-        return '<section class="card my-4" id="tvdb-settings"><div class="card-header">TheTVDB</div><div class="card-body">'
+        $html = '<section class="card my-4" id="tvdb-settings"><div class="card-header">TheTVDB</div><div class="card-body">'
             . '<p>Centrale API V4-toegang. Iedereen schakelt metadata zelf in onder Voorkeuren. Gebruik een key die volgens jouw TheTVDB-licentie voor deze installatie mag worden gebruikt; sommige keys vereisen een abonnee-PIN.</p>'
             . '<form method="post" action="/metadata">' . $csrf . '<input type="hidden" name="action" value="settings">'
             . self::switch('enabled', 'TheTVDB inschakelen', (bool) $settings['enabled'])
@@ -35,6 +36,23 @@ final class View
             . '<button class="btn btn-primary mt-3" type="submit">TVDB-instellingen opslaan</button></form>'
             . '<form method="post" action="/metadata" class="mt-3">' . $csrf . '<input type="hidden" name="action" value="test">'
             . '<button class="btn btn-outline-secondary" type="submit">Opgeslagen TVDB-toegang testen</button></form></div></section>';
+        if ($enrichment === null) {
+            return $html;
+        }
+        $startAt = $enrichment['start_at'] === null ? 'niet gestart' : h($enrichment['start_at']) . ' UTC';
+        $html .= '<section class="card my-4" id="metadata-enrichment"><div class="card-header">Automatische metadata via cron</div><div class="card-body">'
+            . '<p>Alleen nieuwe spots vanaf het ingestelde startmoment worden in de verrijkingsqueue gezet. Bestaande/oude spots worden niet gebackfilled.</p>'
+            . '<form method="post" action="/admin/metadata-enrichment">' . $csrf
+            . self::switch('enabled', 'Automatische metadataqueue inschakelen', $enrichment['enabled'])
+            . '<label class="form-label mt-3" for="metadata-batch">Batch per cron-run</label>'
+            . '<input class="form-control" id="metadata-batch" name="batch_size" type="number" min="1" max="500" value="' . (int) $enrichment['batch_size'] . '">'
+            . '<label class="form-label mt-3" for="metadata-retries">Max retries per spot</label>'
+            . '<input class="form-control" id="metadata-retries" name="max_retries" type="number" min="1" max="20" value="' . (int) $enrichment['max_retries'] . '">'
+            . self::switch('reset_start', 'Startpunt op nu zetten (alleen toekomstige spots)', false)
+            . '<button class="btn btn-primary mt-3" type="submit">Queue-instellingen opslaan</button></form>'
+            . '<p class="form-text mt-3">Huidig startpunt: ' . $startAt . '. Cron voorbeeld: <code>* * * * * php bin/console metadata run --limit=25</code>.</p>'
+            . '</div></section>';
+        return $html;
     }
 
     public static function tmdbSettings(Repository $repo, string $csrf): string
@@ -308,18 +326,32 @@ final class View
         if ($metadata['people'] !== []) {
             $html .= '<section class="metadata-people mb-4" aria-label="Cast en crew"><h2 class="h4">Cast &amp; Crew</h2><div class="people-list">';
             foreach ($metadata['people'] as $person) {
+                $name = trim((string) ($person['name'] ?? ''));
+                if ($name === '') continue;
+                $type = strtolower((string) ($person['type'] ?? ''));
+                $role = strtolower((string) ($person['role'] ?? ''));
+                $entity = str_contains($type, 'actor') || str_contains($role, 'actor') ? 'actor'
+                    : (str_contains($type, 'director') || str_contains($role, 'director') ? 'director' : 'person');
+                $searchUrl = '/spots?q=' . rawurlencode($name);
                 $html .= '<article class="person-card">';
                 if ($images) {
-                    $html .= '<img src="' . h($person['image'] !== '' ? $person['image'] : '/assets/images/placeholder-small.png')
+                    $html .= '<img src="' . h(($person['image'] ?? '') !== '' ? $person['image'] : '/assets/images/placeholder-small.png')
                         . '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src=\'/assets/images/placeholder-small.png\'">';
                 }
-                $html .= '<strong>' . h($person['name']) . '</strong><span>' . h($person['role']) . '</span><small>' . h($person['type']) . '</small></article>';
+                $html .= '<strong><a href="' . h($searchUrl) . '" title="Alles tonen voor ' . h($name) . '">' . h($name)
+                    . '</a></strong><span>' . h((string) ($person['role'] ?? '')) . '</span><small>' . h((string) ($person['type'] ?? ''))
+                    . ' · <a href="' . h($searchUrl) . '" class="link-secondary">Alles met deze ' . h($entity) . '</a></small></article>';
             }
             $html .= '</div></section>';
         }
         if ($metadata['companies'] !== []) {
             $html .= '<section class="card mb-3"><div class="card-header">Studio / netwerk</div><div class="card-body d-flex flex-wrap gap-3">';
-            foreach ($metadata['companies'] as $company) $html .= '<span>' . h($company['name']) . '</span>';
+            foreach ($metadata['companies'] as $company) {
+                $name = trim((string) ($company['name'] ?? ''));
+                if ($name === '') continue;
+                $html .= '<span><a href="/spots?q=' . rawurlencode($name) . '" title="Alles tonen van studio/netwerk ' . h($name) . '">'
+                    . h($name) . '</a></span>';
+            }
             $html .= '</div></section>';
         }
         return $html;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NnSpotty\Usenet;
 
+use NnSpotty\Metadata\EnrichmentRepository;
 use PDO;
 
 final class SpotRepository
@@ -94,6 +95,14 @@ final class SpotRepository
             $statement->execute($parameters);
             if ($statement->rowCount() > 0) {
                 $this->indexCategories($spot['id'], $spot['category'], $spot['subcategories'], $classification);
+                if (!$refresh && $statement->rowCount() === 1) {
+                    $mediaKind = \NnSpotty\Music\Release::parse($spot) !== null
+                        ? 'music'
+                        : (\NnSpotty\Metadata\Release::parse($spot) !== null ? 'video' : null);
+                    if ($mediaKind !== null) {
+                        (new EnrichmentRepository($this->pdo))->enqueue($spot['id'], $mediaKind);
+                    }
+                }
             }
             $nested ? $this->pdo->exec('RELEASE SAVEPOINT nnspotty_spot') : $this->pdo->commit();
         } catch (\Throwable $exception) {

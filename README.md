@@ -43,6 +43,10 @@ Zie [docs/installation.md](./docs/installation.md) voor uitgebreide installatieh
 
 Alle consolecommando’s staan in [docs/cli-commands.md](./docs/cli-commands.md).
 
+## Metadata provider limits
+
+Verifieerbare request-limieten en provider-notes staan in [docs/metadata-provider-limits.md](./docs/metadata-provider-limits.md).
+
 ## Externe resources
 
 - [rvdv/nntp](https://packagist.org/packages/rvdv/nntp) (Usenet/NNTP)

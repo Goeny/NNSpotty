@@ -120,12 +120,24 @@ HTML;
             $format = implode(', ', $details['Formaat'] ?? $details['Platform'] ?? []);
             $genre = implode(', ', $details['Genre'] ?? $details['Soort applicatie'] ?? []);
             $subtitle = implode(' · ', array_filter([$spot['browse_type'] ?? $spot['category'], implode(', ', $details['Bron'] ?? [])]));
+            $metadataSummary = '';
+            if (is_array($spot['metadata_summary'] ?? null)) {
+                $summary = $spot['metadata_summary'];
+                $parts = array_filter([
+                    $summary['provider'] ?? '',
+                    isset($summary['year']) && is_int($summary['year']) ? (string) $summary['year'] : '',
+                    implode(', ', array_slice($summary['genres'] ?? [], 0, 2)),
+                ]);
+                if ($parts !== []) {
+                    $metadataSummary = '<div class="spot-subtitle">' . h(implode(' · ', $parts)) . '</div>';
+                }
+            }
             $detailUrl = '/spots/view?key=' . rawurlencode($spot['id']);
             $values = [
                 'cover' => SpotPresentation::image($spot, true),
                 'title' => '<div class="spot-title-line">' . \NnSpotty\Favorites\View::button($spot)
                     . '<div><a class="spot-title" data-preview="' . h($spot['id']) . '" href="' . $detailUrl . '" aria-controls="preview" aria-expanded="false">'
-                    . h($spot['title']) . '</a><div class="spot-subtitle">' . h($subtitle) . '</div></div></div>',
+                    . h($spot['title']) . '</a><div class="spot-subtitle">' . h($subtitle) . '</div>' . $metadataSummary . '</div></div>',
                 'format' => $format !== '' ? '<span class="format-badge">' . h($format) . '</span>' : '&mdash;',
                 'genre' => h($genre),
                 'poster' => h($spot['poster'])

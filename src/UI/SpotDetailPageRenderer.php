@@ -31,10 +31,11 @@ final class SpotDetailPageRenderer
         string $commentDraft = '',
         ?string $commentRequestId = null,
         bool $commentError = false,
-        int $pendingComments = 0
+        int $pendingComments = 0,
+        ?array $metadata = null
     ): string {
         $id = h($spot['id']);
-        $summary = self::summary($spot, false, $imagesEnabled, $showComments, metadataLink: $metadataControls !== '');
+        $summary = self::summary($spot, false, $imagesEnabled, $showComments, $metadata, metadataLink: $metadataControls !== '');
         $statusClass = $commentError ? 'warning' : 'info';
         $statusRole = $commentError ? 'alert' : 'status';
         $status = $statusMessage !== null ? '<div class="alert alert-' . $statusClass . '" role="' . $statusRole . '">' . h($statusMessage) . '</div>' : '';
