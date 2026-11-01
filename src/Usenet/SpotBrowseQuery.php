@@ -29,6 +29,7 @@ final class SpotBrowseQuery
     private ?int $minimumToken = null;
     private ?bool $mariaDb = null;
     private ?bool $metadataSearch = null;
+    private ?bool $metadataEntities = null;
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -40,7 +41,7 @@ final class SpotBrowseQuery
      * @return list<array{browse_id: int, spot_id: string, posted_at: string}>
      */
     public function page(?string $category, int $limit, int $offset, bool $showErotica, array $codes, string $search,
-        ?array $after, ?string $favoriteUser): array
+        ?array $after, ?string $favoriteUser, ?array $metadataEntity = null): array
     {
         $terms = SearchTerms::parse($search);
         if ($terms !== null && $terms->words === []) {
@@ -49,6 +50,7 @@ final class SpotBrowseQuery
         $where = [];
         $parameters = [];
         $this->scope('b', $category, $showErotica, $where, $parameters);
+        $this->entityFilter('b', $metadataEntity, $where, $parameters);
         $keyset = [];
         $keysetParameters = [];
         if ($after !== null) {
@@ -90,7 +92,7 @@ final class SpotBrowseQuery
         }
         $this->searchConditions($terms, false, $where, $parameters);
 
-        if ($codes !== []) {
+        if ($codes !== [] && $metadataEntity === null) {
             $total = $this->comboTotal($category, $showErotica, $codes);
             if ($total === 0) {
                 return [];
@@ -119,7 +121,7 @@ final class SpotBrowseQuery
     }
 
     /** @param list<string> $codes */
-    public function count(?string $category, bool $showErotica, array $codes, string $search): int
+    public function count(?string $category, bool $showErotica, array $codes, string $search, ?array $metadataEntity = null): int
     {
         $terms = SearchTerms::parse($search);
         if ($terms !== null && $terms->words === []) {
@@ -128,6 +130,7 @@ final class SpotBrowseQuery
         $where = [];
         $parameters = [];
         $this->scope('b', $category, $showErotica, $where, $parameters);
+        $this->entityFilter('b', $metadataEntity, $where, $parameters);
         $joins = $this->codeJoins('b.combo_id', $codes, $parameters);
         $this->searchConditions($terms, $terms !== null && $this->fulltextQuery($terms) !== null, $where, $parameters);
         $statement = $this->pdo->prepare('SELECT COUNT(*) FROM spot_browse b' . $joins . $this->where($where));
@@ -143,14 +146,14 @@ final class SpotBrowseQuery
      * @return list<array{code: string, total: int|string}>
      */
     public function facets(?string $category, bool $showErotica, string $search, array $codes, ?string $newSince,
-        ?string $favoriteUser, bool $budgeted = false): array
+        ?string $favoriteUser, bool $budgeted = false, ?array $metadataEntity = null): array
     {
         $terms = SearchTerms::parse($search);
         if ($terms !== null && $terms->words === []) {
             return [];
         }
         $parameters = [];
-        if ($terms === null && $newSince === null && $favoriteUser === null) {
+        if ($terms === null && $newSince === null && $favoriteUser === null && $metadataEntity === null) {
             $inner = 'SELECT id AS combo_id, spot_count AS n FROM spot_combos WHERE spot_count > 0';
         } else {
             $innerWhere = [];
@@ -165,6 +168,7 @@ final class SpotBrowseQuery
                 $parameters['new_since'] = $newSince;
             }
             $this->scope('b', $category, $showErotica, $innerWhere, $parameters, 'i_');
+            $this->entityFilter('b', $metadataEntity, $innerWhere, $parameters);
             $this->searchConditions($terms, $terms !== null && $this->fulltextQuery($terms) !== null, $innerWhere, $parameters);
             $inner = 'SELECT b.combo_id, COUNT(*) AS n' . $from . $this->where($innerWhere) . ' GROUP BY b.combo_id';
         }
@@ -228,7 +232,7 @@ final class SpotBrowseQuery
      *
      * @param list<string> $codes
      */
-    public function broadSearch(?string $category, bool $showErotica, array $codes, string $search): bool
+    public function broadSearch(?string $category, bool $showErotica, array $codes, string $search, ?array $metadataEntity = null): bool
     {
         $terms = SearchTerms::parse($search);
         if ($terms === null || $terms->words === []) {
@@ -237,6 +241,7 @@ final class SpotBrowseQuery
         $where = [];
         $parameters = [];
         $this->scope('b', $category, $showErotica, $where, $parameters);
+        $this->entityFilter('b', $metadataEntity, $where, $parameters);
         $joins = $this->codeJoins('b.combo_id', $codes, $parameters);
         return count($this->recent($category, $where, $parameters, $joins, $terms,
             ' ORDER BY b.posted_at DESC, b.id DESC LIMIT ' . self::BROAD_MATCHES)) >= self::BROAD_MATCHES;
@@ -342,6 +347,31 @@ final class SpotBrowseQuery
         }
     }
 
+    /** @param array{type: string, key: string}|null $metadataEntity
+     *  @param list<string> $where
+     *  @param array<string, mixed> $parameters
+     */
+    private function entityFilter(string $alias, ?array $metadataEntity, array &$where, array &$parameters): void
+    {
+        if ($metadataEntity === null) {
+            return;
+        }
+        if (!$this->metadataEntitiesEnabled()) {
+            $where[] = '1 = 0';
+            return;
+        }
+        $parameters['entity_key'] = $metadataEntity['key'];
+        if ($metadataEntity['type'] === 'person') {
+            $where[] = 'EXISTS (SELECT 1 FROM spot_metadata_entities e
+                WHERE e.spot_id = ' . $alias . '.spot_id AND e.entity_key = :entity_key
+                    AND e.entity_type IN (\'person\', \'actor\', \'director\'))';
+            return;
+        }
+        $parameters['entity_type'] = $metadataEntity['type'];
+        $where[] = 'EXISTS (SELECT 1 FROM spot_metadata_entities e
+            WHERE e.spot_id = ' . $alias . '.spot_id AND e.entity_type = :entity_type AND e.entity_key = :entity_key)';
+    }
+
     private function metadataSearchEnabled(): bool
     {
         if ($this->metadataSearch !== null) {
@@ -349,6 +379,15 @@ final class SpotBrowseQuery
         }
         $this->metadataSearch = $this->pdo->query("SHOW TABLES LIKE 'metadata_search_index'")->fetchColumn() !== false;
         return $this->metadataSearch;
+    }
+
+    private function metadataEntitiesEnabled(): bool
+    {
+        if ($this->metadataEntities !== null) {
+            return $this->metadataEntities;
+        }
+        $this->metadataEntities = $this->pdo->query("SHOW TABLES LIKE 'spot_metadata_entities'")->fetchColumn() !== false;
+        return $this->metadataEntities;
     }
 
     private function fulltextQuery(SearchTerms $terms): ?string

@@ -14,6 +14,7 @@ final class SpotsPageRenderer
      *  @param list<string> $filters
      *  @param list<string> $columns
      *  @param list<string>|null $available Subcategory codes that still yield results; null shows every code.
+     *  @param array{type: string, key: string}|null $metadataEntity
      */
     public static function render(
         string $username,
@@ -29,9 +30,14 @@ final class SpotsPageRenderer
         array $columns = ['cover', 'title', 'format', 'poster', 'size'],
         ?string $nextCursor = null,
         bool $favoritesOnly = false,
-        ?array $available = null
+        ?array $available = null,
+        ?array $metadataEntity = null
     ): string {
         $query = ['category' => $selectedCategory, 'subcategory' => implode(',', $filters), 'q' => $search];
+        if ($metadataEntity !== null) {
+            $query['meta_type'] = $metadataEntity['type'];
+            $query['meta_key'] = $metadataEntity['key'];
+        }
         if ($favoritesOnly) $query['favorites'] = '1';
         $heading = h($favoritesOnly ? 'Favorieten' . ($selectedCategory === null ? '' : ' - ' . $selectedCategory) : ($selectedCategory ?? 'Alle spots'));
         $activeFilters = '';
@@ -56,7 +62,7 @@ final class SpotsPageRenderer
         if ($filters !== []) {
             $headingActions .= '<div class="active-filters">' . $activeFilters . '</div>';
         }
-        if ($selectedCategory !== null || $filters !== [] || $search !== '') {
+        if ($selectedCategory !== null || $filters !== [] || $search !== '' || $metadataEntity !== null) {
             $headingActions .= '<a class="btn btn-sm btn-outline-secondary" href="' . ($favoritesOnly ? '/spots?favorites=1' : '/spots') . '">Wis filters</a>';
         }
         $headingActions .= '<a class="btn btn-sm btn-outline-secondary" href="/preferences#columns">Kolommen instellen</a>';

@@ -749,6 +749,16 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
         $selectedCategory = trim($request->queryScalar('category') ?? '') ?: null;
         $filters = SpotFilters::parse($request->queryScalar('subcategory'));
         $search = trim($request->queryScalar('q') ?? '');
+        $metadataType = trim($request->queryScalar('meta_type') ?? '');
+        $metadataKey = trim($request->queryScalar('meta_key') ?? '');
+        $metadataEntity = null;
+        if ($metadataType !== '' || $metadataKey !== '') {
+            if (!in_array($metadataType, ['actor', 'director', 'person', 'studio', 'artist'], true)
+                || preg_match('/^[a-f0-9]{40}$/D', $metadataKey) !== 1) {
+                throw new InvalidArgumentException('Ongeldige metadatafilter.');
+            }
+            $metadataEntity = ['type' => $metadataType, 'key' => $metadataKey];
+        }
         if (strlen($search) > 200 || preg_match('//u', $search) !== 1) {
             throw new InvalidArgumentException('Zoektekst moet geldige tekst van maximaal 200 bytes zijn.');
         }
@@ -757,7 +767,7 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
         if ($favorites !== null && $favorites !== '1') throw new InvalidArgumentException('Ongeldig favorietenfilter.');
         $favoritesOnly = $favorites === '1';
         $batch = $spots->batch($selectedCategory, (int) $preferences['items_per_page'], $showErotica, $filters, $search, $cursor,
-            $favoritesOnly ? $currentUser['username'] : null);
+            $favoritesOnly ? $currentUser['username'] : null, $metadataEntity);
         $batch['spots'] = (new \NnSpotty\Favorites\Repository($pdo))->annotate($batch['spots'], $currentUser['username']);
         $batch['spots'] = (new \NnSpotty\Metadata\EnrichmentRepository($pdo))->attachSummaries(
             $batch['spots'],
@@ -775,7 +785,11 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
         return Response::privateJson([
             'html' => $batch['spots'] === [] ? '' : SpotsPageRenderer::rows($batch['spots'], $columns),
             'count' => count($batch['spots']),
-            'next' => SpotsPageRenderer::nextUrl(['category' => $selectedCategory, 'subcategory' => implode(',', $filters), 'q' => $search]
+            'next' => SpotsPageRenderer::nextUrl([
+                'category' => $selectedCategory,
+                'subcategory' => implode(',', $filters),
+                'q' => $search,
+            ] + ($metadataEntity === null ? [] : ['meta_type' => $metadataEntity['type'], 'meta_key' => $metadataEntity['key']])
                 + ($favoritesOnly ? ['favorites' => '1'] : []), $batch['next']),
         ]);
     }
@@ -784,7 +798,7 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
     if (SpotCategories::headForCategory($selectedCategory) !== null) {
         try {
             $available = $spots->availableCodes($selectedCategory, $showErotica, $filters, $search,
-                $favoritesOnly ? $currentUser['username'] : null);
+                $favoritesOnly ? $currentUser['username'] : null, $metadataEntity);
         } catch (Throwable $exception) {
             // Without availability every filter stays visible; the overview itself still works.
             error_log('Spot filter availability: ' . $exception->getMessage());
@@ -805,7 +819,8 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
         columns: $columns,
         nextCursor: $batch['next'],
         favoritesOnly: $favoritesOnly,
-        available: $available
+        available: $available,
+        metadataEntity: $metadataEntity
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
@@ -825,13 +840,23 @@ $router->get('/spots/facets', static function (Request $request) use ($auth, $st
         $category = trim($request->queryScalar('category') ?? '');
         $filters = SpotFilters::parse($request->queryScalar('subcategory'));
         $search = trim($request->queryScalar('q') ?? '');
+        $metadataType = trim($request->queryScalar('meta_type') ?? '');
+        $metadataKey = trim($request->queryScalar('meta_key') ?? '');
+        $metadataEntity = null;
+        if ($metadataType !== '' || $metadataKey !== '') {
+            if (!in_array($metadataType, ['actor', 'director', 'person', 'studio', 'artist'], true)
+                || preg_match('/^[a-f0-9]{40}$/D', $metadataKey) !== 1) {
+                throw new InvalidArgumentException('Ongeldige metadatafilter.');
+            }
+            $metadataEntity = ['type' => $metadataType, 'key' => $metadataKey];
+        }
         $favorites = $request->queryScalar('favorites');
         if ($favorites !== null && $favorites !== '1') throw new InvalidArgumentException('Ongeldig favorietenfilter.');
         if (SpotCategories::headForCategory($category) === null || strlen($search) > 200 || preg_match('//u', $search) !== 1) {
             throw new InvalidArgumentException('Ongeldige categorie of zoektekst voor nieuwtellers.');
         }
         $facets = $spots->facets($category, $state->canViewErotica($user['username']), $search, $filters, $newSince,
-            $favorites === '1' ? $user['username'] : null);
+            $favorites === '1' ? $user['username'] : null, $metadataEntity);
         $counts = [];
         foreach ($facets as $facet) {
             $counts[$facet['code']] = (int) $facet['total'];

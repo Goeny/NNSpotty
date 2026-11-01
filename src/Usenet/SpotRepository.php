@@ -244,9 +244,9 @@ final class SpotRepository
             . ($showErotica ? '' : ' WHERE is_erotica = 0') . ' GROUP BY browse_type ORDER BY browse_type')->fetchAll();
     }
 
-    public function countSpots(?string $category, bool $showErotica = true, string|array|null $subcategory = null, string $search = ''): int
+    public function countSpots(?string $category, bool $showErotica = true, string|array|null $subcategory = null, string $search = '', ?array $metadataEntity = null): int
     {
-        return $this->query->count($category, $showErotica, $this->codes($subcategory), $search);
+        return $this->query->count($category, $showErotica, $this->codes($subcategory), $search, $metadataEntity);
     }
 
     /**
@@ -255,9 +255,9 @@ final class SpotRepository
      * @param array{date: string, id: int}|null $after
      * @return list<array<string, mixed>>
      */
-    public function listSpots(?string $category, int $limit, int $offset, bool $showErotica = true, string|array|null $subcategory = null, string $search = '', ?array $after = null, ?string $favoriteUser = null): array
+    public function listSpots(?string $category, int $limit, int $offset, bool $showErotica = true, string|array|null $subcategory = null, string $search = '', ?array $after = null, ?string $favoriteUser = null, ?array $metadataEntity = null): array
     {
-        $page = $this->query->page($category, $limit, $offset, $showErotica, $this->codes($subcategory), $search, $after, $favoriteUser);
+        $page = $this->query->page($category, $limit, $offset, $showErotica, $this->codes($subcategory), $search, $after, $favoriteUser, $metadataEntity);
         if ($page === []) {
             return [];
         }
@@ -281,7 +281,7 @@ final class SpotRepository
     /** @param list<string> $filters
      *  @return array{spots: list<array<string, mixed>>, next: ?string}
      */
-    public function batch(?string $category, int $limit, bool $showErotica, array $filters, string $search, ?string $cursor = null, ?string $favoriteUser = null): array
+    public function batch(?string $category, int $limit, bool $showErotica, array $filters, string $search, ?string $cursor = null, ?string $favoriteUser = null, ?array $metadataEntity = null): array
     {
         $after = null;
         if ($cursor !== null) {
@@ -296,7 +296,7 @@ final class SpotRepository
             $after = ['date' => $match[1], 'id' => (int) $match[2]];
         }
         $limit = max(10, min(200, $limit));
-        $rows = $this->listSpots($category, $limit + 1, 0, $showErotica, $filters, $search, $after, $favoriteUser);
+        $rows = $this->listSpots($category, $limit + 1, 0, $showErotica, $filters, $search, $after, $favoriteUser, $metadataEntity);
         $more = count($rows) > $limit;
         if ($more) {
             array_pop($rows);
@@ -325,32 +325,32 @@ final class SpotRepository
      * @param list<string> $filters
      * @return list<string>
      */
-    public function availableCodes(string $category, bool $showErotica, array $filters, string $search, ?string $favoriteUser): array
+    public function availableCodes(string $category, bool $showErotica, array $filters, string $search, ?string $favoriteUser, ?array $metadataEntity = null): array
     {
         $codes = $this->codes($filters);
-        if ($search === '' && $favoriteUser === null) {
+        if ($search === '' && $favoriteUser === null && $metadataEntity === null) {
             return $this->query->available($category, $showErotica, $codes);
         }
-        if ($favoriteUser === null && $this->query->broadSearch($category, $showErotica, $codes, $search)) {
+        if ($favoriteUser === null && $metadataEntity === null && $this->query->broadSearch($category, $showErotica, $codes, $search)) {
             return $this->query->available($category, $showErotica, $codes);
         }
         try {
-            $facets = $this->query->facets($category, $showErotica, $search, $filters, null, $favoriteUser, $search !== '');
+            $facets = $this->query->facets($category, $showErotica, $search, $filters, null, $favoriteUser, $search !== '', $metadataEntity);
         } catch (\PDOException $exception) {
             if ($search === '') {
                 throw $exception;
             }
             // A very broad search runs out of budget; availability without the search term is a safe superset.
-            return $favoriteUser === null ? $this->query->available($category, $showErotica, $codes)
-                : array_column($this->query->facets($category, $showErotica, '', $filters, null, $favoriteUser), 'code');
+            return ($favoriteUser === null && $metadataEntity === null) ? $this->query->available($category, $showErotica, $codes)
+                : array_column($this->query->facets($category, $showErotica, '', $filters, null, $favoriteUser, false, $metadataEntity), 'code');
         }
         return array_column($facets, 'code');
     }
 
     /** @return list<array<string, mixed>> Codes with their number of matching spots; codes without matches are omitted. */
-    public function facets(?string $category, bool $showErotica, string $search = '', array $subcategories = [], ?string $newSince = null, ?string $favoriteUser = null): array
+    public function facets(?string $category, bool $showErotica, string $search = '', array $subcategories = [], ?string $newSince = null, ?string $favoriteUser = null, ?array $metadataEntity = null): array
     {
-        return $this->query->facets($category, $showErotica, $search, $this->codes($subcategories), $newSince, $favoriteUser);
+        return $this->query->facets($category, $showErotica, $search, $this->codes($subcategories), $newSince, $favoriteUser, false, $metadataEntity);
     }
 
     /** Rebuilds the category tables; $browse also refreshes the overview read model. */

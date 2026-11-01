@@ -332,7 +332,7 @@ final class View
                 $role = strtolower((string) ($person['role'] ?? ''));
                 $entity = str_contains($type, 'actor') || str_contains($role, 'actor') ? 'actor'
                     : (str_contains($type, 'director') || str_contains($role, 'director') ? 'director' : 'person');
-                $searchUrl = '/spots?q=' . rawurlencode($name);
+                $searchUrl = self::entityUrl($entity, $name);
                 $html .= '<article class="person-card">';
                 if ($images) {
                     $html .= '<img src="' . h(($person['image'] ?? '') !== '' ? $person['image'] : '/assets/images/placeholder-small.png')
@@ -340,7 +340,7 @@ final class View
                 }
                 $html .= '<strong><a href="' . h($searchUrl) . '" title="Alles tonen voor ' . h($name) . '">' . h($name)
                     . '</a></strong><span>' . h((string) ($person['role'] ?? '')) . '</span><small>' . h((string) ($person['type'] ?? ''))
-                    . ' · <a href="' . h($searchUrl) . '" class="link-secondary">Alles met deze ' . h($entity) . '</a></small></article>';
+                    . '</small></article>';
             }
             $html .= '</div></section>';
         }
@@ -349,7 +349,7 @@ final class View
             foreach ($metadata['companies'] as $company) {
                 $name = trim((string) ($company['name'] ?? ''));
                 if ($name === '') continue;
-                $html .= '<span><a href="/spots?q=' . rawurlencode($name) . '" title="Alles tonen van studio/netwerk ' . h($name) . '">'
+                $html .= '<span><a href="' . h(self::entityUrl('studio', $name)) . '" title="Alles tonen van studio/netwerk ' . h($name) . '">'
                     . h($name) . '</a></span>';
             }
             $html .= '</div></section>';
@@ -377,5 +377,13 @@ final class View
     private static function name(string $provider): string
     {
         return $provider === 'tmdb' ? 'TMDB' : 'TheTVDB';
+    }
+
+    private static function entityUrl(string $type, string $name): string
+    {
+        return '/spots?' . http_build_query([
+            'meta_type' => $type,
+            'meta_key' => sha1(mb_strtolower(trim($name), 'UTF-8')),
+        ]);
     }
 }
