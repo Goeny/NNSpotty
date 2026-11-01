@@ -74,7 +74,11 @@ final class Controller
                 $this->audit($user, $action, $request, $id);
             } elseif ($action !== 'load') throw new \InvalidArgumentException('Onbekende muziekmetadata-actie.');
             $result = $service->lookup($spot);
-            (new EnrichmentRepository($this->pdo))->syncFromResult($spot, 'music', $result);
+            try {
+                (new EnrichmentRepository($this->pdo))->syncFromResult($spot, 'music', $result);
+            } catch (\Throwable $exception) {
+                error_log('Metadata index sync (music): ' . $exception->getMessage());
+            }
             if (!$repo->allowed($user['username'])) return Response::privateJson(['error' => 'Muziekmetadata is intussen uitgeschakeld.'], 403);
             $content = $this->state->spotContentSettings();
             if (isset($result['metadata']) && $content['images_enabled'] && $repo->fanartAllowed($user['username'])) {
