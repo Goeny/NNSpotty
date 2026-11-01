@@ -7,6 +7,7 @@ namespace NnSpotty\Metadata;
 use NnSpotty\Music\Client as MusicClient;
 use NnSpotty\Music\Repository as MusicRepository;
 use NnSpotty\Music\Service as MusicService;
+use NnSpotty\State\AppStateRepository;
 use Throwable;
 
 final class EnrichmentWorker
@@ -28,6 +29,13 @@ final class EnrichmentWorker
             return ['processed' => 0, 'matched' => 0, 'done' => 0, 'retried' => 0, 'failed' => 0, 'skipped' => 0];
         }
         $claimLimit = $limit === null ? $settings['batch_size'] : max(1, min(500, $limit));
+        $backfill = (new AppStateRepository($this->pdo))->metadataBackfillSettings();
+        if ($backfill['enabled']) {
+            $seeded = $repo->enqueueBackfill($claimLimit, $backfill['oldest_date']);
+            if ($seeded > 0) {
+                $log('Metadata-backfill: ' . $seeded . ' oudere spots aan de queue toegevoegd.');
+            }
+        }
         $jobs = $repo->claim($claimLimit);
         if ($jobs === []) {
             $log('Geen metadata-jobs klaar voor verwerking.');

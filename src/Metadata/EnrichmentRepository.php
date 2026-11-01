@@ -58,6 +58,56 @@ final class EnrichmentRepository
             ->execute([$spotId, $mediaKind]);
     }
 
+    public function enqueueBackfill(int $limit, ?string $oldestDate): int
+    {
+        $limit = max(1, min(500, $limit));
+        $where = 'q.spot_id IS NULL';
+        $parameters = [];
+        if ($oldestDate !== null) {
+            $where .= ' AND s.posted_at >= :oldest_date';
+            $parameters['oldest_date'] = $oldestDate . ' 00:00:00';
+        }
+        $select = $this->pdo->prepare('SELECT s.id, s.title, s.category, s.subcategories
+            FROM spotnet_spots s
+            LEFT JOIN metadata_enrichment_queue q ON q.spot_id = s.id
+            WHERE ' . $where . '
+            ORDER BY s.posted_at DESC, s.id DESC
+            LIMIT ' . ($limit * 4));
+        $select->execute($parameters);
+        $insert = $this->pdo->prepare('INSERT INTO metadata_enrichment_queue
+            (spot_id, media_kind, status, attempts, next_retry_at, last_error, created_at, updated_at)
+            VALUES (?, ?, \'pending\', 0, UTC_TIMESTAMP(6), NULL, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))
+            ON DUPLICATE KEY UPDATE
+                media_kind = VALUES(media_kind),
+                status = IF(status = \'done\', status, \'pending\'),
+                next_retry_at = IF(status = \'done\', next_retry_at, UTC_TIMESTAMP(6)),
+                updated_at = UTC_TIMESTAMP(6)');
+
+        $inserted = 0;
+        foreach ($select->fetchAll() as $row) {
+            $spot = [
+                'id' => (string) $row['id'],
+                'title' => (string) $row['title'],
+                'category' => (string) $row['category'],
+                'subcategories' => json_decode((string) $row['subcategories'], true, 512, JSON_THROW_ON_ERROR),
+            ];
+            $mediaKind = \NnSpotty\Music\Release::parse($spot) !== null
+                ? 'music'
+                : (Release::parse($spot) !== null ? 'video' : null);
+            if ($mediaKind === null) {
+                continue;
+            }
+            $insert->execute([$spot['id'], $mediaKind]);
+            if ($insert->rowCount() > 0) {
+                $inserted++;
+            }
+            if ($inserted >= $limit) {
+                break;
+            }
+        }
+        return $inserted;
+    }
+
     /**
      * @return list<array{id: int, spot_id: string, media_kind: string, attempts: int, spot: array{id: string, title: string, category: string, subcategories: array}}>
      */

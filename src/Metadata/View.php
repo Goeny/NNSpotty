@@ -8,8 +8,10 @@ use NnSpotty\UI\SpotPresentation;
 
 final class View
 {
-    /** @param array{enabled: bool, start_at: ?string, batch_size: int, max_retries: int}|null $enrichment */
-    public static function settings(Repository $repo, string $csrf, ?string $username = null, ?array $enrichment = null): string
+    /** @param array{enabled: bool, start_at: ?string, batch_size: int, max_retries: int}|null $enrichment
+     *  @param array{enabled: bool, oldest_date: ?string}|null $backfill
+     */
+    public static function settings(Repository $repo, string $csrf, ?string $username = null, ?array $enrichment = null, ?array $backfill = null): string
     {
         $settings = $repo->settings();
         if ($username !== null) {
@@ -39,7 +41,9 @@ final class View
         if ($enrichment === null) {
             return $html;
         }
+        $backfill ??= ['enabled' => false, 'oldest_date' => null];
         $startAt = $enrichment['start_at'] === null ? 'niet gestart' : h($enrichment['start_at']) . ' UTC';
+        $backfillOldest = is_string($backfill['oldest_date']) ? $backfill['oldest_date'] : '';
         $html .= '<section class="card my-4" id="metadata-enrichment"><div class="card-header">Automatische metadata via cron</div><div class="card-body">'
             . '<p>Alleen nieuwe spots vanaf het ingestelde startmoment worden in de verrijkingsqueue gezet. Bestaande/oude spots worden niet gebackfilled.</p>'
             . '<form method="post" action="/admin/metadata-enrichment">' . $csrf
@@ -49,6 +53,12 @@ final class View
             . '<label class="form-label mt-3" for="metadata-retries">Max retries per spot</label>'
             . '<input class="form-control" id="metadata-retries" name="max_retries" type="number" min="1" max="20" value="' . (int) $enrichment['max_retries'] . '">'
             . self::switch('reset_start', 'Startpunt op nu zetten (alleen toekomstige spots)', false)
+            . '<hr class="my-4"><h3 class="h6">Optionele backfill van oudere spots</h3>'
+            . '<p class="form-text">Alleen gebruiken als beheerder: zet tijdelijk aan om oudere spots ook in de metadataqueue te zetten. Zodra de gewenste periode klaar is, weer uitzetten.</p>'
+            . self::switch('backfill_enabled', 'Backfill van oudere spots inschakelen', $backfill['enabled'])
+            . '<label class="form-label mt-3" for="backfill-oldest-date">Oudste spotdatum voor backfill</label>'
+            . '<input class="form-control" id="backfill-oldest-date" name="backfill_oldest_date" type="date" value="' . h($backfillOldest) . '">'
+            . '<p class="form-text">Leeg = geen datumgrens. Met datum worden alleen spots vanaf deze datum verwerkt (inclusief).</p>'
             . '<button class="btn btn-primary mt-3" type="submit">Queue-instellingen opslaan</button></form>'
             . '<p class="form-text mt-3">Huidig startpunt: ' . $startAt . '. Cron voorbeeld: <code>* * * * * php bin/console metadata run --limit=25</code>.</p>'
             . '</div></section>';

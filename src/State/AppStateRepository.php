@@ -256,6 +256,48 @@ final class AppStateRepository
         $this->saveSetting('admin.cron_runner', $settings);
     }
 
+    /** @return array{enabled: bool, oldest_date: ?string} */
+    public function metadataBackfillSettings(): array
+    {
+        $stored = $this->decodeSetting('admin.metadata_backfill');
+        $settings = [
+            'enabled' => $stored['enabled'] ?? false,
+            'oldest_date' => $stored['oldest_date'] ?? null,
+        ];
+        if (!is_bool($settings['enabled'])) {
+            throw new \RuntimeException('Ongeldige opgeslagen metadata-backfill instelling.');
+        }
+        if ($settings['oldest_date'] !== null) {
+            if (!is_string($settings['oldest_date']) || preg_match('/^\d{4}-\d{2}-\d{2}$/D', $settings['oldest_date']) !== 1) {
+                throw new \RuntimeException('Ongeldige opgeslagen metadata-backfill datum.');
+            }
+            $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $settings['oldest_date']);
+            if ($date === false || $date->format('Y-m-d') !== $settings['oldest_date']) {
+                throw new \RuntimeException('Ongeldige opgeslagen metadata-backfill datum.');
+            }
+        }
+        return $settings;
+    }
+
+    /** @param array{enabled: bool, oldest_date: ?string} $settings */
+    public function saveMetadataBackfillSettings(array $settings): void
+    {
+        if (count($settings) !== 2 || !is_bool($settings['enabled'] ?? null)) {
+            throw new \InvalidArgumentException('Ongeldige metadata-backfill instellingen.');
+        }
+        $oldestDate = $settings['oldest_date'];
+        if ($oldestDate !== null) {
+            if (!is_string($oldestDate) || preg_match('/^\d{4}-\d{2}-\d{2}$/D', $oldestDate) !== 1) {
+                throw new \InvalidArgumentException('Backfill-datum moet het formaat JJJJ-MM-DD gebruiken.');
+            }
+            $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $oldestDate);
+            if ($date === false || $date->format('Y-m-d') !== $oldestDate) {
+                throw new \InvalidArgumentException('Backfill-datum is ongeldig.');
+            }
+        }
+        $this->saveSetting('admin.metadata_backfill', ['enabled' => $settings['enabled'], 'oldest_date' => $oldestDate]);
+    }
+
     /** @return array<int, list<string>> */
     public function globalSpotColumns(): array
     {

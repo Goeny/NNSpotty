@@ -167,3 +167,4 @@ Doel: metadata alleen voor **nieuwe** spots ophalen via cron, en daarna gecontro
   - `php bin/console metadata run --limit=25`
   - `php bin/console metadata status`
 - Alleen spots die **na activatie** binnenkomen worden gequeued (geen automatische backfill van oude spots).
+- Voor uitzonderingen is er een **admin-only backfilloptie**: tijdelijk oudere spots queueen met een instelbare oudste datumgrens.

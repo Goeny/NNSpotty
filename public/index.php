@@ -234,7 +234,7 @@ $router->get('/admin', static function (Request $request) use ($state, $auth, $c
                 . \NnSpotty\UI\NzbgetSettings::render((new \NnSpotty\Downloader\NzbgetRepository($pdo))->settings('central'), $csrf->field(), true, true)
             : '<p>De centrale downloadclient-koppelingen en categorietoewijzing zijn uitsluitend voor beheerders.</p>',
         metadataSettings: AdminPageRenderer::metadataPanel(
-            \NnSpotty\Metadata\View::settings($metadataRepo = new \NnSpotty\Metadata\Repository($pdo), $csrf->field(), enrichment: (new \NnSpotty\Metadata\EnrichmentRepository($pdo))->settings())
+            \NnSpotty\Metadata\View::settings($metadataRepo = new \NnSpotty\Metadata\Repository($pdo), $csrf->field(), enrichment: (new \NnSpotty\Metadata\EnrichmentRepository($pdo))->settings(), backfill: $state->metadataBackfillSettings())
                 . \NnSpotty\Metadata\View::tmdbSettings($metadataRepo, $csrf->field())
                 . \NnSpotty\Music\View::fanartCard($musicRepo = new \NnSpotty\Music\Repository($pdo), $csrf->field()),
             \NnSpotty\Metadata\View::providerForm($metadataRepo, $csrf->field(), 'movie'),
@@ -323,7 +323,7 @@ $router->post('/admin/spot-content', static function (Request $request) use ($st
     return Response::redirect('/admin?status=' . rawurlencode('Inhoudsinstellingen opgeslagen.') . '#spot-content');
 });
 
-$router->post('/admin/metadata-enrichment', static function (Request $request) use ($auth, $csrf, $pdo, $auditLogs): Response {
+$router->post('/admin/metadata-enrichment', static function (Request $request) use ($auth, $csrf, $pdo, $auditLogs, $state): Response {
     if (!$auth->can('settings.manage')) {
         return new Response(403, 'Admin login vereist.');
     }
@@ -333,7 +333,9 @@ $router->post('/admin/metadata-enrichment', static function (Request $request) u
     try {
         $enabled = $request->inputScalar('enabled');
         $reset = $request->inputScalar('reset_start');
-        if (($enabled !== null && $enabled !== '1') || ($reset !== null && $reset !== '1')) {
+        $backfillEnabled = $request->inputScalar('backfill_enabled');
+        if (($enabled !== null && $enabled !== '1') || ($reset !== null && $reset !== '1')
+            || ($backfillEnabled !== null && $backfillEnabled !== '1')) {
             throw new InvalidArgumentException('Ongeldige metadataqueue-instelling.');
         }
         $batch = trim($request->inputScalar('batch_size') ?? '');
@@ -341,9 +343,19 @@ $router->post('/admin/metadata-enrichment', static function (Request $request) u
         if (preg_match('/^\d{1,3}$/D', $batch) !== 1 || preg_match('/^\d{1,2}$/D', $retries) !== 1) {
             throw new InvalidArgumentException('Batchgrootte en retries moeten geldige gehele getallen zijn.');
         }
+        $oldestDateRaw = trim($request->inputScalar('backfill_oldest_date') ?? '');
+        $oldestDate = $oldestDateRaw === '' ? null : $oldestDateRaw;
+        if ($oldestDate !== null) {
+            $date = DateTimeImmutable::createFromFormat('!Y-m-d', $oldestDate);
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/D', $oldestDate) !== 1 || $date === false || $date->format('Y-m-d') !== $oldestDate) {
+                throw new InvalidArgumentException('Backfill-datum moet een geldige datum in formaat JJJJ-MM-DD zijn.');
+            }
+        }
         (new \NnSpotty\Metadata\EnrichmentRepository($pdo))->configure($enabled === '1', (int) $batch, (int) $retries, $reset === '1');
+        $state->saveMetadataBackfillSettings(['enabled' => $backfillEnabled === '1', 'oldest_date' => $oldestDate]);
         $auditLogs->log($auth->user()['username'], 'admin.metadata_enrichment.updated', 'settings', 'metadata_enrichment',
-            ['enabled' => $enabled === '1', 'batch_size' => (int) $batch, 'max_retries' => (int) $retries, 'reset_start' => $reset === '1'],
+            ['enabled' => $enabled === '1', 'batch_size' => (int) $batch, 'max_retries' => (int) $retries, 'reset_start' => $reset === '1',
+                'backfill_enabled' => $backfillEnabled === '1', 'backfill_oldest_date' => $oldestDate],
             $request->clientIp());
     } catch (InvalidArgumentException $exception) {
         return Response::redirect('/admin?status=' . rawurlencode($exception->getMessage()) . '#metadata-enrichment');
