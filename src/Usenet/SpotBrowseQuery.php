@@ -323,17 +323,23 @@ final class SpotBrowseQuery
         if ($fulltext) {
             $extra = $this->metadataSearchEnabled()
                 ? ' OR EXISTS (SELECT 1 FROM metadata_search_index m
-                    WHERE m.spot_id = b.spot_id AND MATCH (m.search_text) AGAINST (:search_ft IN BOOLEAN MODE))'
+                    WHERE m.spot_id = b.spot_id AND MATCH (m.search_text) AGAINST (:search_ft_meta IN BOOLEAN MODE))'
                 : '';
             $where[] = '(MATCH (b.title) AGAINST (:search_ft IN BOOLEAN MODE)' . $extra . ')';
             $parameters['search_ft'] = $this->fulltextQuery($terms);
+            if ($extra !== '') {
+                $parameters['search_ft_meta'] = $parameters['search_ft'];
+            }
         }
         $extra = $this->metadataSearchEnabled()
             ? ' OR EXISTS (SELECT 1 FROM metadata_search_index m
-                WHERE m.spot_id = b.spot_id AND m.search_text REGEXP :search_phrase)'
+                WHERE m.spot_id = b.spot_id AND m.search_text REGEXP :search_phrase_meta)'
             : '';
         $where[] = '(b.title REGEXP :search_phrase' . $extra . ')';
         $parameters['search_phrase'] = $terms->phrasePattern();
+        if ($extra !== '') {
+            $parameters['search_phrase_meta'] = $parameters['search_phrase'];
+        }
     }
 
     private function metadataSearchEnabled(): bool

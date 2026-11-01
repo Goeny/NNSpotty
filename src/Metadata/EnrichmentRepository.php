@@ -246,7 +246,7 @@ final class EnrichmentRepository
             'genres' => self::truncate(implode(', ', $genres), 2000),
             'people' => self::truncate(implode(', ', $peopleRaw), 4000),
             'companies' => self::truncate(implode(', ', $companiesRaw), 2000),
-            'aliases' => self::truncate($aliases, 1000),
+            'aliases' => self::truncate(implode(', ', $aliases), 1000),
             'imdb_id' => self::truncate((string) ($metadata['imdb_id'] ?? ''), 16),
             'tvdb_id' => self::truncate($tvdbId, 16),
             'tmdb_id' => self::truncate($tmdbId, 16),
