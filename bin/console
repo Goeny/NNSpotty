@@ -320,56 +320,6 @@ function handleMetadataCommand(array $argv, PDO $pdo): void
         fwrite(STDOUT, json_encode(['settings' => $settings, 'queue' => $counts], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . PHP_EOL);
         return;
     }
-
-    function handleCronCommand(array $argv, PDO $pdo, AppStateRepository $state): void
-    {
-        $action = $argv[2] ?? 'run';
-        if ($action !== 'run') {
-            throw new RuntimeException('Gebruik: bin/console cron run');
-        }
-
-        $settings = $state->cronSettings();
-        if (!$settings['enabled']) {
-            fwrite(STDOUT, "Cron runner staat uit; geen retrieve of metadata uitgevoerd.\n");
-            return;
-        }
-
-        if (!$settings['run_retrieve'] && !$settings['run_metadata']) {
-            fwrite(STDOUT, "Cron runner staat aan, maar retrieve en metadata staan beide uit.\n");
-            return;
-        }
-
-        if ($settings['run_retrieve']) {
-            try {
-                $retrieveResult = (new RetrieveService($pdo, $state))->run(
-                    'since-last',
-                    null,
-                    true,
-                    static function (string $message): void {
-                        fwrite(STDOUT, '[retrieve] ' . $message . PHP_EOL);
-                    }
-                );
-                fwrite(STDOUT, 'Retrieve: mode=' . $retrieveResult['mode'] . ' status=' . $retrieveResult['status'] . ' groups=' . $retrieveResult['groups'] . ' inserted=' . $retrieveResult['inserted'] . PHP_EOL);
-                fwrite(STDOUT, $retrieveResult['message'] . PHP_EOL);
-            } catch (RuntimeException $exception) {
-                if ($exception->getMessage() === 'Er draait al een retrieve proces.') {
-                    fwrite(STDOUT, "[retrieve] Overgeslagen: er draait al een retrieve proces.\n");
-                } else {
-                    throw $exception;
-                }
-            }
-        }
-
-        if ($settings['run_metadata']) {
-            $stats = (new EnrichmentWorker($pdo, \NnSpotty\Config\AppConfig::fromEnvironment()->url))->run(
-                $settings['metadata_limit'],
-                static function (string $line): void {
-                    fwrite(STDOUT, '[metadata] ' . $line . PHP_EOL);
-                }
-            );
-            fwrite(STDOUT, json_encode($stats, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) . PHP_EOL);
-        }
-    }
     if ($action === 'enable' || $action === 'disable') {
         $batch = optionInt($argv, '--batch', $repo->settings()['batch_size']) ?? 25;
         $retries = optionInt($argv, '--retries', $repo->settings()['max_retries']) ?? 5;
@@ -389,6 +339,56 @@ function handleMetadataCommand(array $argv, PDO $pdo): void
         return;
     }
     throw new RuntimeException('Gebruik: bin/console metadata status|enable|disable|run [--batch=25] [--retries=5] [--limit=25]');
+}
+
+function handleCronCommand(array $argv, PDO $pdo, AppStateRepository $state): void
+{
+    $action = $argv[2] ?? 'run';
+    if ($action !== 'run') {
+        throw new RuntimeException('Gebruik: bin/console cron run');
+    }
+
+    $settings = $state->cronSettings();
+    if (!$settings['enabled']) {
+        fwrite(STDOUT, "Cron runner staat uit; geen retrieve of metadata uitgevoerd.\n");
+        return;
+    }
+
+    if (!$settings['run_retrieve'] && !$settings['run_metadata']) {
+        fwrite(STDOUT, "Cron runner staat aan, maar retrieve en metadata staan beide uit.\n");
+        return;
+    }
+
+    if ($settings['run_retrieve']) {
+        try {
+            $retrieveResult = (new RetrieveService($pdo, $state))->run(
+                'since-last',
+                null,
+                true,
+                static function (string $message): void {
+                    fwrite(STDOUT, '[retrieve] ' . $message . PHP_EOL);
+                }
+            );
+            fwrite(STDOUT, 'Retrieve: mode=' . $retrieveResult['mode'] . ' status=' . $retrieveResult['status'] . ' groups=' . $retrieveResult['groups'] . ' inserted=' . $retrieveResult['inserted'] . PHP_EOL);
+            fwrite(STDOUT, $retrieveResult['message'] . PHP_EOL);
+        } catch (\DomainException $exception) {
+            if ($exception->getMessage() === 'Er is al een retrieve actief.') {
+                fwrite(STDOUT, "[retrieve] Overgeslagen: er draait al een retrieve proces.\n");
+            } else {
+                throw $exception;
+            }
+        }
+    }
+
+    if ($settings['run_metadata']) {
+        $stats = (new EnrichmentWorker($pdo, \NnSpotty\Config\AppConfig::fromEnvironment()->url))->run(
+            $settings['metadata_limit'],
+            static function (string $line): void {
+                fwrite(STDOUT, '[metadata] ' . $line . PHP_EOL);
+            }
+        );
+        fwrite(STDOUT, json_encode($stats, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) . PHP_EOL);
+    }
 }
 
 function optionValue(array $argv, string $name): ?string
