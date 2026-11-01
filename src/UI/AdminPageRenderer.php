@@ -47,7 +47,7 @@ final class AdminPageRenderer
             . $panels . '<p class="small text-body-secondary mt-3">Applicaties, boeken en games volgen later; voor deze categorieën wordt nog geen metadata opgehaald.</p></section>';
     }
 
-    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = [], array $spotContent = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true], bool $apiEnabled = false, string $sabSettings = '', string $metadataSettings = '',     string $spotterSettings = '', string $musicSettings = '', array $commentRetrieval = ['mode' => 'lazy', 'retention' => 0]): string
+    public static function render(array $settings, array $spotterLists, array $comments, array $auditLogs, ?string $statusMessage, string $currentUsername, string $csrfField, bool $allowErotica = false, string $theme = 'default', array $globalColumns = [], array $spotContent = ['retrieve_comments' => true, 'show_comments' => true, 'images_enabled' => true], bool $apiEnabled = false, string $sabSettings = '', string $metadataSettings = '',     string $spotterSettings = '', string $musicSettings = '', array $commentRetrieval = ['mode' => 'lazy', 'retention' => 0], array $cronSettings = ['enabled' => false, 'run_retrieve' => true, 'run_metadata' => true, 'metadata_limit' => 25]): string
     {
         $retention = (int) $settings['retention'];
         $retrieveAfter = h($settings['retrieve_after'] ?? '');
@@ -87,6 +87,34 @@ final class AdminPageRenderer
         $lazySelected = self::selectedAttr($commentRetrieval['mode'], 'lazy');
         $fullSelected = self::selectedAttr($commentRetrieval['mode'], 'full');
         $commentRetention = (int) $commentRetrieval['retention'];
+        $cronEnabled = $cronSettings['enabled'] ? 'checked' : '';
+        $cronRetrieve = $cronSettings['run_retrieve'] ? 'checked' : '';
+        $cronMetadata = $cronSettings['run_metadata'] ? 'checked' : '';
+        $cronMetadataLimit = (int) $cronSettings['metadata_limit'];
+        $cronCard = <<<HTML
+<section class="card mt-4" id="cron-runner">
+  <div class="card-header fw-semibold">Globale cron runner (retrieve + metadata)</div>
+  <form method="post" action="/admin/cron" class="card-body">
+    {$csrfField}
+    <div class="form-check form-switch mb-2">
+      <input class="form-check-input" type="checkbox" id="cron_enabled" name="enabled" value="1" {$cronEnabled}>
+      <label class="form-check-label" for="cron_enabled">Globale cron runner inschakelen</label>
+    </div>
+    <div class="form-check form-switch mb-2">
+      <input class="form-check-input" type="checkbox" id="cron_retrieve" name="run_retrieve" value="1" {$cronRetrieve}>
+      <label class="form-check-label" for="cron_retrieve">Retrieve uitvoeren</label>
+    </div>
+    <div class="form-check form-switch mb-3">
+      <input class="form-check-input" type="checkbox" id="cron_metadata" name="run_metadata" value="1" {$cronMetadata}>
+      <label class="form-check-label" for="cron_metadata">Metadataqueue uitvoeren</label>
+    </div>
+    <label class="form-label" for="cron_metadata_limit">Metadata batch per run</label>
+    <input class="form-control" id="cron_metadata_limit" name="metadata_limit" type="number" min="1" max="500" value="{$cronMetadataLimit}">
+    <p class="form-text mt-2">Gebruik 1 cronjob: <code>* * * * * php /path/to/NNSpotty/bin/console cron run</code>. Als deze runner uit staat, stopt het commando direct zonder retrieve/metadata.</p>
+    <button class="btn btn-primary" type="submit">Croninstellingen opslaan</button>
+  </form>
+</section>
+HTML;
         $contentOptions .= <<<HTML
 <div class="row g-3 mb-2">
   <div class="col-md-6">
@@ -289,6 +317,7 @@ HTML;
             </form>
           </div>
         </div>
+        {$cronCard}
       </div>
 
     </div>

@@ -242,7 +242,8 @@ $router->get('/admin', static function (Request $request) use ($state, $auth, $c
             \NnSpotty\Music\View::settings($musicRepo, $csrf->field(), includeFanart: false)),
         musicSettings: '',
         spotterSettings: $auth->can('spotters.manage') ? \NnSpotty\Moderation\View::settings(new \NnSpotty\Moderation\SpotterLists($pdo), $csrf->field()) : '',
-        commentRetrieval: $state->commentRetrievalSettings()
+        commentRetrieval: $state->commentRetrievalSettings(),
+        cronSettings: $state->cronSettings()
     );
 
     return new Response(200, $html, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'private, no-store']);
@@ -351,6 +352,42 @@ $router->post('/admin/metadata-enrichment', static function (Request $request) u
         return Response::redirect('/admin?status=' . rawurlencode('Metadataqueue-instellingen opslaan mislukt. Controleer de serverlog.') . '#metadata-enrichment');
     }
     return Response::redirect('/admin?status=' . rawurlencode('Metadataqueue-instellingen opgeslagen.') . '#metadata-enrichment');
+});
+
+$router->post('/admin/cron', static function (Request $request) use ($auth, $csrf, $state, $auditLogs): Response {
+    if (!$auth->can('settings.manage')) {
+        return new Response(403, 'Admin login vereist.');
+    }
+    if (!$csrf->verify($request->input('_csrf'))) {
+        return Response::redirect('/admin?status=' . rawurlencode('Ongeldige CSRF token.') . '#cron-runner');
+    }
+    try {
+        foreach (['enabled', 'run_retrieve', 'run_metadata'] as $field) {
+            $raw = $request->inputScalar($field);
+            if ($raw !== null && $raw !== '1') {
+                throw new InvalidArgumentException('Ongeldige cron-instelling.');
+            }
+        }
+        $metadataLimitRaw = trim($request->inputScalar('metadata_limit') ?? '');
+        if (preg_match('/^\d{1,3}$/D', $metadataLimitRaw) !== 1) {
+            throw new InvalidArgumentException('Metadata batch per run moet een geldig getal zijn.');
+        }
+        $settings = [
+            'enabled' => $request->inputScalar('enabled') === '1',
+            'run_retrieve' => $request->inputScalar('run_retrieve') === '1',
+            'run_metadata' => $request->inputScalar('run_metadata') === '1',
+            'metadata_limit' => (int) $metadataLimitRaw,
+        ];
+        $state->saveCronSettings($settings);
+        $auditLogs->log($auth->user()['username'], 'admin.cron_runner.updated', 'settings', 'cron_runner', $settings, $request->clientIp());
+    } catch (InvalidArgumentException $exception) {
+        return Response::redirect('/admin?status=' . rawurlencode($exception->getMessage()) . '#cron-runner');
+    } catch (Throwable $exception) {
+        error_log('Cron runner instellingen: ' . $exception->getMessage());
+        return Response::redirect('/admin?status=' . rawurlencode('Croninstellingen opslaan mislukt. Controleer de serverlog.') . '#cron-runner');
+    }
+
+    return Response::redirect('/admin?status=' . rawurlencode('Croninstellingen opgeslagen.') . '#cron-runner');
 });
 
 $router->post('/preferences/columns', static function (Request $request) use ($state, $auth, $csrf, $auditLogs): Response {

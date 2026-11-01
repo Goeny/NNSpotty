@@ -218,6 +218,44 @@ final class AppStateRepository
         $this->saveSetting('admin.comment_retrieval', $settings);
     }
 
+    /** @return array{enabled: bool, run_retrieve: bool, run_metadata: bool, metadata_limit: int} */
+    public function cronSettings(): array
+    {
+        $stored = $this->decodeSetting('admin.cron_runner');
+        $settings = [
+            'enabled' => $stored['enabled'] ?? false,
+            'run_retrieve' => $stored['run_retrieve'] ?? true,
+            'run_metadata' => $stored['run_metadata'] ?? true,
+            'metadata_limit' => $stored['metadata_limit'] ?? 25,
+        ];
+        foreach (['enabled', 'run_retrieve', 'run_metadata'] as $key) {
+            if (!is_bool($settings[$key])) {
+                throw new \RuntimeException('Ongeldige opgeslagen cron-instelling: ' . $key . '.');
+            }
+        }
+        if (!is_int($settings['metadata_limit']) || $settings['metadata_limit'] < 1 || $settings['metadata_limit'] > 500) {
+            throw new \RuntimeException('Ongeldige opgeslagen cron metadata-batchgrootte.');
+        }
+        return $settings;
+    }
+
+    /** @param array{enabled: bool, run_retrieve: bool, run_metadata: bool, metadata_limit: int} $settings */
+    public function saveCronSettings(array $settings): void
+    {
+        if (count($settings) !== 4) {
+            throw new \InvalidArgumentException('Onvolledige cron-instellingen.');
+        }
+        foreach (['enabled', 'run_retrieve', 'run_metadata'] as $key) {
+            if (!array_key_exists($key, $settings) || !is_bool($settings[$key])) {
+                throw new \InvalidArgumentException('Ongeldige cron-instelling: ' . $key . '.');
+            }
+        }
+        if (!is_int($settings['metadata_limit']) || $settings['metadata_limit'] < 1 || $settings['metadata_limit'] > 500) {
+            throw new \InvalidArgumentException('Metadata-batchgrootte moet tussen 1 en 500 liggen.');
+        }
+        $this->saveSetting('admin.cron_runner', $settings);
+    }
+
     /** @return array<int, list<string>> */
     public function globalSpotColumns(): array
     {

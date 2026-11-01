@@ -118,10 +118,23 @@ php bin/console retrieve --days=7 --comments-only --verbose
 - `php bin/console metadata run --limit=25`  
   Verwerkt een queuebatch (bedoeld voor cron).
 
-### Cronvoorbeeld
+### Los cronvoorbeeld (metadata-only)
 
 ```bash
 * * * * * php /path/to/NNSpotty/bin/console metadata run --limit=25
+```
+
+---
+
+## Globale cron runner
+
+- `php bin/console cron run`  
+  Draait de globale cron-runner: `retrieve --since-last` en/of metadataqueue op basis van de admininstellingen. Als de runner uit staat, stopt het commando direct zonder werk.
+
+### Aanbevolen cronvoorbeeld (enkele cronjob)
+
+```bash
+* * * * * php /path/to/NNSpotty/bin/console cron run
 ```
 
 ---
