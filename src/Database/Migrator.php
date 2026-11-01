@@ -738,7 +738,7 @@ final class Migrator
                     INDEX idx_metadata_index_year (year, provider),
                     FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
-                self::addIndex('metadata_search_index', 'ft_metadata_search', 'title, subtitle, genres, people, companies, aliases, search_text', 'FULLTEXT INDEX'),
+                self::addIndex('metadata_search_index', 'ft_metadata_search', 'search_text', 'FULLTEXT INDEX'),
                 'CREATE TABLE IF NOT EXISTS spot_metadata_entities (
                     spot_id CHAR(64) CHARACTER SET ascii NOT NULL,
                     entity_type VARCHAR(16) CHARACTER SET ascii NOT NULL,
