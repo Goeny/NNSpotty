@@ -4,6 +4,9 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
 ## [Unreleased]
 
+### Fixed
+- Spotoverzicht gebruikt bij gematchte items nu direct metadata-samenvattingen (titel/jaar en poster) en hydrateert ontbrekende metadata-indexen vanuit bestaande matches, zodat actor-/studiofilters en metadata-gebaseerde zoekresultaten consistenter zijn zonder eerst elke detailpagina te openen.
+
 ## [0.2.3] - 2026-11-02 - Lancer Evo VI TME
 
 ### Added
