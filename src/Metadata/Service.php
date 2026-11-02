@@ -84,6 +84,7 @@ final class Service
                 $found = false;
                 $warnings = [];
                 $failed = [];
+                $ambiguous = [];
                 foreach ($providers as $attempt) {
                     try {
                         $selected = $choice;
@@ -91,6 +92,10 @@ final class Service
                             $candidates = $this->search($release['query'], $release['type'], $attempt);
                             $found = $found || $candidates !== [];
                             $selected = Release::select($release, $candidates);
+                            if ($selected === null && $candidates !== []) {
+                                $ambiguous[$attempt] = array_map(static fn (array $candidate): string => trim($candidate['name'] . ' ' . ($candidate['year'] !== '' ? '(' . $candidate['year'] . ')' : '')),
+                                    array_slice($candidates, 0, 3));
+                            }
                         }
                         if ($selected === null) continue;
                         $details = $this->details($attempt, $selected['type'], $selected['id'], $choice ?? $release);
@@ -109,6 +114,18 @@ final class Service
                 if ($metadata === null) {
                     $result = ['state' => $warnings !== [] ? 'error' : ($found ? 'ambiguous' : 'unmatched'),
                         'query' => $release['query'], 'provider' => $provider, 'providers' => $providers];
+                    if ($result['state'] === 'ambiguous' && $ambiguous !== []) {
+                        $parts = [];
+                        foreach ($ambiguous as $name => $items) {
+                            if ($items === []) continue;
+                            $parts[] = strtoupper($name) . ': ' . implode(', ', $items);
+                        }
+                        if ($parts !== []) {
+                            $result['message'] = 'Meerdere plausibele matches gevonden. ' . implode(' | ', $parts);
+                        }
+                    } elseif ($result['state'] === 'unmatched') {
+                        $result['message'] = 'Geen metadata-match gevonden op basis van titel/jaar.';
+                    }
                 } else {
                     $matchedProvider = $metadata['provider'];
                     $other = $matchedProvider === 'tvdb' ? 'tmdb' : 'tvdb';

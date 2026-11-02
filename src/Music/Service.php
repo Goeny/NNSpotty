@@ -65,28 +65,30 @@ final class Service
         // Broaden discovery, not identity: automatic selection still checks the full live title.
         $title = trim(preg_replace('/\s*[\[(](?:live|concert)\b[^)\]]*[)\]]$/i', '', $release['title']));
         if ($title === '') $title = $release['title'];
+        $yearSuffix = ($release['year'] ?? null) !== null ? ' ' . (int) $release['year'] : '';
         return [
             ['query' => 'artist:' . self::quoted($release['artist']) . ' AND releasegroup:' . self::quoted($title), 'limit' => 25],
-            ['query' => $release['artist'] . ' ' . $title, 'dismax' => 'true', 'limit' => 25],
+            ['query' => trim($release['artist'] . ' ' . $title . $yearSuffix), 'dismax' => 'true', 'limit' => 25],
         ];
     }
 
     /**
      * Tries strict and relaxed searches, then the swapped "Album - Artist" order, until one unique match is found.
      *
-     * @return array{0: ?array, 1: bool} selected candidate and whether any candidate was found
+     * @return array{0: ?array, 1: bool, 2: list<string>} selected candidate, candidates found, sample labels
      */
     private function discover(array $release): array
     {
         if ($release['type'] === 'artist') {
             $candidates = $this->search($release['query'], 'artist');
-            return [Release::select($release, $candidates), $candidates !== []];
+            return [Release::select($release, $candidates), $candidates !== [], self::labels($candidates)];
         }
         $attempts = [$release];
         if ($release['artist'] !== 'Various Artists' && Release::key($release['artist']) !== Release::key($release['title'])) {
             $attempts[] = ['artist' => $release['title'], 'title' => $release['artist']] + $release;
         }
         $found = false;
+        $samples = [];
         $seen = [];
         foreach ($attempts as $attempt) {
             foreach (self::queries($attempt) as $parameters) {
@@ -95,11 +97,14 @@ final class Service
                 $seen[$key] = true;
                 $candidates = $this->rows('release-group', $this->cached('release-group', null, $parameters));
                 $found = $found || $candidates !== [];
+                if ($samples === [] && $candidates !== []) {
+                    $samples = self::labels($candidates);
+                }
                 $selected = Release::select($attempt, $candidates);
-                if ($selected !== null) return [$selected, true];
+                if ($selected !== null) return [$selected, true, $samples];
             }
         }
-        return [null, $found];
+        return [null, $found, $samples];
     }
 
     private function rows(string $type, ?array $data): array
@@ -147,6 +152,21 @@ final class Service
         return '"' . preg_replace('/([+\-&|!(){}\[\]^"~*?:\\\\\/])/', '\\\\$1', $value) . '"';
     }
 
+    /** @param list<array<string, mixed>> $candidates
+     *  @return list<string>
+     */
+    private static function labels(array $candidates): array
+    {
+        $labels = [];
+        foreach (array_slice($candidates, 0, 3) as $candidate) {
+            $name = is_string($candidate['name'] ?? null) ? trim($candidate['name']) : '';
+            if ($name === '') continue;
+            $year = is_string($candidate['year'] ?? null) && $candidate['year'] !== '' ? ' (' . $candidate['year'] . ')' : '';
+            $labels[] = $name . $year;
+        }
+        return $labels;
+    }
+
     public function lookup(array $spot): array
     {
         $release = Release::parse($spot);
@@ -164,9 +184,12 @@ final class Service
             } else {
                 $selected = $choice;
                 $found = false;
-                if ($choice === null && $release['auto']) [$selected, $found] = $this->discover($release);
+                $samples = [];
+                if ($choice === null && $release['auto']) [$selected, $found, $samples] = $this->discover($release);
                 $result = $selected === null
-                    ? ['state' => !$found && $release['auto'] ? 'unmatched' : 'ambiguous']
+                    ? ['state' => !$found && $release['auto'] ? 'unmatched' : 'ambiguous',
+                        'message' => !$found && $release['auto'] ? 'Geen muziekmetadata-match gevonden op basis van artiest/titel.'
+                            : ($samples === [] ? 'Meerdere plausibele muziekmatches gevonden.' : 'Meerdere plausibele muziekmatches gevonden: ' . implode(', ', $samples))]
                     : ['state' => 'matched', 'manual' => $choice !== null, 'metadata' => $this->details($selected['type'], $selected['id'])];
             }
             $this->repo->result($spot, $result, $result['state'] === 'matched' ? 604800 : 86400);

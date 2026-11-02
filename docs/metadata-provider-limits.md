@@ -169,3 +169,4 @@ Doel: metadata alleen voor **nieuwe** spots ophalen via cron, en daarna gecontro
 - Alleen spots die **na activatie** binnenkomen worden gequeued (geen automatische backfill van oude spots).
 - Voor uitzonderingen is er een **admin-only backfilloptie**: tijdelijk oudere spots queueen met een instelbare oudste datumgrens.
 - In admin is een metadata-activiteitsoverzicht beschikbaar (laatste 100 events) met bron (cron/handmatig/auto bij detail-open), status, provider en tijdstip.
+- Bij status **ambiguous** is de reden compact uitklapbaar in de statuskolom.

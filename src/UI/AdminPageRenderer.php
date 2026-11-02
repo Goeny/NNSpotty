@@ -415,17 +415,24 @@ HTML;
             }
             $username = $row['username'] ?? 'cron';
             $message = $row['message'] ?? '';
+            $status = h($row['fetch_state']);
+            $messageCell = $message;
+            if ($row['fetch_state'] === 'ambiguous' && $message !== '') {
+                $status = '<details class="mb-0"><summary class="text-decoration-underline">ambiguous</summary><small class="text-body-secondary">'
+                    . h($message) . '</small></details>';
+                $messageCell = '';
+            }
             $body .= '<tr>'
                 . '<td>' . h($row['created_at']) . '</td>'
                 . '<td>' . h($row['media_kind']) . '</td>'
                 . '<td>' . h($row['source']) . '</td>'
                 . '<td>' . h($username) . '</td>'
                 . '<td>' . h($row['action']) . '</td>'
-                . '<td>' . h($row['fetch_state']) . '</td>'
+                . '<td>' . $status . '</td>'
                 . '<td>' . h($provider) . '</td>'
                 . '<td title="' . h($row['spot_id']) . '">' . h($row['spot_title']) . '</td>'
                 . '<td>' . h($metadata) . '</td>'
-                . '<td>' . h($message) . '</td>'
+                . '<td>' . h($messageCell) . '</td>'
                 . '</tr>';
         }
         return '<section class="card my-4"><div class="card-header">Metadata-activiteit (laatste 100)</div><div class="card-body p-0">'

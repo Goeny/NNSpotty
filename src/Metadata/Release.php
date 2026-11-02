@@ -29,6 +29,15 @@ final class Release
             $episode = (int) $match[2][0];
             $cut = $match[0][1];
             $multi = $multi || preg_match('/^(?:[ ._-]*\d+x\d|[ -]+\d{2}\b)/i', substr($raw, $cut + strlen($match[0][0]))) === 1;
+        } elseif (preg_match('/\b(?:seizoen|season)\s*0*(\d{1,3})(?:\s*(?:-|t\/m|tm|to)\s*0*(\d{1,3}))?/i', $raw, $seasonMatch, PREG_OFFSET_CAPTURE)) {
+            $season = (int) $seasonMatch[1][0];
+            $cut = $seasonMatch[0][1];
+            $hasSeasonRange = isset($seasonMatch[2]) && $seasonMatch[2][0] !== '';
+            if (preg_match('/\b(?:aflevering|episode|ep)\s*0*(\d{1,4})(?:\s*(?:-|t\/m|tm|to)\s*0*(\d{1,4}))?/i', $raw, $episodeMatch, PREG_OFFSET_CAPTURE)) {
+                $episode = (int) $episodeMatch[1][0];
+                $multi = $multi || (isset($episodeMatch[2]) && $episodeMatch[2][0] !== '');
+            }
+            $multi = $multi || $hasSeasonRange;
         }
         $kind = $type === 'Series' || $season !== null ? 'series' : 'movie';
         $name = substr($raw, 0, $cut);
@@ -58,21 +67,44 @@ final class Release
 
     public static function select(array $release, array $candidates): ?array
     {
-        $matches = [];
         if ($release['type'] === 'movie' && ($release['multi'] ?? false)) return null;
         $title = self::normalized($release['query']);
         if ($title === '') return null;
+        $scored = [];
         foreach ($candidates as $candidate) {
             if ($candidate['type'] !== $release['type']) continue;
-            if ($release['year'] !== null && $candidate['year'] !== (string) $release['year']) continue;
             if ($release['type'] === 'movie' && $release['year'] === null) continue;
+            $bestTitleScore = 0;
             foreach ($candidate['names'] as $name) {
-                if (self::normalized($name) === $title) {
-                    $matches[$candidate['id']] = $candidate;
-                    break;
+                $candidateName = self::normalized($name);
+                if ($candidateName === $title) {
+                    $bestTitleScore = max($bestTitleScore, 100);
+                    continue;
+                }
+                similar_text($title, $candidateName, $similarity);
+                if ($similarity >= 92.0) $bestTitleScore = max($bestTitleScore, 85);
+                elseif ($similarity >= 85.0) $bestTitleScore = max($bestTitleScore, 70);
+            }
+            if ($bestTitleScore === 0) continue;
+            $yearScore = 0;
+            if ($release['year'] !== null) {
+                $candidateYear = is_string($candidate['year']) && preg_match('/^\d{4}$/D', $candidate['year']) === 1 ? (int) $candidate['year'] : null;
+                if ($candidateYear === $release['year']) {
+                    $yearScore = 25;
+                } elseif ($candidateYear !== null && abs($candidateYear - $release['year']) === 1) {
+                    $yearScore = 8;
+                } else {
+                    continue;
                 }
             }
+            $scored[] = ['score' => $bestTitleScore + $yearScore, 'candidate' => $candidate];
         }
-        return count($matches) === 1 ? array_values($matches)[0] : null;
+        if ($scored === []) return null;
+        usort($scored, static fn (array $a, array $b): int => $b['score'] <=> $a['score']);
+        if (count($scored) === 1) return $scored[0]['candidate'];
+        if ($scored[0]['score'] >= 110 && ($scored[0]['score'] - $scored[1]['score']) >= 15) {
+            return $scored[0]['candidate'];
+        }
+        return null;
     }
 }
