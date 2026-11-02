@@ -155,18 +155,23 @@ final class Repository
     public function claimRequest(): void
     {
         // Lock is installation-wide and the timestamp survives requests/workers and cache cleanup.
-        if (!$this->acquireLock('request-pacing', 10)) {
-            throw new RuntimeException('MusicBrainz-aanvraaglimiet is bezet; probeer later opnieuw.');
-        }
-        try {
-            $interval = 1250000;
-            $elapsed = $this->pdo->query('SELECT TIMESTAMPDIFF(MICROSECOND, last_request_at, UTC_TIMESTAMP(6)) FROM music_settings WHERE id = 1')->fetchColumn();
-            if ($elapsed !== null && (int) $elapsed < $interval) {
-                usleep(min($interval, max(0, $interval - (int) $elapsed)));
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            if (!$this->acquireLock('request-pacing', 3)) {
+                usleep(250000);
+                continue;
             }
-            $this->pdo->exec('UPDATE music_settings SET last_request_at = UTC_TIMESTAMP(6) WHERE id = 1');
-        } finally {
-            $this->unlock('request-pacing');
+            try {
+                $interval = 1250000;
+                $elapsed = $this->pdo->query('SELECT TIMESTAMPDIFF(MICROSECOND, last_request_at, UTC_TIMESTAMP(6)) FROM music_settings WHERE id = 1')->fetchColumn();
+                if ($elapsed !== null && (int) $elapsed < $interval) {
+                    usleep(min($interval, max(0, $interval - (int) $elapsed)));
+                }
+                $this->pdo->exec('UPDATE music_settings SET last_request_at = UTC_TIMESTAMP(6) WHERE id = 1');
+                return;
+            } finally {
+                $this->unlock('request-pacing');
+            }
         }
+        throw new RuntimeException('MusicBrainz-aanvraaglimiet is bezet; probeer later opnieuw.');
     }
 }

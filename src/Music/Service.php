@@ -167,6 +167,18 @@ final class Service
         return $labels;
     }
 
+    private static function failureReason(\Throwable $exception): string
+    {
+        $message = trim($exception->getMessage());
+        if ($message === '') {
+            return 'onbekende fout';
+        }
+        if (mb_strlen($message) > 160) {
+            return mb_substr($message, 0, 160) . '…';
+        }
+        return $message;
+    }
+
     public function lookup(array $spot): array
     {
         $release = Release::parse($spot);
@@ -198,7 +210,7 @@ final class Service
             throw $exception;
         } catch (\Throwable $exception) {
             error_log('MusicBrainz metadata: ' . $exception->getMessage());
-            $result = ['state' => 'error'];
+            $result = ['state' => 'error', 'message' => 'MusicBrainz kon niet worden opgehaald (' . self::failureReason($exception) . '). Probeer over vijf minuten opnieuw.'];
             $this->repo->result($spot, $result, 300);
             return $result;
         } finally {

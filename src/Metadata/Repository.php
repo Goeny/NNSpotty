@@ -147,23 +147,30 @@ final class Repository
         $intervalUs = $provider === 'tmdb' ? 550000 : 1100000;
         $name = $provider === 'tmdb' ? 'TMDB' : 'TVDB';
         $scope = $provider === 'tmdb' ? 'tmdb-request-budget' : 'request-budget';
-        if (!$this->acquireLock($scope, 10)) throw new \RuntimeException($name . '-aanvraaglimiet is bezet. Probeer later opnieuw.');
-        try {
-            $nextKey = $scope . ':next-at';
-            $now = microtime(true);
-            $nextAt = (float) (($this->cached($nextKey)['ts'] ?? 0.0));
-            if ($nextAt > $now) {
-                usleep((int) min(2000000, max(0, ($nextAt - $now) * 1000000)));
-                $now = microtime(true);
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            if (!$this->acquireLock($scope, 3)) {
+                usleep(250000);
+                continue;
             }
-            $this->cache($nextKey, ['ts' => $now + ($intervalUs / 1000000)], 120);
-            $key = $scope . ':' . gmdate('YmdHi');
-            $count = (int) ($this->cached($key)['count'] ?? 0);
-            if ($count >= $limit) throw new \RuntimeException($name . '-aanvraaglimiet bereikt (' . $limit . ' per minuut voor deze installatie).');
-            $this->cache($key, ['count' => $count + 1], 120);
-        } finally {
-            $this->unlock($scope);
+            try {
+                $nextKey = $scope . ':next-at';
+                $now = microtime(true);
+                $nextAt = (float) (($this->cached($nextKey)['ts'] ?? 0.0));
+                if ($nextAt > $now) {
+                    usleep((int) min(2000000, max(0, ($nextAt - $now) * 1000000)));
+                    $now = microtime(true);
+                }
+                $this->cache($nextKey, ['ts' => $now + ($intervalUs / 1000000)], 120);
+                $key = $scope . ':' . gmdate('YmdHi');
+                $count = (int) ($this->cached($key)['count'] ?? 0);
+                if ($count >= $limit) throw new \RuntimeException($name . '-aanvraaglimiet bereikt (' . $limit . ' per minuut voor deze installatie).');
+                $this->cache($key, ['count' => $count + 1], 120);
+                return;
+            } finally {
+                $this->unlock($scope);
+            }
         }
+        throw new \RuntimeException($name . '-aanvraaglimiet is bezet. Probeer later opnieuw.');
     }
 
     public function cached(string $key): ?array

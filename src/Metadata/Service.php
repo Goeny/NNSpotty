@@ -108,7 +108,7 @@ final class Service
                         throw $exception;
                     } catch (Throwable $exception) {
                         error_log('Metadata ophalen via ' . strtoupper($attempt) . ': ' . $exception->getMessage());
-                        $warnings[] = strtoupper($attempt) . ' kon niet worden opgehaald. Controleer de providertoegang en serverlog; probeer over vijf minuten opnieuw.';
+                        $warnings[] = strtoupper($attempt) . ' kon niet worden opgehaald (' . self::failureReason($exception) . '). Controleer de providertoegang en serverlog; probeer over vijf minuten opnieuw.';
                         $failed[] = $attempt;
                     }
                 }
@@ -148,6 +148,18 @@ final class Service
         } finally {
             $this->repo->unlock($spot['id']);
         }
+    }
+
+    private static function failureReason(Throwable $exception): string
+    {
+        $message = trim($exception->getMessage());
+        if ($message === '') {
+            return 'onbekende fout';
+        }
+        if (mb_strlen($message) > 160) {
+            return mb_substr($message, 0, 160) . '…';
+        }
+        return $message;
     }
 
     public function choose(array $spot, ?array $choice): void
