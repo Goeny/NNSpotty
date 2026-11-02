@@ -21,7 +21,7 @@ final class Service
 
     public static function matchSignature(array $spot, string $profile): string
     {
-        return self::signature($spot, $profile . ':release-v5');
+        return self::signature($spot, $profile . ':release-v6');
     }
 
     public function search(string $query, string $type, ?string $provider = null): array
@@ -124,6 +124,8 @@ final class Service
                         if ($parts !== []) {
                             $result['message'] = 'Meerdere plausibele matches gevonden. ' . implode(' | ', $parts);
                         }
+                    } elseif ($result['state'] === 'ambiguous') {
+                        $result['message'] = 'Meerdere plausibele matches gevonden voor: ' . $release['query'] . '.';
                     } elseif ($result['state'] === 'unmatched') {
                         $result['message'] = 'Geen metadata-match gevonden op basis van titel/jaar.';
                     }
