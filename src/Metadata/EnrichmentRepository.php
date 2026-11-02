@@ -61,19 +61,15 @@ final class EnrichmentRepository
     public function enqueueBackfill(int $limit, ?string $oldestDate): int
     {
         $limit = max(1, min(500, $limit));
-        $where = 'q.spot_id IS NULL';
+        $where = 'q.spot_id IS NULL AND s.category IN (\'Beeld\', \'Geluid\')';
         $parameters = [];
         if ($oldestDate !== null) {
             $where .= ' AND s.posted_at >= :oldest_date';
             $parameters['oldest_date'] = $oldestDate . ' 00:00:00';
         }
-        $select = $this->pdo->prepare('SELECT s.id, s.title, s.category, s.subcategories
-            FROM spotnet_spots s
-            LEFT JOIN metadata_enrichment_queue q ON q.spot_id = s.id
-            WHERE ' . $where . '
-            ORDER BY s.posted_at DESC, s.id DESC
-            LIMIT ' . ($limit * 4));
-        $select->execute($parameters);
+        $batchSize = max(50, min(2000, $limit * 4));
+        $scanCap = max($batchSize, min(50000, $limit * 200));
+        $offset = 0;
         $insert = $this->pdo->prepare('INSERT INTO metadata_enrichment_queue
             (spot_id, media_kind, status, attempts, next_retry_at, last_error, created_at, updated_at)
             VALUES (?, ?, \'pending\', 0, UTC_TIMESTAMP(6), NULL, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))
@@ -84,26 +80,40 @@ final class EnrichmentRepository
                 updated_at = UTC_TIMESTAMP(6)');
 
         $inserted = 0;
-        foreach ($select->fetchAll() as $row) {
-            $spot = [
-                'id' => (string) $row['id'],
-                'title' => (string) $row['title'],
-                'category' => (string) $row['category'],
-                'subcategories' => json_decode((string) $row['subcategories'], true, 512, JSON_THROW_ON_ERROR),
-            ];
-            $mediaKind = \NnSpotty\Music\Release::parse($spot) !== null
-                ? 'music'
-                : (Release::parse($spot) !== null ? 'video' : null);
-            if ($mediaKind === null) {
-                continue;
-            }
-            $insert->execute([$spot['id'], $mediaKind]);
-            if ($insert->rowCount() > 0) {
-                $inserted++;
-            }
-            if ($inserted >= $limit) {
+        while ($inserted < $limit && $offset < $scanCap) {
+            $select = $this->pdo->prepare('SELECT s.id, s.title, s.category, s.subcategories
+                FROM spotnet_spots s
+                LEFT JOIN metadata_enrichment_queue q ON q.spot_id = s.id
+                WHERE ' . $where . '
+                ORDER BY s.posted_at DESC, s.id DESC
+                LIMIT ' . $batchSize . ' OFFSET ' . $offset);
+            $select->execute($parameters);
+            $rows = $select->fetchAll();
+            if ($rows === []) {
                 break;
             }
+            foreach ($rows as $row) {
+                $spot = [
+                    'id' => (string) $row['id'],
+                    'title' => (string) $row['title'],
+                    'category' => (string) $row['category'],
+                    'subcategories' => json_decode((string) $row['subcategories'], true, 512, JSON_THROW_ON_ERROR),
+                ];
+                $mediaKind = \NnSpotty\Music\Release::parse($spot) !== null
+                    ? 'music'
+                    : (Release::parse($spot) !== null ? 'video' : null);
+                if ($mediaKind === null) {
+                    continue;
+                }
+                $insert->execute([$spot['id'], $mediaKind]);
+                if ($insert->rowCount() > 0) {
+                    $inserted++;
+                }
+                if ($inserted >= $limit) {
+                    break;
+                }
+            }
+            $offset += count($rows);
         }
         return $inserted;
     }
