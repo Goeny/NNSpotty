@@ -90,9 +90,10 @@ final class Service
                         $selected = $choice;
                         if ($selected === null) {
                             $candidates = $this->search($release['query'], $release['type'], $attempt);
-                            $found = $found || $candidates !== [];
-                            $selected = Release::select($release, $candidates);
-                            if ($selected === null && $candidates !== []) {
+                            $assessment = Release::assess($release, $candidates);
+                            $found = $found || $assessment['plausible'] > 0;
+                            $selected = $assessment['selected'];
+                            if ($selected === null && $assessment['plausible'] > 0 && $candidates !== []) {
                                 $ambiguous[$attempt] = array_map(static fn (array $candidate): string => trim($candidate['name'] . ' ' . ($candidate['year'] !== '' ? '(' . $candidate['year'] . ')' : '')),
                                     array_slice($candidates, 0, 3));
                             }

@@ -31,7 +31,9 @@ final class Tmdb
             if (is_string($original) && $original !== $name) $names[] = self::text($original);
             $date = $row[$type === 'movie' ? 'release_date' : 'first_air_date'] ?? '';
             $results[] = ['id' => $row['id'], 'type' => $type, 'provider' => 'tmdb', 'name' => $names[0], 'names' => $names,
-                'year' => is_string($date) && preg_match('/^\d{4}/', $date) ? substr($date, 0, 4) : ''];
+                'year' => is_string($date) && preg_match('/^\d{4}/', $date) ? substr($date, 0, 4) : '',
+                'popularity' => is_numeric($row['popularity'] ?? null) ? (float) $row['popularity'] : null,
+                'vote_count' => is_numeric($row['vote_count'] ?? null) ? (int) $row['vote_count'] : null];
         }
         return $results;
     }

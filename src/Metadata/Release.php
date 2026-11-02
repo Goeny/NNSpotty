@@ -67,18 +67,26 @@ final class Release
 
     public static function select(array $release, array $candidates): ?array
     {
-        if ($release['type'] === 'movie' && ($release['multi'] ?? false)) return null;
+        return self::assess($release, $candidates)['selected'];
+    }
+
+    /** @return array{selected:?array, plausible:int} */
+    public static function assess(array $release, array $candidates): array
+    {
+        if ($release['type'] === 'movie' && ($release['multi'] ?? false)) return ['selected' => null, 'plausible' => 0];
         $title = self::normalized($release['query']);
-        if ($title === '') return null;
+        if ($title === '') return ['selected' => null, 'plausible' => 0];
         $scored = [];
         foreach ($candidates as $candidate) {
             if ($candidate['type'] !== $release['type']) continue;
             if ($release['type'] === 'movie' && $release['year'] === null) continue;
             $bestTitleScore = 0;
+            $bestTitleExact = false;
             foreach ($candidate['names'] as $name) {
                 $candidateName = self::normalized($name);
                 if ($candidateName === $title) {
                     $bestTitleScore = max($bestTitleScore, 100);
+                    $bestTitleExact = true;
                     continue;
                 }
                 similar_text($title, $candidateName, $similarity);
@@ -87,6 +95,7 @@ final class Release
             }
             if ($bestTitleScore === 0) continue;
             $yearScore = 0;
+            $candidateYear = null;
             if ($release['year'] !== null) {
                 $candidateYear = is_string($candidate['year']) && preg_match('/^\d{4}$/D', $candidate['year']) === 1 ? (int) $candidate['year'] : null;
                 if ($candidateYear === $release['year']) {
@@ -97,14 +106,34 @@ final class Release
                     continue;
                 }
             }
-            $scored[] = ['score' => $bestTitleScore + $yearScore, 'candidate' => $candidate];
+            $scored[] = ['score' => $bestTitleScore + $yearScore, 'title_exact' => $bestTitleExact,
+                'year_exact' => $release['year'] !== null && $candidateYear === $release['year'],
+                'popularity' => is_numeric($candidate['popularity'] ?? null) ? (float) $candidate['popularity'] : null,
+                'vote_count' => is_numeric($candidate['vote_count'] ?? null) ? (int) $candidate['vote_count'] : null,
+                'candidate' => $candidate];
         }
-        if ($scored === []) return null;
+        if ($scored === []) return ['selected' => null, 'plausible' => 0];
         usort($scored, static fn (array $a, array $b): int => $b['score'] <=> $a['score']);
-        if (count($scored) === 1) return $scored[0]['candidate'];
-        if ($scored[0]['score'] >= 110 && ($scored[0]['score'] - $scored[1]['score']) >= 15) {
-            return $scored[0]['candidate'];
+        if (count($scored) === 1) return ['selected' => $scored[0]['candidate'], 'plausible' => 1];
+        if ($scored[0]['title_exact'] && $scored[0]['year_exact']) {
+            $top = array_values(array_filter($scored, static fn (array $row): bool => $row['score'] === $scored[0]['score']
+                && $row['title_exact'] && $row['year_exact']));
+            if (count($top) === 1) return ['selected' => $top[0]['candidate'], 'plausible' => count($scored)];
+            usort($top, static function (array $a, array $b): int {
+                $votes = ($b['vote_count'] ?? -1) <=> ($a['vote_count'] ?? -1);
+                if ($votes !== 0) return $votes;
+                $popularity = ($b['popularity'] ?? -1.0) <=> ($a['popularity'] ?? -1.0);
+                if ($popularity !== 0) return $popularity;
+                return 0;
+            });
+            if (($top[0]['vote_count'] ?? null) !== ($top[1]['vote_count'] ?? null)
+                || ($top[0]['popularity'] ?? null) !== ($top[1]['popularity'] ?? null)) {
+                return ['selected' => $top[0]['candidate'], 'plausible' => count($scored)];
+            }
         }
-        return null;
+        if ($scored[0]['score'] >= 110 && ($scored[0]['score'] - $scored[1]['score']) >= 15) {
+            return ['selected' => $scored[0]['candidate'], 'plausible' => count($scored)];
+        }
+        return ['selected' => null, 'plausible' => count($scored)];
     }
 }
