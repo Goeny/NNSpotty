@@ -135,8 +135,13 @@ final class Repository
 
     public function lock(string $key): bool
     {
-        $query = $this->pdo->prepare('SELECT GET_LOCK(?, 0)');
-        $query->execute(['music:' . substr(hash('sha256', $key), 0, 58)]);
+        return $this->acquireLock($key, 0);
+    }
+
+    private function acquireLock(string $key, int $timeout): bool
+    {
+        $query = $this->pdo->prepare('SELECT GET_LOCK(?, ?)');
+        $query->execute(['music:' . substr(hash('sha256', $key), 0, 58), $timeout]);
         return (int) $query->fetchColumn() === 1;
     }
 
@@ -150,10 +155,15 @@ final class Repository
     public function claimRequest(): void
     {
         // Lock is installation-wide and the timestamp survives requests/workers and cache cleanup.
-        if (!$this->lock('request-pacing')) throw new RuntimeException('MusicBrainz-aanvraaglimiet is bezet; probeer later opnieuw.');
+        if (!$this->acquireLock('request-pacing', 10)) {
+            throw new RuntimeException('MusicBrainz-aanvraaglimiet is bezet; probeer later opnieuw.');
+        }
         try {
+            $interval = 1250000;
             $elapsed = $this->pdo->query('SELECT TIMESTAMPDIFF(MICROSECOND, last_request_at, UTC_TIMESTAMP(6)) FROM music_settings WHERE id = 1')->fetchColumn();
-            if ($elapsed !== null && (int) $elapsed < 1100000) usleep(min(1100000, max(0, 1100000 - (int) $elapsed)));
+            if ($elapsed !== null && (int) $elapsed < $interval) {
+                usleep(min($interval, max(0, $interval - (int) $elapsed)));
+            }
             $this->pdo->exec('UPDATE music_settings SET last_request_at = UTC_TIMESTAMP(6) WHERE id = 1');
         } finally {
             $this->unlock('request-pacing');

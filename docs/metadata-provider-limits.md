@@ -53,7 +53,7 @@ Onderstaande defaults zijn bewust conservatief en bedoeld als veilige startwaard
 |---|---:|---|
 | TMDB | 120 requests/min | Bij `429`: exponential backoff met jitter, daarna retry |
 | TheTVDB | 60 requests/min | Bij `429`/`503`: exponential backoff met jitter, daarna retry |
-| MusicBrainz | 1 request per seconde | Bij `503`: vaste vertraging + retry met oplopende wachttijd |
+| MusicBrainz | 1 request per seconde (runtime gepaced op minimaal ~1.25s tussen calls) | Bij `503`: vaste vertraging + retry met oplopende wachttijd |
 | Fanart.tv | 30 requests/min | Bij `429`/`503`: exponential backoff met jitter, daarna retry |
 
 ### Backoff-richtlijn
