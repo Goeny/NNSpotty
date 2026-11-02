@@ -229,8 +229,18 @@ final class EnrichmentRepository
                 'genres' => array_values(array_filter(array_map('trim', explode(',', (string) $row['genres'])))),
             ];
         }
+        $cached = $this->matchedMetadataBySpotIds($ids);
         foreach ($spots as &$spot) {
             $summary = $index[$spot['id']] ?? null;
+            $cachedMatch = $cached[$spot['id']] ?? null;
+            if ($summary === null && $cachedMatch !== null) {
+                try {
+                    $this->syncFromResult(['id' => (string) $spot['id'], 'title' => (string) $spot['title']], $cachedMatch['media_kind'], $cachedMatch['result']);
+                } catch (\Throwable $exception) {
+                    error_log('Metadata-index hydration (' . $spot['id'] . '): ' . $exception->getMessage());
+                }
+                $summary = self::summaryFromResult($cachedMatch['media_kind'], $cachedMatch['result']);
+            }
             if ($summary === null) {
                 continue;
             }
@@ -238,9 +248,80 @@ final class EnrichmentRepository
                 continue;
             }
             $spot['metadata_summary'] = $summary;
+            $metadata = is_array($cachedMatch) && is_array($cachedMatch['result']['metadata'] ?? null) ? $cachedMatch['result']['metadata'] : null;
+            $poster = is_array($metadata) ? (string) (($metadata['poster'] ?? '') ?: ($metadata['still'] ?? '')) : '';
+            if ($poster !== '' && preg_match('~^https?://~i', $poster) === 1) {
+                $spot['metadata_poster'] = $poster;
+            }
         }
         unset($spot);
         return $spots;
+    }
+
+    /** @param list<string> $ids
+     *  @return array<string, array{media_kind: string, result: array<string, mixed>}>
+     */
+    private function matchedMetadataBySpotIds(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+        $placeholder = implode(',', array_fill(0, count($ids), '?'));
+        $queries = [
+            'video' => 'SELECT spot_id, result_json FROM tvdb_matches WHERE spot_id IN (' . $placeholder . ') AND expires_at > UTC_TIMESTAMP()',
+            'music' => 'SELECT spot_id, result_json FROM music_matches WHERE spot_id IN (' . $placeholder . ') AND expires_at > UTC_TIMESTAMP()',
+        ];
+        $result = [];
+        foreach ($queries as $kind => $sql) {
+            $statement = $this->pdo->prepare($sql);
+            $statement->execute($ids);
+            foreach ($statement->fetchAll() as $row) {
+                try {
+                    $decoded = is_string($row['result_json'] ?? null) ? json_decode($row['result_json'], true, 64, JSON_THROW_ON_ERROR) : null;
+                } catch (\Throwable) {
+                    continue;
+                }
+                if (!is_array($decoded) || ($decoded['state'] ?? '') !== 'matched' || !is_array($decoded['metadata'] ?? null)) {
+                    continue;
+                }
+                $result[(string) $row['spot_id']] = ['media_kind' => $kind, 'result' => $decoded];
+            }
+        }
+        return $result;
+    }
+
+    /** @param array<string, mixed> $result
+     *  @return array{media_kind: string, provider: string, title: string, year: ?int, genres: list<string>}|null
+     */
+    private static function summaryFromResult(string $mediaKind, array $result): ?array
+    {
+        $metadata = is_array($result['metadata'] ?? null) ? $result['metadata'] : null;
+        if ($metadata === null) {
+            return null;
+        }
+        $title = trim((string) ($metadata['title'] ?? ''));
+        if ($title === '') {
+            return null;
+        }
+        $year = null;
+        if (is_int($metadata['year'] ?? null)) {
+            $year = (int) $metadata['year'];
+        } elseif (preg_match('/\b((?:19|20)\d{2})\b/', (string) ($metadata['date'] ?? ''), $match) === 1) {
+            $year = (int) $match[1];
+        }
+        $genres = [];
+        foreach (($metadata['genres'] ?? []) as $genre) {
+            if (is_string($genre) && trim($genre) !== '') {
+                $genres[] = trim($genre);
+            }
+        }
+        return [
+            'media_kind' => $mediaKind,
+            'provider' => strtoupper((string) ($metadata['provider'] ?? ($mediaKind === 'music' ? 'musicbrainz' : 'tvdb'))),
+            'title' => $title,
+            'year' => $year,
+            'genres' => $genres,
+        ];
     }
 
     private function clearIndex(string $spotId): void

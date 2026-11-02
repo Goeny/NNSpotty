@@ -126,6 +126,8 @@ HTML;
             $format = implode(', ', $details['Formaat'] ?? $details['Platform'] ?? []);
             $genre = implode(', ', $details['Genre'] ?? $details['Soort applicatie'] ?? []);
             $subtitle = implode(' · ', array_filter([$spot['browse_type'] ?? $spot['category'], implode(', ', $details['Bron'] ?? [])]));
+            $displayTitle = (string) $spot['title'];
+            $qualityChips = '';
             $metadataSummary = '';
             if (is_array($spot['metadata_summary'] ?? null)) {
                 $summary = $spot['metadata_summary'];
@@ -137,13 +139,30 @@ HTML;
                 if ($parts !== []) {
                     $metadataSummary = '<div class="spot-subtitle">' . h(implode(' · ', $parts)) . '</div>';
                 }
+                $matchedTitle = trim((string) ($summary['title'] ?? ''));
+                if ($matchedTitle !== '') {
+                    $displayTitle = $matchedTitle;
+                    $year = isset($summary['year']) && is_int($summary['year']) ? $summary['year'] : null;
+                    if ($year !== null && !preg_match('/\(' . preg_quote((string) $year, '/') . '\)/', $displayTitle)) {
+                        $displayTitle .= ' (' . $year . ')';
+                    }
+                    if (strcasecmp($matchedTitle, (string) $spot['title']) !== 0) {
+                        $subtitle = 'Origineel: ' . $spot['title'] . ' · ' . $subtitle;
+                    }
+                    $qualityChips = self::qualityChips((string) $spot['title']);
+                }
             }
             $detailUrl = '/spots/view?key=' . rawurlencode($spot['id']);
+            $coverSpot = $spot;
+            if (is_string($spot['metadata_poster'] ?? null) && $spot['metadata_poster'] !== '') {
+                $coverSpot['image_segments'] = [];
+                $coverSpot['image_url'] = $spot['metadata_poster'];
+            }
             $values = [
-                'cover' => SpotPresentation::image($spot, true),
+                'cover' => SpotPresentation::image($coverSpot, true),
                 'title' => '<div class="spot-title-line">' . \NnSpotty\Favorites\View::button($spot)
                     . '<div><a class="spot-title" data-preview="' . h($spot['id']) . '" href="' . $detailUrl . '" aria-controls="preview" aria-expanded="false">'
-                    . h($spot['title']) . '</a><div class="spot-subtitle">' . h($subtitle) . '</div>' . $metadataSummary . '</div></div>',
+                    . h($displayTitle) . '</a><div class="spot-subtitle">' . h($subtitle) . '</div>' . $metadataSummary . $qualityChips . '</div></div>',
                 'format' => $format !== '' ? '<span class="format-badge">' . h($format) . '</span>' : '&mdash;',
                 'genre' => h($genre),
                 'poster' => h($spot['poster'])
@@ -159,5 +178,20 @@ HTML;
             $rows .= '</tr>';
         }
         return $rows;
+    }
+
+    private static function qualityChips(string $title): string
+    {
+        $parsed = SpotReleaseQuality::parse($title);
+        if ($parsed === []) {
+            return '';
+        }
+        $chips = [];
+        foreach (['Video', 'Audio'] as $group) {
+            foreach (array_slice($parsed[$group] ?? [], 0, 2) as $value) {
+                $chips[] = '<span class="quality-badge quality-badge-format">' . h($value) . '</span>';
+            }
+        }
+        return $chips === [] ? '' : '<div class="quality-badges mt-1">' . implode('', $chips) . '</div>';
     }
 }
