@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NnSpotty\UI;
 
+use NnSpotty\Metadata\Release as MetadataRelease;
 use NnSpotty\Usenet\SpotCategories;
 use NnSpotty\Usenet\SpotFilters;
 
@@ -146,6 +147,7 @@ HTML;
                     if ($year !== null && !preg_match('/\(' . preg_quote((string) $year, '/') . '\)/', $displayTitle)) {
                         $displayTitle .= ' (' . $year . ')';
                     }
+                    $displayTitle .= self::seriesSuffix((string) $spot['title'], $displayTitle);
                     $qualityChips = self::qualityChips((string) $spot['title']);
                 }
             }
@@ -191,5 +193,20 @@ HTML;
             }
         }
         return $chips === [] ? '' : '<div class="quality-badges quality-badges-compact mt-1">' . implode('', $chips) . '</div>';
+    }
+
+    private static function seriesSuffix(string $originalTitle, string $displayTitle): string
+    {
+        $parsed = MetadataRelease::parse(['title' => $originalTitle, 'category' => 'Beeld', 'subcategories' => []]);
+        if (!is_array($parsed) || ($parsed['type'] ?? '') !== 'series' || !is_int($parsed['season'] ?? null)) {
+            return '';
+        }
+        $season = (int) $parsed['season'];
+        $episode = is_int($parsed['episode'] ?? null) ? (int) $parsed['episode'] : null;
+        $suffix = $episode === null ? sprintf('S%02d', $season) : sprintf('S%02dE%02d', $season, $episode);
+        if (preg_match('/\b' . preg_quote($suffix, '/') . '\b/i', $displayTitle) === 1) {
+            return '';
+        }
+        return ' · ' . $suffix;
     }
 }
