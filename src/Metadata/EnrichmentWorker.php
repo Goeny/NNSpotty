@@ -46,12 +46,14 @@ final class EnrichmentWorker
         $videoService = new Service($videoRepo, new Client($videoRepo), new TmdbClient($videoRepo));
         $musicRepo = new MusicRepository($this->pdo);
         $musicService = new MusicService($musicRepo, new MusicClient($musicRepo, $this->publicAppUrl));
+        $fetchLogs = new FetchLogRepository($this->pdo);
         $stats = ['processed' => 0, 'matched' => 0, 'done' => 0, 'retried' => 0, 'failed' => 0, 'skipped' => 0];
         foreach ($jobs as $job) {
             $stats['processed']++;
             $spot = $job['spot'];
             try {
                 $result = $job['media_kind'] === 'music' ? $musicService->lookup($spot) : $videoService->lookup($spot);
+                $fetchLogs->record($job['media_kind'], 'cron', null, 'cron_run', ['id' => $spot['id'], 'title' => $spot['title']], $result);
                 $repo->syncFromResult($spot, $job['media_kind'], $result);
                 $state = (string) ($result['state'] ?? 'error');
                 if ($state === 'matched') {
@@ -73,6 +75,10 @@ final class EnrichmentWorker
                 $repo->complete($job['id'], 'failed', self::message($result), self::retryAt($job['attempts']));
                 $stats['retried']++;
             } catch (Throwable $exception) {
+                $fetchLogs->record($job['media_kind'], 'cron', null, 'cron_run', ['id' => $spot['id'], 'title' => $spot['title']], [
+                    'state' => 'error',
+                    'message' => $exception->getMessage(),
+                ]);
                 if ($job['attempts'] >= $settings['max_retries']) {
                     $repo->complete($job['id'], 'failed', $exception->getMessage());
                     $stats['failed']++;

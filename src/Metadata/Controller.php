@@ -99,7 +99,17 @@ final class Controller
             } elseif ($action !== 'load') {
                 throw new InvalidArgumentException('Onbekende metadata-actie.');
             }
-            $result = $service->lookup($spot);
+            $source = $action === 'load' ? 'detail_open_auto' : 'manual_link';
+            try {
+                $result = $service->lookup($spot);
+            } catch (Throwable $exception) {
+                (new FetchLogRepository($this->pdo))->record('video', $source, $user['username'], $action, ['id' => $spot['id'], 'title' => $spot['title']], [
+                    'state' => 'error',
+                    'message' => $exception->getMessage(),
+                ]);
+                throw $exception;
+            }
+            (new FetchLogRepository($this->pdo))->record('video', $source, $user['username'], $action, ['id' => $spot['id'], 'title' => $spot['title']], $result);
             try {
                 (new EnrichmentRepository($this->pdo))->syncFromResult($spot, 'video', $result);
             } catch (Throwable $exception) {

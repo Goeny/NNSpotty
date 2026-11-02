@@ -750,6 +750,28 @@ final class Migrator
                     FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             ],
+            '20261102_0029_metadata_fetch_logs' => [
+                'CREATE TABLE IF NOT EXISTS metadata_fetch_logs (
+                    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    spot_id CHAR(64) CHARACTER SET ascii NOT NULL,
+                    spot_title VARCHAR(255) NOT NULL,
+                    media_kind VARCHAR(16) CHARACTER SET ascii NOT NULL,
+                    source VARCHAR(24) CHARACTER SET ascii NOT NULL,
+                    username VARCHAR(191) NULL,
+                    action VARCHAR(24) CHARACTER SET ascii NOT NULL,
+                    provider VARCHAR(20) CHARACTER SET ascii NOT NULL,
+                    fetch_state VARCHAR(16) CHARACTER SET ascii NOT NULL,
+                    metadata_title VARCHAR(255) NOT NULL DEFAULT \'\',
+                    metadata_year SMALLINT UNSIGNED NULL,
+                    message VARCHAR(500) NULL,
+                    created_at DATETIME(6) NOT NULL,
+                    INDEX idx_metadata_fetch_created (created_at, id),
+                    INDEX idx_metadata_fetch_source (source, created_at, id),
+                    INDEX idx_metadata_fetch_spot (spot_id, created_at, id),
+                    INDEX idx_metadata_fetch_state (fetch_state, created_at, id),
+                    INDEX idx_metadata_fetch_username (username, created_at, id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+            ],
         ];
     }
 }

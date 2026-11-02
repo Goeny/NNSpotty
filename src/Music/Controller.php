@@ -12,6 +12,7 @@ use NnSpotty\State\AppStateRepository;
 use NnSpotty\UI\SpotDetailPageRenderer;
 use NnSpotty\Usenet\SpotRepository;
 use NnSpotty\Metadata\EnrichmentRepository;
+use NnSpotty\Metadata\FetchLogRepository;
 use PDO;
 
 final class Controller
@@ -73,7 +74,17 @@ final class Controller
                 $service->choose($spot, $choice);
                 $this->audit($user, $action, $request, $id);
             } elseif ($action !== 'load') throw new \InvalidArgumentException('Onbekende muziekmetadata-actie.');
-            $result = $service->lookup($spot);
+            $source = $action === 'load' ? 'detail_open_auto' : 'manual_link';
+            try {
+                $result = $service->lookup($spot);
+            } catch (\Throwable $exception) {
+                (new FetchLogRepository($this->pdo))->record('music', $source, $user['username'], $action, ['id' => $spot['id'], 'title' => $spot['title']], [
+                    'state' => 'error',
+                    'message' => $exception->getMessage(),
+                ]);
+                throw $exception;
+            }
+            (new FetchLogRepository($this->pdo))->record('music', $source, $user['username'], $action, ['id' => $spot['id'], 'title' => $spot['title']], $result);
             try {
                 (new EnrichmentRepository($this->pdo))->syncFromResult($spot, 'music', $result);
             } catch (\Throwable $exception) {

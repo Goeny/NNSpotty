@@ -32,10 +32,13 @@ final class AdminPageRenderer
      * @param array<int, array{actor_username: string, action: string, target_type: string, target_id: string, details_json: string, ip_address: string, created_at: string}> $auditLogs
      */
     /** Metadata admin tab: shared provider access plus one sub-tab per media type. */
-    public static function metadataPanel(string $providers, string $movies, string $series, string $music): string
+    public static function metadataPanel(string $providers, string $movies, string $series, string $music, string $activity = ''): string
     {
         $tabs = ['metadata-providers' => ['Providers', $providers], 'metadata-movies' => ['Films', $movies],
             'metadata-series' => ['Series', $series], 'metadata-music' => ['Muziek', $music]];
+        if ($activity !== '') {
+            $tabs['metadata-activity'] = ['Activiteit', $activity];
+        }
         $nav = '';
         $panels = '';
         foreach ($tabs as $id => [$label, $html]) {
@@ -75,6 +78,7 @@ final class AdminPageRenderer
         if ($statusMessage !== null) {
             $statusAlert = '<div class="alert alert-info" role="alert">' . h($statusMessage) . '</div>';
         }
+
         $safeCurrentUsername = h($currentUsername);
         $columnForm = SpotColumns::form($globalColumns !== [] ? $globalColumns : SpotColumns::defaults(), null, $csrfField);
         $eroticaChecked = $allowErotica ? 'checked' : '';
@@ -394,6 +398,40 @@ HTML;
   </div>
 HTML;
         return SpotLayout::render('Beheerpanel', $currentUsername, true, $csrfField, $content, theme: $theme);
+    }
+
+    /** @param list<array{created_at: string, media_kind: string, source: string, username: ?string, action: string, fetch_state: string, provider: string, spot_id: string, spot_title: string, metadata_title: string, metadata_year: ?int, message: ?string}> $rows */
+    public static function metadataActivity(array $rows): string
+    {
+        if ($rows === []) {
+            return '<section class="card my-4"><div class="card-header">Metadata-activiteit</div><div class="card-body"><p class="text-body-secondary mb-0">Nog geen metadata-activiteit geregistreerd.</p></div></section>';
+        }
+        $body = '';
+        foreach ($rows as $row) {
+            $provider = $row['provider'] === '' ? '-' : strtoupper($row['provider']);
+            $metadata = trim($row['metadata_title']) !== '' ? $row['metadata_title'] : '-';
+            if ($row['metadata_year'] !== null) {
+                $metadata .= ' (' . $row['metadata_year'] . ')';
+            }
+            $username = $row['username'] ?? 'cron';
+            $message = $row['message'] ?? '';
+            $body .= '<tr>'
+                . '<td>' . h($row['created_at']) . '</td>'
+                . '<td>' . h($row['media_kind']) . '</td>'
+                . '<td>' . h($row['source']) . '</td>'
+                . '<td>' . h($username) . '</td>'
+                . '<td>' . h($row['action']) . '</td>'
+                . '<td>' . h($row['fetch_state']) . '</td>'
+                . '<td>' . h($provider) . '</td>'
+                . '<td title="' . h($row['spot_id']) . '">' . h($row['spot_title']) . '</td>'
+                . '<td>' . h($metadata) . '</td>'
+                . '<td>' . h($message) . '</td>'
+                . '</tr>';
+        }
+        return '<section class="card my-4"><div class="card-header">Metadata-activiteit (laatste 100)</div><div class="card-body p-0">'
+            . '<div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr>'
+            . '<th>Tijd (UTC)</th><th>Type</th><th>Bron</th><th>Gebruiker</th><th>Actie</th><th>Status</th><th>Provider</th><th>Spot</th><th>Metadata</th><th>Melding</th>'
+            . '</tr></thead><tbody>' . $body . '</tbody></table></div></div></section>';
     }
 
     /**
