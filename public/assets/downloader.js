@@ -297,7 +297,7 @@
         const subAliases = {'music-metadata': 'metadata-music', fanart: 'metadata-providers', 'tvdb-settings': 'metadata-providers', 'tmdb-settings': 'metadata-providers'};
         const aliases = admin ? {'spot-content': 'appearance', columns: 'appearance', 'music-metadata': 'metadata', fanart: 'metadata',
             'tvdb-settings': 'metadata', 'tmdb-settings': 'metadata', 'metadata-providers': 'metadata', 'metadata-movies': 'metadata',
-            'metadata-series': 'metadata', 'metadata-music': 'metadata'} : {};
+            'metadata-series': 'metadata', 'metadata-music': 'metadata', 'metadata-activity': 'metadata'} : {};
         function select() {
             const hash = location.hash.slice(1);
             const selected = panels.find(panel => panel.getAttribute(attribute) === (aliases[hash] || hash))?.getAttribute(attribute)
