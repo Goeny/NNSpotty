@@ -51,7 +51,7 @@ final class Release
                 break;
             }
         }
-        $name = preg_split('/\b(?:2160p|1080[pi]|720p|480p|4K|UHD|Ultra[ .-]?HD|WEB[- .]?DL|WEBRip|Blu[ .-]?Ray|BDRip|BRRip|DVDRip|HDTV|x26[45]|h[ .]?26[45]|HEVC|REMUX|COMPLETE|REPACK|PROPER|MULTISUBS|NL[ ._-]?(?:RETAIL)?SUBS|IMAX|Theatrical[ .-]+(?:Version|Cut)|Extended[ .-]+(?:Edition|Cut)|Director.?s[ .-]+Cut)\b/i', $name, 2)[0];
+        $name = preg_split('/\b(?:2160p|1080[pi]|720p|480p|4K|UHD|Ultra[ .-]?HD|WEB[- .]?DL|WEBRip|Blu[ .-]?Ray|BDRip|BRRip|DVDRip|HDTV|x26[45]|h[ .]?26[45]|HEVC|REMUX|DV|DoVi|Dolby[ .-]?Vision|COMPLETE|REPACK|PROPER|MULTISUBS|NL[ ._-]?(?:RETAIL)?SUBS|IMAX|Theatrical[ .-]+(?:Version|Cut)|Extended[ .-]+(?:Edition|Cut)|Director.?s[ .-]+Cut)\b/i', $name, 2)[0];
         $name = trim(preg_replace('/[._]+/', ' ', $name), " \t\n\r\0\x0B-()[]");
         if (strlen($name) < 2 || strlen($name) > 200) return null;
         return ['type' => $kind, 'query' => $name, 'year' => $year, 'season' => $season,
@@ -60,6 +60,7 @@ final class Release
 
     public static function normalized(string $title): string
     {
+        $title = preg_replace('/\s*&\s*/u', ' and ', $title) ?? $title;
         $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $title);
         $normalized = preg_replace('/[^a-z0-9]+/', '', strtolower($ascii === false ? $title : $ascii));
         return $normalized !== '' ? $normalized : preg_replace('/[^\p{L}\p{N}]+/u', '', $title);
