@@ -146,9 +146,6 @@ HTML;
                     if ($year !== null && !preg_match('/\(' . preg_quote((string) $year, '/') . '\)/', $displayTitle)) {
                         $displayTitle .= ' (' . $year . ')';
                     }
-                    if (strcasecmp($matchedTitle, (string) $spot['title']) !== 0) {
-                        $subtitle = 'Origineel: ' . $spot['title'] . ' · ' . $subtitle;
-                    }
                     $qualityChips = self::qualityChips((string) $spot['title']);
                 }
             }
@@ -188,10 +185,11 @@ HTML;
         }
         $chips = [];
         foreach (['Video', 'Audio'] as $group) {
-            foreach (array_slice($parsed[$group] ?? [], 0, 2) as $value) {
-                $chips[] = '<span class="quality-badge quality-badge-format">' . h($value) . '</span>';
+            $value = ($parsed[$group] ?? [])[0] ?? null;
+            if (is_string($value) && $value !== '') {
+                $chips[] = '<span class="quality-badge quality-badge-format quality-badge-compact">' . h($value) . '</span>';
             }
         }
-        return $chips === [] ? '' : '<div class="quality-badges mt-1">' . implode('', $chips) . '</div>';
+        return $chips === [] ? '' : '<div class="quality-badges quality-badges-compact mt-1">' . implode('', $chips) . '</div>';
     }
 }

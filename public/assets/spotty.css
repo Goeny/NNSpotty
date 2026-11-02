@@ -253,6 +253,8 @@
 .quality-badges { display: flex; flex-wrap: wrap; gap: 6px; }
 .quality-badge { display: inline-flex; align-items: center; justify-content: center; min-height: 30px; max-width: 100%; padding: 4px 9px; border: 1px solid var(--spot-border); border-radius: 5px; background: var(--spot-bg); color: var(--bs-body-color); font-size: .75rem; line-height: 1.35; overflow-wrap: anywhere; text-align: center; }
 .quality-badge-format { border-color: var(--spot-muted); font-weight: 750; letter-spacing: .035em; }
+.quality-badges-compact { gap: 4px; }
+.quality-badge-compact { min-height: 20px; padding: 1px 6px; border-radius: 4px; font-size: .64rem; line-height: 1.15; letter-spacing: .02em; }
 .release-quality > small { display: block; font-size: .7rem; }
 .episode-hero .spot-poster { height: auto; aspect-ratio: 16 / 9; }
 .episode-hero .poster-enlarge { height: auto; aspect-ratio: 16 / 9; }
