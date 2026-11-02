@@ -142,12 +142,21 @@ final class Repository
 
     public function claimRequest(string $provider = 'tvdb'): void
     {
-        // TVDB budget stays at 90/min; TMDB allows ~50/s, keep a modest 240/min per installation.
-        $limit = $provider === 'tmdb' ? 240 : 90;
+        // Conservative installation-wide defaults aligned with provider policy docs.
+        $limit = $provider === 'tmdb' ? 120 : 60;
+        $intervalUs = $provider === 'tmdb' ? 550000 : 1100000;
         $name = $provider === 'tmdb' ? 'TMDB' : 'TVDB';
         $scope = $provider === 'tmdb' ? 'tmdb-request-budget' : 'request-budget';
-        if (!$this->lock($scope)) throw new \RuntimeException($name . '-aanvraaglimiet is bezet. Probeer later opnieuw.');
+        if (!$this->acquireLock($scope, 10)) throw new \RuntimeException($name . '-aanvraaglimiet is bezet. Probeer later opnieuw.');
         try {
+            $nextKey = $scope . ':next-at';
+            $now = microtime(true);
+            $nextAt = (float) (($this->cached($nextKey)['ts'] ?? 0.0));
+            if ($nextAt > $now) {
+                usleep((int) min(2000000, max(0, ($nextAt - $now) * 1000000)));
+                $now = microtime(true);
+            }
+            $this->cache($nextKey, ['ts' => $now + ($intervalUs / 1000000)], 120);
             $key = $scope . ':' . gmdate('YmdHi');
             $count = (int) ($this->cached($key)['count'] ?? 0);
             if ($count >= $limit) throw new \RuntimeException($name . '-aanvraaglimiet bereikt (' . $limit . ' per minuut voor deze installatie).');
@@ -212,8 +221,13 @@ final class Repository
 
     public function lock(string $key): bool
     {
-        $query = $this->pdo->prepare('SELECT GET_LOCK(?, 0)');
-        $query->execute(['tvdb:' . substr(hash('sha256', $key), 0, 58)]);
+        return $this->acquireLock($key, 0);
+    }
+
+    private function acquireLock(string $key, int $timeout): bool
+    {
+        $query = $this->pdo->prepare('SELECT GET_LOCK(?, ?)');
+        $query->execute(['tvdb:' . substr(hash('sha256', $key), 0, 58), $timeout]);
         return (int) $query->fetchColumn() === 1;
     }
 
