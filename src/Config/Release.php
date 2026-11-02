@@ -6,6 +6,6 @@ namespace NnSpotty\Config;
 
 final class Release
 {
-    public const VERSION = '0.2.2';
-    public const CODENAME = 'Impreza 22B';
+    public const VERSION = '0.2.3';
+    public const CODENAME = 'Lancer Evo VI TME';
 }

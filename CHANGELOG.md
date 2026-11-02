@@ -4,6 +4,22 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-02 - Lancer Evo VI TME
+
+### Added
+- Metadata-verrijking via cron met queue/worker-flow voor video en muziek, inclusief retry/backoff op tijdelijke providerfouten.
+- Universeel cron-commando `bin/console cron run` dat retrieve en metadata-runs in één run orkestreert (instelbaar per onderdeel).
+- Admin-instellingen voor metadata-backfill naar oudere spots, inclusief expliciete schakelaar en instelbare oudste datum.
+- Metadata-entity-indexering (o.a. acteurs, regisseurs, studio's en artiesten) doorvertaald naar sneller filteren/zoeken en Newznab-verzoeken.
+- Metadata-activiteitsoverzicht in admin (laatste events) met bron, status, provider, resultaat en foutmelding.
+
+### Fixed
+- Globale cron-runner voerde retrieve weer correct uit naast metadata-verwerking.
+- Backfill-seeding scant oudere spots nu stabiel door (geen vastlopen op ongunstige eerste slice).
+- Metadata-activiteitstab routing in admin werkt weer correct.
+- Automatische matching verbeterd (titelnormalisatie zoals `&` vs `and`, beter jaargebruik, duidelijkere ambiguous-afhandeling).
+- Provider-throttling/pacing aangescherpt (TVDB/TMDB/MusicBrainz) en lock-contention beter opgevangen om piekerrors te beperken.
+
 ## [0.2.2] - 2026-10-31 - Impreza 22B
 
 ### Fixed
