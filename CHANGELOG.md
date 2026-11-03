@@ -10,7 +10,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ### Fixed
 - Metadataqueue verwerkt spots van nieuw naar oud, voorkomt overlappende runs en hervat onderbroken jobs. Foutretries respecteren de cacheduur en krijgen na het maximum een langere pauze; gewijzigde matchregels activeren herbeoordeling van negatieve resultaten.
 - Metadata-cron: TVDB-, TMDB- en MusicBrainz-timeouts gelden per HTTP-aanvraag, zodat latere spots niet meer falen door een verlopen gedeelde clientdeadline. Requestlimieten blijven behouden.
-- Spotoverzicht gebruikt bij gematchte items nu direct metadata-samenvattingen (titel/jaar en poster) en hydrateert ontbrekende metadata-indexen vanuit bestaande matches, zodat actor-/studiofilters en metadata-gebaseerde zoekresultaten consistenter zijn zonder eerst elke detailpagina te openen.
+- Spotoverzicht gebruikt bij gematchte items nu direct metadata-samenvattingen (titel/jaar en poster; bij muziek artiest - album en albumhoes) en hydrateert ontbrekende metadata-indexen vanuit bestaande matches, zodat actor-/studiofilters en metadata-gebaseerde zoekresultaten consistenter zijn zonder eerst elke detailpagina te openen.
 
 ## [0.2.3] - 2026-11-02 - Lancer Evo VI TME
 

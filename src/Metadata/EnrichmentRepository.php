@@ -237,7 +237,7 @@ final class EnrichmentRepository
             return [];
         }
         $ids = array_values(array_unique(array_map(static fn (array $spot): string => (string) $spot['id'], $spots)));
-        $statement = $this->pdo->prepare('SELECT spot_id, media_kind, provider, title, year, genres FROM metadata_search_index
+        $statement = $this->pdo->prepare('SELECT spot_id, media_kind, provider, title, subtitle, year, genres FROM metadata_search_index
             WHERE spot_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')');
         $statement->execute($ids);
         $index = [];
@@ -246,6 +246,7 @@ final class EnrichmentRepository
                 'media_kind' => (string) $row['media_kind'],
                 'provider' => strtoupper((string) $row['provider']),
                 'title' => (string) $row['title'],
+                'artist' => $row['media_kind'] === 'music' ? trim((string) $row['subtitle']) : '',
                 'year' => $row['year'] === null ? null : (int) $row['year'],
                 'genres' => array_values(array_filter(array_map('trim', explode(',', (string) $row['genres'])))),
             ];
@@ -270,7 +271,12 @@ final class EnrichmentRepository
             }
             $spot['metadata_summary'] = $summary;
             $metadata = is_array($cachedMatch) && is_array($cachedMatch['result']['metadata'] ?? null) ? $cachedMatch['result']['metadata'] : null;
-            $poster = is_array($metadata) ? (string) (($metadata['poster'] ?? '') ?: ($metadata['still'] ?? '')) : '';
+            $poster = '';
+            if (is_array($metadata)) {
+                $poster = $summary['media_kind'] === 'music'
+                    ? (string) ($metadata['cover'] ?? '')
+                    : (string) (($metadata['poster'] ?? '') ?: ($metadata['still'] ?? ''));
+            }
             if ($poster !== '' && preg_match('~^https?://~i', $poster) === 1) {
                 $spot['metadata_poster'] = $poster;
             }
@@ -312,7 +318,7 @@ final class EnrichmentRepository
     }
 
     /** @param array<string, mixed> $result
-     *  @return array{media_kind: string, provider: string, title: string, year: ?int, genres: list<string>}|null
+     *  @return array{media_kind: string, provider: string, title: string, artist: string, year: ?int, genres: list<string>}|null
      */
     private static function summaryFromResult(string $mediaKind, array $result): ?array
     {
@@ -340,6 +346,7 @@ final class EnrichmentRepository
             'media_kind' => $mediaKind,
             'provider' => strtoupper((string) ($metadata['provider'] ?? ($mediaKind === 'music' ? 'musicbrainz' : 'tvdb'))),
             'title' => $title,
+            'artist' => $mediaKind === 'music' ? trim((string) ($metadata['artist'] ?? '')) : '',
             'year' => $year,
             'genres' => $genres,
         ];

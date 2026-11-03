@@ -143,11 +143,19 @@ HTML;
                 $matchedTitle = trim((string) ($summary['title'] ?? ''));
                 if ($matchedTitle !== '') {
                     $displayTitle = $matchedTitle;
+                    if (($summary['media_kind'] ?? '') === 'music') {
+                        $artist = trim((string) ($summary['artist'] ?? ''));
+                        if ($artist !== '') {
+                            $displayTitle = $artist . ' - ' . $displayTitle;
+                        }
+                    }
                     $year = isset($summary['year']) && is_int($summary['year']) ? $summary['year'] : null;
                     if ($year !== null && !preg_match('/\(' . preg_quote((string) $year, '/') . '\)/', $displayTitle)) {
                         $displayTitle .= ' (' . $year . ')';
                     }
-                    $displayTitle .= self::seriesSuffix((string) $spot['title'], $displayTitle);
+                    if (($summary['media_kind'] ?? '') === 'video') {
+                        $displayTitle .= self::seriesSuffix((string) $spot['title'], $displayTitle);
+                    }
                     $qualityChips = self::qualityChips((string) $spot['title']);
                 }
             }
