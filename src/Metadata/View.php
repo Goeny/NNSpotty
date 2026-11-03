@@ -425,7 +425,12 @@ final class View
         $html = '<section class="metadata-recommendations mt-4" aria-labelledby="recommendations-title"><h2 class="h4" id="recommendations-title">Meer zoals dit...</h2><div class="recommendation-list">';
         foreach ($metadata['recommendations'] as $item) {
             $html .= '<a class="recommendation-card" href="' . h(self::titleUrl($item['title'])) . '" title="Zoek spots voor ' . h($item['title']) . '">';
-            if ($images && ($image = Service::imageUrl((string) ($item['image'] ?? ''))) !== '') {
+            $image = '';
+            if ($images && is_string($item['image'] ?? null)
+                && preg_match('~^https://image\.tmdb\.org/t/p/w780/([A-Za-z0-9_-]{1,100}\.(?:jpe?g|png|webp|svg))$~D', $item['image'], $match)) {
+                $image = Tmdb::imageUrl('/' . $match[1], 'w780');
+            }
+            if ($image !== '') {
                 $html .= '<img src="' . h($image) . '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src=\'/assets/images/placeholder.png\'">';
             } elseif ($images) {
                 $html .= '<img src="/assets/images/placeholder.png" alt="" loading="lazy">';

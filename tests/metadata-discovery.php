@@ -227,6 +227,18 @@ expectDiscovery($xpath->query('//div[contains(@class,"metadata-taxonomy")]/secti
     && str_contains($html, 'meta_type=keyword') && !str_contains($html, '<script>alert(1)</script>'), 'Studios and escaped clickable keywords share a row');
 expectDiscovery($xpath->query('//section[@aria-labelledby="recommendations-title"]/following::section[@id="comments"]')->length === 1
     && str_contains($html, 'q=Another+Film+%26+More') && str_contains($html, '71%'), 'Suggestions appear above comments with local title search links and scores');
+expectDiscovery($xpath->query('//a[contains(@class,"recommendation-card")]/img[@src="https://image.tmdb.org/t/p/w780/film.jpg"]')->length === 1
+    && $xpath->query('//a[contains(@class,"recommendation-card")]/img[@src="/assets/images/placeholder.png"]')->length === 1,
+    'Recommendation HTML uses the actual TMDB fanart, with a placeholder only for the item without artwork');
+foreach (['javascript:alert(1)', 'https://image.tmdb.org.evil.invalid/t/p/w780/film.jpg',
+    'https://user@image.tmdb.org/t/p/w780/film.jpg', 'https://image.tmdb.org:8443/t/p/w780/film.jpg',
+    'https://evil.invalid/film.jpg', 'https://image.tmdb.org/t/p/w780/film.jpg" onload="alert(1)'] as $unsafe) {
+    $unsafeMetadata = $metadata;
+    $unsafeMetadata['recommendations'] = [array_replace($metadata['recommendations'][0], ['image' => $unsafe])];
+    $unsafeHtml = View::recommendations($unsafeMetadata, true);
+    expectDiscovery(str_contains($unsafeHtml, 'src="/assets/images/placeholder.png"') && !str_contains($unsafeHtml, 'src="https:'),
+        'Recommendation artwork rejects an unsafe URL: ' . $unsafe);
+}
 expectDiscovery(str_contains($html, 'class="metadata-title-link" href="/spots?q=TMDB+Fixture+Film"'), 'The main title also starts a local title search');
 $preview = SpotDetailPageRenderer::summary($spot, true, metadata: $metadata);
 expectDiscovery(!str_contains($preview, 'Trefwoorden') && !str_contains($preview, 'Meer zoals dit')

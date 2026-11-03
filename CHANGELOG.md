@@ -4,6 +4,9 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
 ## [Unreleased]
 
+### Fixed
+- "Meer zoals dit..." toont de TMDB-fanart van voorgestelde titels; geldige afbeeldingen worden niet meer door de TVDB-URL-controle vervangen door placeholders.
+
 ### Added
 - Film-/seriedetails met regie in de hero, compacte spot- en titelinformatie (status, oorspronkelijke taal, filmbudget/opbrengst), klikbare trefwoorden naast studio's en TMDB-suggesties boven de reacties. Regie, trefwoorden, status en taal filteren lokale spots; suggesties en titels starten een titelzoekopdracht. Quick details blijven compact.
 
