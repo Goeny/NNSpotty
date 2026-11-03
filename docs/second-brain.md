@@ -12,6 +12,7 @@ Dit bestand blijft bewust kort en publiek.
 ## Hoofdfunctionaliteiten
 
 - Spots en reacties ophalen via NNTP
+- Reactieblok toont alleen lijst en schrijfknop; schrijven/citeren opent dezelfde ruime modal. Concepten blijven bewaard bij sluiten; publicatiefouten heropenen de modal. Korte toestemming voor publieke Usenet-publicatie blijft vereist.
 - Spot-overzicht met filters en compacte hero-preview (poster/fanart, kerninformatie, maximaal drie synopsisregels en dezelfde kleine kwaliteitsbadges als de tabel); kleine acties boven de hero, bronvermelding en maximaal acht acteurs eronder. Uitgebreide informatie uitsluitend op de detailpagina.
 - NZB-download en SABnzbd-koppeling
 - Newznab API

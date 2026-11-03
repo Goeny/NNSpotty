@@ -39,6 +39,8 @@ final class SpotDetailPageRenderer
         $statusClass = $commentError ? 'warning' : 'info';
         $statusRole = $commentError ? 'alert' : 'status';
         $status = $statusMessage !== null ? '<div class="alert alert-' . $statusClass . '" role="' . $statusRole . '">' . h($statusMessage) . '</div>' : '';
+        $commentStatus = $commentError ? $status : '';
+        if ($commentError && $showComments && SpotLayout::can('comments.publish')) $status = '';
         $commentHtml = '<div data-comment-list>' . self::commentList($showComments ? $comments : [], $isAdmin, $retrieveComments, $pendingComments) . '</div>'
             . self::commentLoader($spot['id'], $pendingComments, $csrfField);
         $count = count($comments);
@@ -50,32 +52,48 @@ final class SpotDetailPageRenderer
         $postingName = h($profile !== null && $profile['username'] === $username ? $profile['display_name'] : $username);
         $signatureText = $profile !== null && $profile['username'] === $username ? $profile['signature'] : '';
         $postingSignature = h($signatureText);
-        $fullDraft = h(trim($commentDraft) . ($signatureText !== '' ? "\n\n-- \n" . $signatureText : ''));
         $profileRevision = hash('sha256', ($profile !== null && $profile['username'] === $username ? $profile['display_name'] : $username) . "\0" . $signatureText);
+        $reopenComposer = $commentError ? ' data-comment-reopen' : '';
+        $signaturePreview = $signatureText === '' ? '' : '<details class="comment-signature small"><summary>Handtekening</summary>'
+            . '<pre class="text-wrap mb-0" data-comment-signature>' . $postingSignature . '</pre></details>';
         $commentsSection = !$showComments ? '<section class="card mt-4"><div class="card-body text-body-secondary">Reacties zijn door de beheerder uitgeschakeld.</div></section>' : <<<HTML
 <section class="card mt-4" id="comments">
-  <div class="card-header">Reacties (<span data-comment-count>{$count}</span>)</div>
+  <div class="card-header d-flex justify-content-between align-items-center gap-2">
+    <span>Reacties (<span data-comment-count>{$count}</span>)</span>
+    <button class="btn btn-sm btn-primary" type="button" data-comment-open aria-controls="comment-composer" aria-haspopup="dialog">Reactie schrijven</button>
+  </div>
   <div class="card-body">
     {$retrievalNotice}
     {$commentHtml}
-    <form method="post" action="/spots/comment" class="mt-3" data-comment-form>
+  </div>
+</section>
+<dialog class="comment-composer" id="comment-composer" aria-labelledby="comment-composer-title"{$reopenComposer}>
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 class="modal-title h5" id="comment-composer-title">Reactie schrijven</h2>
+      <button class="btn-close" type="button" data-comment-close aria-label="Sluiten"></button>
+    </div>
+    <form method="post" action="/spots/comment" data-comment-form>
       {$csrfField}<input type="hidden" name="spot_id" value="{$id}">
       <input type="hidden" name="publication_id" value="{$publicationId}">
       <input type="hidden" name="profile_revision" value="{$profileRevision}">
-      <label class="form-label" for="comment">Reactie op Usenet plaatsen</label>
-      <textarea class="form-control mb-2" name="comment" id="comment" rows="4" maxlength="10000" aria-describedby="comment-help" required>{$draft}</textarea>
-      {$emoticons}
-      <p class="form-text" id="comment-help">Klik op een emoticon om de bijbehorende [img=...]-code in te voegen, of op het citaaticoon bij een reactie om die als [quote=...] over te nemen. Maximaal 10000 UTF-8-bytes en 900 bytes per regel; West-Europese tekst voor klassieke Spotnet-readers.</p>
-      <div class="alert alert-warning small">Je reactie, publieke naam en ingestelde handtekening worden openbaar op Usenet, ook voor andere Spotnet-/Spotweb-gebruikers. Publicatie is niet via NNSpotty in te trekken; verspreiding hangt af van de provider.</div>
-      <p class="small">Publiceren als: <strong>{$postingName}</strong> met de persoonlijke Spotnet-ID van je accountgebonden sleutel. Publieke namen zijn niet uniek; de gecontroleerde sleutel-ID onderscheidt spotters.</p>
-      <details class="mb-3" open><summary>Volledige publicatietekst</summary><pre class="text-wrap" data-comment-preview>{$fullDraft}</pre></details>
-      <div class="small mb-3">Vaste handtekening (altijd toegevoegd indien ingesteld):<pre class="text-wrap" data-comment-signature>{$postingSignature}</pre></div>
-      <div class="form-check mb-3"><input class="form-check-input" id="publish-consent" name="publish_consent" value="1" type="checkbox" required><label class="form-check-label" for="publish-consent">Ik wil deze reactie openbaar op Usenet publiceren.</label></div>
-      <button class="btn btn-primary" type="submit" data-comment-submit>Op Usenet publiceren</button>
-      <div class="alert alert-info mt-2" role="status" data-comment-progress hidden><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Reactie ondertekenen en naar Usenet versturen...</div>
+      <div class="modal-body">
+        {$commentStatus}
+        <p class="small text-body-secondary">Als <strong>{$postingName}</strong></p>
+        <label class="form-label visually-hidden" for="comment">Je reactie</label>
+        <textarea class="form-control mb-2" name="comment" id="comment" rows="10" maxlength="10000" required autofocus>{$draft}</textarea>
+        {$emoticons}
+        {$signaturePreview}
+        <div class="form-check mt-3"><input class="form-check-input" id="publish-consent" name="publish_consent" value="1" type="checkbox" required><label class="form-check-label small" for="publish-consent">Openbaar op Usenet plaatsen; achteraf verwijderen is niet mogelijk.</label></div>
+        <div class="alert alert-info mt-2 mb-0" role="status" data-comment-progress hidden><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Reactie wordt verstuurd...</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" type="button" data-comment-close>Annuleren</button>
+        <button class="btn btn-primary" type="submit" data-comment-submit>Reactie plaatsen</button>
+      </div>
     </form>
   </div>
-</section>
+</dialog>
 HTML;
         if ($showComments && !SpotLayout::can('comments.publish')) {
             $commentsSection = '<section class="card mt-4" id="comments"><div class="card-header">Reacties</div><div class="card-body">'
@@ -103,7 +121,7 @@ HTML;
             }
             $quote = $canQuote ? SpotMarkup::quote((string) $comment['poster'], (string) $comment['body']) : '';
             $quoteButton = $quote === '' ? '' : '<button class="btn btn-sm btn-outline-secondary comment-quote" type="button" data-comment-quote="' . h($quote)
-                . '" title="Citeren in je reactie" aria-label="Reactie van ' . h($comment['poster']) . ' citeren">'
+                . '" title="Citeren in je reactie" aria-controls="comment-composer" aria-haspopup="dialog" aria-label="Reactie van ' . h($comment['poster']) . ' citeren">'
                 . '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 12a1 1 0 0 0 1-1V8.558a1 1 0 0 0-1-1h-1.388q0-.527.062-1.054.093-.558.31-.992t.559-.683q.34-.279.868-.279V3q-.868 0-1.52.372a3.3 3.3 0 0 0-1.085.992 4.9 4.9 0 0 0-.62 1.458A7.7 7.7 0 0 0 9 7.558V11a1 1 0 0 0 1 1zm-6 0a1 1 0 0 0 1-1V8.558a1 1 0 0 0-1-1H4.612q0-.527.062-1.054.094-.558.31-.992.217-.434.559-.683.34-.279.868-.279V3q-.868 0-1.52.372a3.3 3.3 0 0 0-1.085.992 4.9 4.9 0 0 0-.62 1.458A7.7 7.7 0 0 0 3 7.558V11a1 1 0 0 0 1 1z"/></svg></button>';
             $html .= '<article class="border-bottom py-3"><div class="d-flex justify-content-between align-items-start gap-2"><div><div class="fw-semibold">' . $poster
                 . '</div><small class="text-body-secondary">' . h($comment['posted_at']) . ' UTC &middot; ' . h($comment['source'])
@@ -111,11 +129,7 @@ HTML;
                     ? SpotDescription::render($comment['body']) : SpotEmoticons::plainText($comment['body'])) . '</div></article>';
         }
         if ($html === '' && $pendingComments === 0) {
-            $html = '<p class="text-body-secondary">Nog geen reacties opgehaald of geplaatst. Dit betekent niet dat er op Usenet geen reacties zijn.</p>';
-            if ($isAdmin && $retrieveComments) {
-                $html .= '<p class="small text-body-secondary">Controleer of comments:free.usenet is ingesteld. Haal reacties afzonderlijk op met '
-                    . '<code>php bin/console retrieve --comments-only --days=7 --verbose</code>. Een normale run verwerkt eerst de spotgroep.</p>';
-            }
+            $html = '<p class="text-body-secondary mb-0">Nog geen reacties beschikbaar.</p>';
         }
         return $html;
     }

@@ -346,6 +346,14 @@
 .preview .technical dt { margin: 0; }
 .preview .technical dd { margin: 0; }
 .comment-body { overflow-wrap: anywhere; }
+.comment-composer { padding: 0; width: min(960px, calc(100vw - 32px)); max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); border: 1px solid var(--spot-border); border-radius: 12px; background: var(--spot-panel); color: var(--bs-body-color); }
+.comment-composer::backdrop { background: #000a; }
+.comment-composer .modal-content { background: var(--spot-panel); border: 0; }
+.comment-composer .modal-header, .comment-composer .modal-footer { padding: 16px 20px; border-color: var(--spot-border); }
+.comment-composer .modal-body { padding: 20px; }
+.comment-composer textarea { min-height: 240px; resize: vertical; }
+.comment-composer .comment-signature { margin-top: 12px; color: var(--spot-muted); }
+.comment-composer .comment-signature pre { white-space: pre-wrap; overflow-wrap: anywhere; padding-top: 8px; }
 .comment-quote { flex: none; display: inline-flex; align-items: center; justify-content: center; padding: .2rem .4rem; line-height: 1; }
 .skip-link { position: absolute; z-index: 100; background: var(--spot-panel); padding: 10px; }
 @media (min-width: 1700px) {

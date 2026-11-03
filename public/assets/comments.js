@@ -1,5 +1,34 @@
 (() => {
     'use strict';
+    const composer = document.getElementById('comment-composer');
+    let opener = null;
+    const openComposer = trigger => {
+        if (!composer) return;
+        if (!composer.open) {
+            opener = trigger;
+            composer.showModal();
+        }
+        composer.querySelector('#comment').focus();
+    };
+    const sending = () => composer?.querySelector('[data-comment-form]')?.dataset.sending === '1';
+    if (composer) {
+        document.addEventListener('click', event => {
+            const button = event.target.closest('[data-comment-open]');
+            if (button) openComposer(button);
+            if (event.target.closest('[data-comment-close]') && !sending()) composer.close();
+        });
+        composer.addEventListener('cancel', event => {
+            if (sending()) event.preventDefault();
+        });
+        composer.addEventListener('keydown', event => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (!sending()) composer.close();
+        });
+        composer.addEventListener('close', () => opener?.focus());
+        if (composer.hasAttribute('data-comment-reopen')) openComposer(document.querySelector('[data-comment-open]'));
+    }
     const insert = (textarea, code, tooLong) => {
         const start = textarea.selectionStart;
         const end = textarea.selectionEnd;
@@ -28,7 +57,7 @@
         // Quote on its own lines, followed by an empty line for the reply.
         const before = textarea.value.slice(0, textarea.selectionStart);
         const prefix = before === '' || before.endsWith('\n\n') ? '' : (before.endsWith('\n') ? '\n' : '\n\n');
-        textarea.scrollIntoView({block: 'center', behavior: 'smooth'});
+        openComposer(button);
         insert(textarea, prefix + button.dataset.commentQuote + '\n\n', 'Het citaat past niet meer in de reactie. Maak eerst ruimte vrij of kort het citaat in.');
     });
     document.addEventListener('input', event => {
@@ -42,6 +71,7 @@
             }
             form.dataset.sending = '1';
             form.querySelector('[data-comment-submit]').disabled = true;
+            for (const button of composer?.querySelectorAll('[data-comment-close]') ?? []) button.disabled = true;
             form.querySelector('[data-comment-progress]').hidden = false;
         });
     }
@@ -49,17 +79,11 @@
         for (const form of document.querySelectorAll('[data-comment-form]')) {
             delete form.dataset.sending;
             form.querySelector('[data-comment-submit]').disabled = false;
+            for (const button of composer?.querySelectorAll('[data-comment-close]') ?? []) button.disabled = false;
             form.querySelector('[data-comment-progress]').hidden = true;
         }
     });
 })();
-document.addEventListener('input', (event) => {
-    if (!(event.target instanceof HTMLTextAreaElement) || event.target.id !== 'comment') return;
-    const form = event.target.closest('[data-comment-form]');
-    const preview = form?.querySelector('[data-comment-preview]');
-    const signature = form?.querySelector('[data-comment-signature]');
-    if (preview) preview.textContent = event.target.value.trim() + (signature?.textContent ? '\n\n-- \n' + signature.textContent : '');
-});
 (() => {
     'use strict';
     let rounds = 0;

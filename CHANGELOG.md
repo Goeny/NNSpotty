@@ -5,6 +5,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 ## [Unreleased]
 
 ### Added
+- Opgeruimd reactieblok met een grote schrijfmodal, ook te openen via citeren; concepttekst, emoticons en publicatiefouten blijven behouden zonder uitgebreide uitleg in de detailpagina.
 - Metadata-beheer: instelbare herbeoordeling van errors/unmatched/ambiguous, gerichte bulkruns via cron, live voortgang en extra titelregels per film/serie/muziek. Ingebouwde herkennings- en selectieregels zijn alleen-lezen in te zien; handmatige koppelingen/blokkeringen blijven behouden.
 
 ### Fixed
