@@ -6,6 +6,6 @@ namespace NnSpotty\Config;
 
 final class Release
 {
-    public const VERSION = '0.2.3';
-    public const CODENAME = 'Lancer Evo VI TME';
+    public const VERSION = '0.3.0';
+    public const CODENAME = 'RX-7 Spirit R';
 }

@@ -17,11 +17,12 @@ Voorbeelden van geschikte stijl:
 - Alpine A110 S
 
 ## Actuele release
-- **Versie:** `0.2.3`
-- **Codenaam:** `Lancer Evo VI TME`
-- **Status:** 0.x-patchrelease met metadata-queue via cron, universele cron-runner (retrieve + metadata), configureerbare backfill vanaf datum en metadata-entity-indexering voor snellere zoek-/Newznab-koppeling; nog geen 1.0-productierelease
+- **Versie:** `0.3.0`
+- **Codenaam:** `RX-7 Spirit R`
+- **Status:** 0.x-feature-release met configureerbare metadata-herbeoordeling en titelregels, bulkruns via cron, verbeterd spot-/muziekoverzicht, compacte quick details en een schrijf-/citeermodal voor reacties; nog geen 1.0-productierelease
 
 ## Eerdere releases
+- `0.2.3` - Lancer Evo VI TME
 - `0.2.2` - Impreza 22B
 - `0.2.1` - Escort RS Cosworth
 - `0.2.0` - Sierra RS Cosworth
