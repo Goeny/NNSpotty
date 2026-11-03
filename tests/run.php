@@ -368,9 +368,9 @@ try {
     check(SpotDescription::render('<p>Caf&eacute; &#x1F3AC; &lt;script&gt;</p>') === '<p>Caf' . "\xc3\xa9" . ' ' . "\xf0\x9f\x8e\xac" . ' &lt;script&gt;</p>', 'Unicode en reeds geescapete tags blijven tekst');
     $formatted = $spot;
     $formatted['description'] = '<p>Een <b>veilige omschrijving</b>.</p><script>evil()</script>';
-    check(str_contains(SpotDetailPageRenderer::summary($formatted, true), '<p>Een <b>veilige omschrijving</b>.</p>')
+    check(!str_contains(SpotDetailPageRenderer::summary($formatted, true), 'veilige omschrijving')
         && str_contains(SpotDetailPageRenderer::summary($formatted, false), '<p>Een <b>veilige omschrijving</b>.</p>')
-        && !str_contains(SpotDetailPageRenderer::summary($formatted, true), 'evil()'), 'Preview en detail gebruiken dezelfde veilige HTML-opmaak');
+        && !str_contains(SpotDetailPageRenderer::summary($formatted, true), 'evil()'), 'Alleen de volledige detailpagina rendert de veilige spotomschrijving');
     $spotnetText = '10 afleveringen[br]Snowfall.2017.S03.1080p.DSNP.WEB-DL.DD5.1.H.264-playWEB.mkv[br][br]Het is 1983 in Los Angeles.[br][br]Multisubs';
     $spotnetHtml = SpotDescription::render($spotnetText);
     check(substr_count($spotnetHtml, '<br>') === 5 && !str_contains($spotnetHtml, '[br]')
@@ -436,8 +436,8 @@ try {
         && str_contains($emoticonPage, '[b]Letterlijk[/b]'), 'Detail rendert moderne emoticons in zowel lokale als Usenet-reacties');
     $emoticonDescription = $spot;
     $emoticonDescription['description'] = '[img=buigen][img=respect]';
-    check(str_contains(SpotDetailPageRenderer::summary($emoticonDescription, true, false), SpotEmoticons::render('[img=respect]')),
-        'Preview ondersteunt dezelfde tekstemoticons, ook wanneer externe spotafbeeldingen uitstaan');
+    check(str_contains(SpotDetailPageRenderer::summary($emoticonDescription, false, false), SpotEmoticons::render('[img=respect]')),
+        'Detail ondersteunt tekstemoticons, ook wanneer externe spotafbeeldingen uitstaan');
     check(SpotDescription::render('[url=https://example.invalid/?a=1&amp;b=2]Link[/url]') ===
         '<a href="https://example.invalid/?a=1&amp;b=2" target="_blank" rel="noopener noreferrer nofollow">Link</a>', 'BBCode-URL is veilig geescaped met vaste attributen');
     check(SpotDescription::render('[url]https://example.invalid/[/url]') ===
@@ -453,7 +453,7 @@ try {
     }
     $formatted['description'] = $spotnetText;
     check(str_contains(SpotDetailPageRenderer::summary($formatted, false), $spotnetHtml)
-        && str_contains(SpotDetailPageRenderer::summary($formatted, true), $spotnetHtml), 'BBCode-weergave is gelijk in preview en detail');
+        && !str_contains(SpotDetailPageRenderer::summary($formatted, true), $spotnetHtml), 'BBCode-omschrijving blijft beperkt tot de volledige detailpagina');
     $disabledSummary = SpotDetailPageRenderer::summary($formatted, false, false, false);
     check(!str_contains($disabledSummary, '/spots/image?') && !str_contains($disabledSummary, 'hero-backdrop')
         && !str_contains($disabledSummary, 'data-image-lightbox') && !str_contains($disabledSummary, 'href="#comments"')

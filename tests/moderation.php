@@ -46,10 +46,10 @@ foreach (['<Keys/>', '<Keys><Other/></Keys>', '<Keys><Key Name="x">bad</Key></Ke
     rejects(static fn () => SpotterLists::parse($invalidList), 'Ongeldige Spotlist wordt expliciet afgewezen');
 }
 $whiteIdentitySpot = $identitySpot + ['spotter_status' => 'whitelist'];
-check(str_contains(\NnSpotty\UI\SpotDetailPageRenderer::summary($whiteIdentitySpot, true), '>Whitelist</span>')
+check(!str_contains(\NnSpotty\UI\SpotDetailPageRenderer::summary($whiteIdentitySpot, true), '>Whitelist</span>')
     && str_contains(\NnSpotty\UI\SpotDetailPageRenderer::summary($whiteIdentitySpot, false), 'Geen inhoudscontrole.')
     && str_contains(\NnSpotty\UI\SpotsPageRenderer::rows([$whiteIdentitySpot], ['title', 'poster']), '>Whitelist</span>'),
-    'Whitelistbadge staat bij spotter in overzicht, preview en volledige detail');
+    'Whitelistbadge blijft bij spotter in overzicht en volledige detail, zonder spotterblok in quick details');
 check(!str_contains(\NnSpotty\UI\SpotDetailPageRenderer::summary($identitySpot, false), '>Whitelist</span>')
     && str_contains(\NnSpotty\UI\SpotDetailPageRenderer::summary($identitySpot, false), 'Sleutelfingerprint (SHA256)'),
     'Geldige identiteit zonder whitelist geeft technische sleutelinfo maar geen whitelistclaim');

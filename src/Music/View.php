@@ -108,30 +108,31 @@ final class View
         }
         $cover = $artist ? '<div class="music-artist-symbol" aria-hidden="true">&#9835;</div>' : SpotPresentation::image($coverSpot, false, $images);
         $kind = $artist ? 'Artiest' : ($metadata['type'] === 'release' ? 'Specifieke uitgave' : 'Albumgroep');
-        $facts = array_filter([$metadata['kind'], $metadata['date'], $metadata['country'], implode(', ', $metadata['genres'])]);
+        $facts = array_filter([$metadata['kind'], $metadata['date'], $metadata['country'],
+            implode(', ', array_slice($metadata['genres'], 0, $preview ? 2 : null))]);
         $fanart = $images ? Fanart::imageUrl($metadata['fanart'] ?? null) : '';
         $background = $fanart === '' ? '' : SpotPresentation::backdrop(['image_segments' => [], 'image_url' => $fanart], 'hero-backdrop', $images);
-        $html = '<section class="spot-hero music-hero' . ($artist ? ' music-artist-hero' : '') . '">'
+        $html = '<section class="spot-hero music-hero' . ($preview ? ' quick-hero' : '') . ($artist ? ' music-artist-hero' : '') . '">'
             . $background
             . '<div class="hero-actions" role="group" aria-label="Spotacties">' . $actions . '</div>'
             . '<div class="hero-poster">' . $cover . '</div><div class="hero-copy">'
             . '<p class="text-body-secondary mb-2">MusicBrainz &middot; ' . h($kind) . '</p><' . $heading . '>' . h($metadata['title']) . '</' . $heading . '>'
             . ($metadata['artist'] === '' ? '' : '<p class="music-artist-name">' . h($metadata['artist']) . '</p>')
             . '<p>' . h(implode(' · ', $facts)) . '</p>'
-            . ($metadata['end'] === '' ? '' : '<p>Einddatum: ' . h($metadata['end']) . '</p>')
-            . ($metadata['note'] === '' ? '' : '<p>' . h($metadata['note']) . '</p>')
-            . ($metadata['labels'] === [] ? '' : '<p>Label: ' . h(implode(', ', $metadata['labels'])) . '</p>')
-            . '<p class="small text-body-secondary">' . ($artist ? 'Artiestgegevens; geen volledige discografie of biografie. Eventuele artiestachtergrond komt van fanart.tv, niet van MusicBrainz.'
+            . (!$preview && $metadata['end'] !== '' ? '<p>Einddatum: ' . h($metadata['end']) . '</p>' : '')
+            . (!$preview && $metadata['note'] !== '' ? '<p>' . h($metadata['note']) . '</p>' : '')
+            . (!$preview && $metadata['labels'] !== [] ? '<p>Label: ' . h(implode(', ', $metadata['labels'])) . '</p>' : '')
+            . ($preview ? '' : '<p class="small text-body-secondary">' . ($artist ? 'Artiestgegevens; geen volledige discografie of biografie. Eventuele artiestachtergrond komt van fanart.tv, niet van MusicBrainz.'
                 : ($metadata['type'] === 'release-group' ? 'Algemene albumgroep; geen bevestiging van een specifieke editie, remaster of tracklist.'
-                    : 'Tracklist hoort bij deze geselecteerde uitgave; mediabestanden zijn niet gecontroleerd.')) . '</p>'
+                    : 'Tracklist hoort bij deze geselecteerde uitgave; mediabestanden zijn niet gecontroleerd.')) . '</p>')
             . '<a class="metadata-attribution small" href="https://musicbrainz.org/' . h($metadata['type']) . '/' . h($metadata['id'])
             . '" target="_blank" rel="noopener noreferrer">Metadata van MusicBrainz</a>'
             . (!$artist && $images && $metadata['cover'] !== '' ? '<span class="small"> &middot; <a href="https://coverartarchive.org/" target="_blank" rel="noopener noreferrer">Hoezen: Cover Art Archive</a></span>' : '')
             . ($fanart === '' ? '' : '<span class="small"> &middot; <a href="https://fanart.tv/artist/' . h($metadata['artist_id']) . '/" target="_blank" rel="noopener noreferrer">Artiest-fanart: fanart.tv</a></span>')
             . '</div></section>'
             . ($images && isset($metadata['fanart_warning']) ? '<div class="alert alert-warning" role="status">' . h($metadata['fanart_warning']) . '</div>' : '')
-            . '<p class="small text-body-secondary metadata-release">Oorspronkelijke spottitel: <strong>' . h($spot['title']) . '</strong></p>';
-        if ($metadata['tracks'] !== []) {
+            . ($preview ? '' : '<p class="small text-body-secondary metadata-release">Oorspronkelijke spottitel: <strong>' . h($spot['title']) . '</strong></p>');
+        if (!$preview && $metadata['tracks'] !== []) {
             $html .= '<section class="card mb-3 music-tracks"><div class="card-header">Tracklist (' . (int) $metadata['track_count'] . ')</div><div class="card-body">';
             if ($metadata['duration'] !== null) $html .= '<p>Speelduur: ' . self::duration($metadata['duration']) . '</p>';
             $html .= '<ol class="list-unstyled mb-0">';

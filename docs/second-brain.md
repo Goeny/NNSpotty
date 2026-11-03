@@ -12,7 +12,7 @@ Dit bestand blijft bewust kort en publiek.
 ## Hoofdfunctionaliteiten
 
 - Spots en reacties ophalen via NNTP
-- Spot-overzicht met filters en detailpagina's
+- Spot-overzicht met filters en compacte hero-preview (poster/fanart, kerninformatie, maximaal drie synopsisregels en dezelfde kleine kwaliteitsbadges als de tabel); uitgebreide informatie uitsluitend op de detailpagina
 - NZB-download en SABnzbd-koppeling
 - Newznab API
 - Metadata-integraties (films/series/muziek)

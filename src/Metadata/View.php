@@ -184,13 +184,15 @@ final class View
             . '<' . $heading . '>' . h($metadata['title']) . '</' . $heading . '>';
         if ($metadata['episode_title'] !== '') $copy .= '<' . $episodeHeading . ' class="h4">' . h($metadata['episode_title']) . '</' . $episodeHeading . '>';
         if ($metadata['season'] !== null && !$metadata['episode_missing']) $copy .= '<p>Seizoen ' . (int) $metadata['season'] . ($metadata['episode'] === null ? '' : ' &middot; Aflevering ' . (int) $metadata['episode']) . '</p>';
-        $facts = array_filter([$metadata['date'], $metadata['runtime'] === null ? '' : $metadata['runtime'] . ' min', implode(', ', $metadata['genres'])]);
+        $facts = array_filter([$metadata['date'], $metadata['runtime'] === null ? '' : $metadata['runtime'] . ' min',
+            implode(', ', array_slice($metadata['genres'], 0, $preview ? 2 : null))]);
         $copy .= '<p class="metadata-facts">' . h(implode(' · ', $facts)) . '</p>' . self::badges($metadata);
         if ($metadata['overview'] !== '') $copy .= '<p class="metadata-overview">' . nl2br(h($metadata['overview'])) . '</p>';
-        if ($metadata['episode_missing']) $copy .= '<p class="small text-body-secondary">Serie gevonden; seizoen ' . (int) $metadata['season']
+        if ($metadata['episode_missing'] && $preview) $copy .= '<p class="small text-body-secondary">Alleen serie gematcht; gevraagde aflevering niet bevestigd.</p>';
+        if ($metadata['episode_missing'] && !$preview) $copy .= '<p class="small text-body-secondary">Serie gevonden; seizoen ' . (int) $metadata['season']
             . ', aflevering ' . (int) $metadata['requested_episode']
             . ' is niet uniek beschikbaar in de officiële ' . $providerName . '-nummering. Seizoen en aflevering zijn uit de releasetitel, niet door ' . $providerName . ' bevestigd. Er worden alleen seriemetadata getoond; corrigeer de koppeling via Metadata link.</p>';
-        $copy .= \NnSpotty\UI\SpotReleaseQuality::render($spot['title']);
+        $copy .= $preview ? \NnSpotty\UI\SpotReleaseQuality::compact($spot['title']) : \NnSpotty\UI\SpotReleaseQuality::render($spot['title']);
         $galleries = '';
         $posterGallery = null;
         if ($images && !$preview) {
@@ -219,13 +221,15 @@ final class View
                 . '<path fill-rule="evenodd" d="M12 2a10 10 0 1 1 0 20a10 10 0 1 1 0-20ZM12 4.4a2 2 0 1 1 0 4a2 2 0 1 1 0-4ZM17.33 8.27a2 2 0 1 1 0 4a2 2 0 1 1 0-4ZM15.29 14.53a2 2 0 1 1 0 4a2 2 0 1 1 0-4ZM8.71 14.53a2 2 0 1 1 0 4a2 2 0 1 1 0-4ZM6.67 8.27a2 2 0 1 1 0 4a2 2 0 1 1 0-4ZM12 11.1a.9.9 0 1 1 0 1.8a.9.9 0 1 1 0-1.8Z"/><rect x="12" y="20" width="10" height="2" rx="1"/>'
                 . '</svg></a>' . $actions;
         }
-        return '<section class="spot-hero metadata-hero' . ($metadata['type'] === 'episode' ? ' episode-hero' : '') . '">'
+        return '<section class="spot-hero metadata-hero' . ($preview ? ' quick-hero' : '') . ($metadata['type'] === 'episode' ? ' episode-hero' : '') . '">'
             . SpotPresentation::backdrop($backgroundSpot, 'hero-backdrop', $images)
-            . '<div class="hero-actions" role="group" aria-label="Spotacties"><div class="hero-sources">' . $link . self::attribution($metadata, $provider) . '</div>'
-            . '<div class="hero-buttons">' . $actions . '</div></div>'
+            . '<div class="hero-actions" role="group" aria-label="Spotacties">'
+            . ($preview ? $actions : '<div class="hero-sources">' . $link . self::attribution($metadata, $provider) . '</div><div class="hero-buttons">' . $actions . '</div>')
+            . '</div>'
             . '<div class="hero-poster">' . SpotPresentation::image($imageSpot, false, $images, $posterGallery) . '</div><div class="hero-copy">' . $copy . '</div>'
+            . ($preview ? '<div class="quick-sources">' . self::attribution($metadata, $provider) . '</div>' : '')
             . $galleries . '</section>'
-            . '<p class="small text-body-secondary metadata-release">Oorspronkelijke spottitel: <strong>' . h($spot['title']) . '</strong></p>';
+            . ($preview ? '' : '<p class="small text-body-secondary metadata-release">Oorspronkelijke spottitel: <strong>' . h($spot['title']) . '</strong></p>');
     }
 
     /** @return list<string> */

@@ -151,7 +151,7 @@ HTML;
         $tag = $preview ? 'h2' : 'h1';
         $details = SpotCategories::describe($spot);
         $chips = '';
-        foreach ($details['Genre'] ?? [] as $genre) {
+        foreach (array_slice($details['Genre'] ?? [], 0, $preview ? 2 : null) as $genre) {
             $chips .= '<span class="tag-chip">' . h($genre) . '</span>';
         }
         $website = $spot['website'] !== '' ? '<a href="' . h($spot['website']) . '" target="_blank" rel="noopener noreferrer">Website van de spot</a>' : '';
@@ -167,19 +167,25 @@ HTML;
             ? \NnSpotty\Music\View::link() : \NnSpotty\Metadata\View::link()) : '';
         $buttons = $action;
         $action = $link . $action;
-        $hero = '<section class="spot-hero">' . SpotPresentation::backdrop($spot, 'hero-backdrop', $imagesEnabled)
+        $hero = '<section class="spot-hero' . ($preview ? ' quick-hero' : '') . '">' . SpotPresentation::backdrop($spot, 'hero-backdrop', $imagesEnabled)
             . ($action !== '' ? '<div class="hero-actions" role="group" aria-label="Spotacties">' . $action . '</div>' : '')
             . '<div class="hero-poster">' . $image . '</div><div class="hero-copy"><p class="text-body-secondary mb-2">'
             . $type . '</p><' . $tag . '>' . $title . '</' . $tag . '><div class="tag-row">' . $chips . '</div>'
-            . ($classification['type'] === 'Films' || $classification['type'] === 'Series' ? SpotReleaseQuality::render($spot['title']) : '') . '</div></section>';
+            . ($classification['type'] === 'Films' || $classification['type'] === 'Series'
+                ? ($preview ? SpotReleaseQuality::compact($spot['title']) : SpotReleaseQuality::render($spot['title'])) : '') . '</div></section>';
         $people = '';
         if ($metadata !== null) {
             if (($metadata['provider'] ?? '') === 'musicbrainz') {
                 $hero = \NnSpotty\Music\View::summary($spot, $metadata, $action, $imagesEnabled, $preview);
             } else {
                 $hero = \NnSpotty\Metadata\View::hero($spot, $metadata, $buttons, $imagesEnabled, $preview, $link);
-                $people = ($preview ? '' : \NnSpotty\Metadata\View::trailers($metadata)) . \NnSpotty\Metadata\View::people($metadata, $imagesEnabled);
+                if (!$preview) {
+                    $people = \NnSpotty\Metadata\View::trailers($metadata) . \NnSpotty\Metadata\View::people($metadata, $imagesEnabled);
+                }
             }
+        }
+        if ($preview) {
+            return $hero;
         }
         $spotter = h($spot['poster']);
         if (is_string($spot['spotter_id'] ?? null) && $spot['spotter_id'] !== '') {
@@ -213,6 +219,6 @@ HTML;
         $technical .= '<dt>Message-ID</dt><dd>' . h($spot['message_id']) . '</dd><dt>NZB</dt><dd>' . $nzb . '</dd>';
         $technical = '<section class="card mb-3"><div class="card-header">Technische details</div><div class="card-body"><dl class="technical">' . $technical . '</dl></div></section>';
         $notice = '<div class="alert alert-secondary small mb-0">Usenet-inhoud is onbevestigd. Spotterhandtekeningen worden nog niet geverifieerd. Alleen veilige omschrijvingsopmaak wordt weergegeven.</div>';
-        return $hero . $spotMetadata . $people . ($preview ? $description . $technical : '<div class="detail-grid"><div>' . $description . '</div><div>' . $technical . '</div></div>') . $notice;
+        return $hero . $spotMetadata . $people . '<div class="detail-grid"><div>' . $description . '</div><div>' . $technical . '</div></div>' . $notice;
     }
 }

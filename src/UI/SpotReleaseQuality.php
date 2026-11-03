@@ -57,6 +57,19 @@ final class SpotReleaseQuality
         return $result;
     }
 
+    public static function compact(string $title): string
+    {
+        $parsed = self::parse($title);
+        $chips = [];
+        foreach (['Video', 'Audio'] as $group) {
+            $value = ($parsed[$group] ?? [])[0] ?? null;
+            if (is_string($value) && $value !== '') {
+                $chips[] = '<span class="quality-badge quality-badge-format quality-badge-compact">' . h($value) . '</span>';
+            }
+        }
+        return $chips === [] ? '' : '<div class="quality-badges quality-badges-compact mt-1" aria-label="Releasekwaliteit">' . implode('', $chips) . '</div>';
+    }
+
     public static function render(string $title): string
     {
         $quality = self::parse($title);

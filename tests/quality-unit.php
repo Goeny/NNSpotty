@@ -43,6 +43,7 @@ $qualityMetadata = [
 foreach ([false, true] as $qualityPreview) {
     $original = \NnSpotty\UI\SpotDetailPageRenderer::summary($qualitySpot, $qualityPreview, false, false);
     $enriched = \NnSpotty\Metadata\View::hero($qualitySpot, $qualityMetadata, '', false, $qualityPreview);
-    check(str_contains($original, $badges) && str_contains($enriched, $badges),
+    $expectedBadges = $qualityPreview ? SpotReleaseQuality::compact($qualitySpot['title']) : $badges;
+    check(str_contains($original, $expectedBadges) && str_contains($enriched, $expectedBadges),
         'Originele en verrijkte ' . ($qualityPreview ? 'preview' : 'detail') . ' delen exact dezelfde kwaliteitsbadges');
 }

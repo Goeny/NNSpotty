@@ -64,7 +64,7 @@ check($musicApi->calls[$beforeEditionSearch] === ['release', null, [
 $musicHtml = \NnSpotty\UI\SpotDetailPageRenderer::summary($musicDbSpot, true, metadata: $musicResult['metadata']);
 check(str_contains($musicHtml, 'music-hero') && str_contains($musicHtml, 'Metadata van MusicBrainz')
     && str_contains($musicHtml, 'Hoezen: Cover Art Archive') && str_contains($musicHtml, '<h2>Fixture Album</h2>')
-    && str_contains($musicHtml, '&lt;script&gt;unsafe&lt;/script&gt;') && !str_contains($musicHtml, '<script>unsafe'),
+    && str_contains($musicHtml, 'Fixture Artist') && !str_contains($musicHtml, '<script>unsafe'),
     'Albumpreview heeft eigen styling, vierkante hoesbron, veilige tekst en attributie');
 $musicService->choose($musicDbSpot, ['type' => 'release', 'id' => MusicFixture::RELEASE]);
 $musicEdition = $musicService->lookup($musicDbSpot);

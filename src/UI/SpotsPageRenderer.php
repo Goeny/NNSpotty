@@ -156,7 +156,7 @@ HTML;
                     if (($summary['media_kind'] ?? '') === 'video') {
                         $displayTitle .= self::seriesSuffix((string) $spot['title'], $displayTitle);
                     }
-                    $qualityChips = self::qualityChips((string) $spot['title']);
+                    $qualityChips = SpotReleaseQuality::compact((string) $spot['title']);
                 }
             }
             $detailUrl = '/spots/view?key=' . rawurlencode($spot['id']);
@@ -185,22 +185,6 @@ HTML;
             $rows .= '</tr>';
         }
         return $rows;
-    }
-
-    private static function qualityChips(string $title): string
-    {
-        $parsed = SpotReleaseQuality::parse($title);
-        if ($parsed === []) {
-            return '';
-        }
-        $chips = [];
-        foreach (['Video', 'Audio'] as $group) {
-            $value = ($parsed[$group] ?? [])[0] ?? null;
-            if (is_string($value) && $value !== '') {
-                $chips[] = '<span class="quality-badge quality-badge-format quality-badge-compact">' . h($value) . '</span>';
-            }
-        }
-        return $chips === [] ? '' : '<div class="quality-badges quality-badges-compact mt-1">' . implode('', $chips) . '</div>';
     }
 
     private static function seriesSuffix(string $originalTitle, string $displayTitle): string
