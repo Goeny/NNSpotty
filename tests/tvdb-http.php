@@ -40,7 +40,7 @@ $previewCacheBefore = $pdo->query('SELECT * FROM tvdb_cache ORDER BY cache_key')
 $previewResponse = httpFixture($httpPort, $previewPath, $readerCookie);
 $previewHtml = json_decode($previewResponse['body'], true, 64, JSON_THROW_ON_ERROR)['html'];
 check($previewResponse['status'] === 200 && str_contains($previewHtml, 'metadata-hero')
-    && str_contains($previewHtml, 'Voorbeeldtitel') && !str_contains($previewHtml, 'Cast &amp; Crew')
+    && str_contains($previewHtml, 'Voorbeeldtitel') && str_contains($previewHtml, 'quick-cast')
     && str_contains($previewHtml, 'https://artworks.thetvdb.com') && str_contains($previewHtml, 'metadata-attribution')
     && !str_contains($previewHtml, 'Oorspronkelijke spottitel:') && str_contains($previewHtml, 'Volledige spot en reacties')
     && str_contains($previewHtml, '<h2>Voorbeeldtitel</h2>') && !str_contains($previewHtml, '<h1>')

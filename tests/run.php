@@ -316,10 +316,11 @@ try {
         $dom = new DOMDocument();
         $dom->loadHTML('<?xml encoding="UTF-8">' . $summary, LIBXML_NOERROR | LIBXML_NOWARNING);
         $xpath = new DOMXPath($dom);
-        check($xpath->query('//section[contains(@class,"spot-hero")]/div[@class="hero-actions"]')->length === 1
+        $actionPath = $previewMode ? '//div[@class="quick-actions"]' : '//section[contains(@class,"spot-hero")]/div[@class="hero-actions"]';
+        check($xpath->query($actionPath)->length === 1
             && $xpath->query('//div[@class="hero-actions"]/*[not(contains(@class,"btn-sm"))]')->length === 0
             && $xpath->query('//div[@class="hero-copy"]//a | //div[@class="hero-copy"]//button')->length === 0,
-            'Preview en detail groeperen alle compacte acties apart boven de hero-inhoud');
+            'Preview plaatst acties buiten de hero; detail groepeert acties boven de hero-inhoud');
     }
     $brandingPages = [
         \NnSpotty\UI\LoginPageRenderer::render(null, ''),

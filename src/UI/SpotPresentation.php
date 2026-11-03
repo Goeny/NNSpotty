@@ -6,6 +6,11 @@ namespace NnSpotty\UI;
 
 final class SpotPresentation
 {
+    public static function quickActions(string $actions): string
+    {
+        return $actions === '' ? '' : '<div class="quick-actions" role="group" aria-label="Spotacties">' . $actions . '</div>';
+    }
+
     /** @param array<string, mixed> $spot */
     public static function image(array $spot, bool $thumbnail, bool $enabled = true, ?string $gallery = null): string
     {

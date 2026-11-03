@@ -221,14 +221,14 @@ final class View
                 . '<path fill-rule="evenodd" d="M12 2a10 10 0 1 1 0 20a10 10 0 1 1 0-20ZM12 4.4a2 2 0 1 1 0 4a2 2 0 1 1 0-4ZM17.33 8.27a2 2 0 1 1 0 4a2 2 0 1 1 0-4ZM15.29 14.53a2 2 0 1 1 0 4a2 2 0 1 1 0-4ZM8.71 14.53a2 2 0 1 1 0 4a2 2 0 1 1 0-4ZM6.67 8.27a2 2 0 1 1 0 4a2 2 0 1 1 0-4ZM12 11.1a.9.9 0 1 1 0 1.8a.9.9 0 1 1 0-1.8Z"/><rect x="12" y="20" width="10" height="2" rx="1"/>'
                 . '</svg></a>' . $actions;
         }
-        return '<section class="spot-hero metadata-hero' . ($preview ? ' quick-hero' : '') . ($metadata['type'] === 'episode' ? ' episode-hero' : '') . '">'
+        return ($preview ? SpotPresentation::quickActions($actions) : '')
+            . '<section class="spot-hero metadata-hero' . ($preview ? ' quick-hero' : '') . ($metadata['type'] === 'episode' ? ' episode-hero' : '') . '">'
             . SpotPresentation::backdrop($backgroundSpot, 'hero-backdrop', $images)
-            . '<div class="hero-actions" role="group" aria-label="Spotacties">'
-            . ($preview ? $actions : '<div class="hero-sources">' . $link . self::attribution($metadata, $provider) . '</div><div class="hero-buttons">' . $actions . '</div>')
-            . '</div>'
+            . ($preview ? '' : '<div class="hero-actions" role="group" aria-label="Spotacties"><div class="hero-sources">'
+                . $link . self::attribution($metadata, $provider) . '</div><div class="hero-buttons">' . $actions . '</div></div>')
             . '<div class="hero-poster">' . SpotPresentation::image($imageSpot, false, $images, $posterGallery) . '</div><div class="hero-copy">' . $copy . '</div>'
-            . ($preview ? '<div class="quick-sources">' . self::attribution($metadata, $provider) . '</div>' : '')
             . $galleries . '</section>'
+            . ($preview ? '<div class="quick-sources">' . self::attribution($metadata, $provider) . '</div>' : '')
             . ($preview ? '' : '<p class="small text-body-secondary metadata-release">Oorspronkelijke spottitel: <strong>' . h($spot['title']) . '</strong></p>');
     }
 

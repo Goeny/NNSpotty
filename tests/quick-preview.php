@@ -34,11 +34,16 @@ $metadata = [
     'certification' => ['country' => 'US', 'value' => 'R'],
     'people' => [['name' => 'Fixture Actor', 'role' => 'Example', 'type' => 'Actor', 'image' => '']],
     'companies' => [['name' => 'Fixture Studio']], 'trailers' => [],
+    'links' => ['tmdb' => 'movies/123', 'tvdb' => 'movies/456'],
 ];
-$preview = SpotDetailPageRenderer::summary($spot, true, metadata: $metadata);
-
 if (PHP_SAPI === 'cli-server') {
     if (str_starts_with($_SERVER['REQUEST_URI'], '/assets/')) return false;
+    \NnSpotty\UI\SpotLayout::downloads(static fn (): array => ['default' => 'personal:sabnzbd', 'targets' => [
+        ['id' => 'personal:sabnzbd', 'label' => 'Mijn SABnzbd', 'client' => 'sabnzbd', 'enabled' => true],
+        ['id' => 'personal:nzbget', 'label' => 'Mijn NZBGet', 'client' => 'nzbget', 'enabled' => true],
+    ]]);
+    $metadata['people'] = array_fill(0, 8, $metadata['people'][0]);
+    $preview = SpotDetailPageRenderer::summary($spot, true, metadata: $metadata);
     header('Content-Type: text/html; charset=utf-8');
     echo '<!doctype html><html lang="nl" data-bs-theme="dark"><head><meta name="viewport" content="width=device-width, initial-scale=1">'
         . '<title>Compact preview validation</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css">'
@@ -47,6 +52,7 @@ if (PHP_SAPI === 'cli-server') {
     return;
 }
 
+$preview = SpotDetailPageRenderer::summary($spot, true, metadata: $metadata);
 $checks = 0;
 function expectPreview(bool $condition, string $message): void
 {
@@ -61,10 +67,11 @@ foreach ([null, $metadata] as $data) {
     $dom = new DOMDocument();
     $dom->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_NOERROR | LIBXML_NOWARNING);
     $xpath = new DOMXPath($dom);
-    expectPreview($xpath->query('/html/body/*')->length === 1
-        && $xpath->query('//section[contains(@class,"quick-hero")]')->length === 1,
-        'Original and matched previews contain exactly one hero, no trailing detail blocks');
-    foreach (['metadata-strip', 'metadata-people', 'metadata-release', 'Technische details', 'Full spot description', 'Fixture Studio'] as $excluded) {
+    expectPreview($xpath->query('//section[contains(@class,"quick-hero")]')->length === 1
+        && $xpath->query('//section[contains(@class,"quick-hero")]//div[@role="group"]')->length === 0
+        && $xpath->query('//div[@class="quick-actions"]/following-sibling::section[contains(@class,"quick-hero")]')->length === 1,
+        'Original and matched previews place their action toolbar before, not inside, the hero');
+    foreach (['metadata-strip', 'metadata-release', 'Technische details', 'Full spot description', 'Fixture Studio'] as $excluded) {
         expectPreview(!str_contains($html, $excluded), 'Quick details omit ' . $excluded);
     }
     expectPreview(str_contains($html, SpotReleaseQuality::compact($spot['title']))
@@ -78,6 +85,21 @@ expectPreview(str_contains($preview, 'hero-backdrop') && str_contains($preview, 
     'Matched hero retains fanart, poster and synopsis');
 expectPreview(str_contains($preview, 'TMDB') && str_contains($preview, 'not endorsed')
     && !str_contains($preview, 'Horror, Mysterie, Thriller'), 'Provider attribution and required notice remain; genres are limited');
+$dom = new DOMDocument();
+$dom->loadHTML('<?xml encoding="UTF-8">' . $preview, LIBXML_NOERROR | LIBXML_NOWARNING);
+$xpath = new DOMXPath($dom);
+expectPreview($xpath->query('//section[contains(@class,"quick-hero")]//div[@class="quick-sources"]')->length === 0
+    && $xpath->query('//div[@class="quick-sources"]/preceding-sibling::section[contains(@class,"quick-hero")]')->length === 1
+    && $xpath->query('//div[@class="quick-sources"]//a')->length === 2,
+    'Both providers and their notice appear below the hero, never on the fanart');
+expectPreview($xpath->query('//div[@class="quick-cast"]/preceding-sibling::section[contains(@class,"quick-hero")]')->length === 1
+    && str_contains($preview, 'Fixture Actor'), 'Actor list uses the space below the hero');
+$largeCast = $metadata;
+$largeCast['people'] = array_fill(0, 20, $metadata['people'][0]);
+$largeCast['people'][] = ['name' => 'Director excluded', 'type' => 'Director', 'role' => '', 'image' => ''];
+$castHtml = SpotDetailPageRenderer::summary($spot, true, metadata: $largeCast);
+expectPreview(substr_count($castHtml, 'class="person-card"') === 8 && !str_contains($castHtml, 'Director excluded'),
+    'Compact cast is bounded to eight actors, without extended crew or studios');
 $detail = SpotDetailPageRenderer::summary($spot, false, metadata: $metadata);
 foreach (['metadata-people', 'metadata-release', 'Technische details', 'Full spot description', 'Fixture Studio', 'release-quality'] as $included) {
     expectPreview(str_contains($detail, $included), 'Full detail still contains ' . $included);

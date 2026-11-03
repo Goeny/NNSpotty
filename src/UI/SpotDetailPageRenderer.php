@@ -167,8 +167,9 @@ HTML;
             ? \NnSpotty\Music\View::link() : \NnSpotty\Metadata\View::link()) : '';
         $buttons = $action;
         $action = $link . $action;
-        $hero = '<section class="spot-hero' . ($preview ? ' quick-hero' : '') . '">' . SpotPresentation::backdrop($spot, 'hero-backdrop', $imagesEnabled)
-            . ($action !== '' ? '<div class="hero-actions" role="group" aria-label="Spotacties">' . $action . '</div>' : '')
+        $hero = ($preview ? SpotPresentation::quickActions($action) : '')
+            . '<section class="spot-hero' . ($preview ? ' quick-hero' : '') . '">' . SpotPresentation::backdrop($spot, 'hero-backdrop', $imagesEnabled)
+            . (!$preview && $action !== '' ? '<div class="hero-actions" role="group" aria-label="Spotacties">' . $action . '</div>' : '')
             . '<div class="hero-poster">' . $image . '</div><div class="hero-copy"><p class="text-body-secondary mb-2">'
             . $type . '</p><' . $tag . '>' . $title . '</' . $tag . '><div class="tag-row">' . $chips . '</div>'
             . ($classification['type'] === 'Films' || $classification['type'] === 'Series'
@@ -179,13 +180,22 @@ HTML;
                 $hero = \NnSpotty\Music\View::summary($spot, $metadata, $action, $imagesEnabled, $preview);
             } else {
                 $hero = \NnSpotty\Metadata\View::hero($spot, $metadata, $buttons, $imagesEnabled, $preview, $link);
-                if (!$preview) {
+                if ($preview) {
+                    $cast = $metadata;
+                    $cast['people'] = array_slice(array_values(array_filter($metadata['people'] ?? [], static fn (array $person): bool =>
+                        str_contains(strtolower((string) ($person['type'] ?? '')), 'actor')
+                        || str_contains(strtolower((string) ($person['role'] ?? '')), 'actor'))), 0, 8);
+                    $cast['companies'] = [];
+                    if ($cast['people'] !== []) {
+                        $people = '<div class="quick-cast">' . \NnSpotty\Metadata\View::people($cast, $imagesEnabled) . '</div>';
+                    }
+                } else {
                     $people = \NnSpotty\Metadata\View::trailers($metadata) . \NnSpotty\Metadata\View::people($metadata, $imagesEnabled);
                 }
             }
         }
         if ($preview) {
-            return $hero;
+            return $hero . $people;
         }
         $spotter = h($spot['poster']);
         if (is_string($spot['spotter_id'] ?? null) && $spot['spotter_id'] !== '') {

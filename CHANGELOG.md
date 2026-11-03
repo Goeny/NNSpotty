@@ -8,7 +8,7 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 - Metadata-beheer: instelbare herbeoordeling van errors/unmatched/ambiguous, gerichte bulkruns via cron, live voortgang en extra titelregels per film/serie/muziek. Ingebouwde herkennings- en selectieregels zijn alleen-lezen in te zien; handmatige koppelingen/blokkeringen blijven behouden.
 
 ### Fixed
-- Quick details blijven beperkt tot een compacte hero met poster/fanart, kerninformatie, korte synopsis en kleine kwaliteitsbadges; cast, technische details en overige uitgebreide informatie blijven op de detailpagina.
+- Quick details tonen een compacte hero met poster/fanart, kerninformatie, korte synopsis en kleine kwaliteitsbadges; compacte acties staan erboven, bronvermelding en maximaal acht acteurs eronder. Technische details en uitgebreide informatie blijven op de detailpagina.
 - Metadataqueue verwerkt spots van nieuw naar oud, voorkomt overlappende runs en hervat onderbroken jobs. Foutretries respecteren de cacheduur en krijgen na het maximum een langere pauze; gewijzigde matchregels activeren herbeoordeling van negatieve resultaten.
 - Metadata-cron: TVDB-, TMDB- en MusicBrainz-timeouts gelden per HTTP-aanvraag, zodat latere spots niet meer falen door een verlopen gedeelde clientdeadline. Requestlimieten blijven behouden.
 - Spotoverzicht gebruikt bij gematchte items nu direct metadata-samenvattingen (titel/jaar en poster; bij muziek artiest - album en albumhoes) en hydrateert ontbrekende metadata-indexen vanuit bestaande matches, zodat actor-/studiofilters en metadata-gebaseerde zoekresultaten consistenter zijn zonder eerst elke detailpagina te openen.
