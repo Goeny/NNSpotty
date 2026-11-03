@@ -391,6 +391,13 @@ final class EnrichmentRepository
         foreach ($companiesRaw as $company) {
             $entities[] = ['type' => 'studio', 'key' => self::entityKey($company), 'name' => self::truncate($company, 191)];
         }
+        $keywords = self::textList($metadata['keywords'] ?? [], 30);
+        foreach (['keyword' => $keywords, 'language' => [$metadata['original_language'] ?? ''], 'status' => [$metadata['status'] ?? '']] as $type => $names) {
+            foreach ($names as $name) {
+                if (!is_string($name) || trim($name) === '') continue;
+                $entities[] = ['type' => $type, 'key' => self::entityKey($name), 'name' => self::truncate($name, 191)];
+            }
+        }
         $peopleRaw = array_values(array_unique(array_filter($peopleRaw)));
         $aliases = self::textList(array_filter([$metadata['episode_title'] ?? '', $metadata['type'] ?? '']), 6);
         $overview = self::truncate((string) ($metadata['overview'] ?? ''), 4000);
@@ -421,6 +428,7 @@ final class EnrichmentRepository
             'tmdb_id' => self::truncate($tmdbId, 16),
             'search_text' => self::truncate(implode("\n", array_filter([
                 $title, $subtitle, implode(', ', $genres), implode(', ', $peopleRaw), implode(', ', $companiesRaw),
+                implode(', ', $keywords), (string) ($metadata['original_language'] ?? ''), (string) ($metadata['status'] ?? ''),
                 $overview, (string) ($spot['title'] ?? ''),
             ])), 16000),
             'entities' => self::uniqueEntities($entities),

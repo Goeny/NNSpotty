@@ -14,6 +14,7 @@ NNSpotty is een moderne Spotnet-webapplicatie voor het ophalen, browsen en downl
 - Newznab API ondersteuning
 - NZB downloaden en versturen naar SABnzbd of NZBGet: kies in Voorkeuren je standaard downloadclient, of eenmalig een andere via "Verzenden naar..."; wachtrij en snelheid in het Downloads-paneel
 - Metadata-koppelingen (o.a. TMDB, TheTVDB, MusicBrainz, Fanart)
+- Film-/seriedetails met regie, beschikbare TMDB-titelinformatie, doorzoekbare trefwoorden en suggesties onder "Meer zoals dit..."
 - Metadata-cron met herbeoordeling, extra herkennings-/opschoonregels per type, bulkruns en live runstatus in admin
 - Poster- en fanartgalerijen bij films/series: klik de cover voor overige posters, of het media-icoon naast de trailer voor fanart. Bladeren met knoppen, pijltjestoetsen of swipen; afbeeldingen laden pas bij bekijken.
 - Admin beheerpanel voor systeeminstellingen

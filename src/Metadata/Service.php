@@ -64,7 +64,7 @@ final class Service
         $negativeHash = hash('sha256', $hash . $this->repo->matchRules()->revision());
         $old = $this->repo->match($spot['id']);
         if (!$refresh && $old !== null && $old['input_hash'] === (in_array($old['result_json']['state'] ?? '', ['matched', 'blocked'], true) ? $hash : $negativeHash)
-            && $old['fresh'] && $old['result_json'] !== null) return $old['result_json'];
+            && $old['fresh'] && $old['result_json'] !== null && !self::needsDetailUpgrade($old['result_json'])) return $old['result_json'];
         $type = Release::parse($spot)['type'] ?? ($categoryType === 'Series' ? 'series' : 'movie');
         $manual = ($old['choice_json']['input'] ?? null) === self::signature($spot, '');
         $release = Release::parse($manual ? $spot : $this->repo->matchRules()->apply($spot, $type));
@@ -73,7 +73,10 @@ final class Service
         try {
             $old = $this->repo->match($spot['id']);
             if (!$refresh && $old !== null && $old['input_hash'] === (in_array($old['result_json']['state'] ?? '', ['matched', 'blocked'], true) ? $hash : $negativeHash)
-                && $old['fresh'] && $old['result_json'] !== null) return $old['result_json'];
+                && $old['fresh'] && $old['result_json'] !== null) {
+                if (!self::needsDetailUpgrade($old['result_json'])) return $old['result_json'];
+                return $this->upgradeDetails($spot, $hash, $old['result_json']);
+            }
             // A manual choice survives language changes, but not changed spot input.
             $choice = $old !== null ? $old['choice_json'] : null;
             if ($choice !== null && ($choice['input'] ?? '') !== self::signature($spot, '')) $choice = null;
@@ -141,6 +144,7 @@ final class Service
                     $other = $matchedProvider === 'tvdb' ? 'tmdb' : 'tvdb';
                     $result = ['state' => 'matched', 'manual' => $choice !== null,
                         'metadata' => in_array($other, $failed, true) ? $metadata : $this->complement($matchedProvider, $metadata, $warnings)];
+                    $result['metadata']['detail_version'] = 1;
                     if ($matchedProvider !== $provider) $result['fallback_from'] = $provider;
                 }
                 if ($warnings !== []) $result['warnings'] = $warnings;
@@ -158,6 +162,36 @@ final class Service
         } finally {
             $this->repo->unlock($spot['id']);
         }
+    }
+
+    private static function needsDetailUpgrade(array $result): bool
+    {
+        return ($result['state'] ?? '') === 'matched' && ($result['metadata']['detail_version'] ?? 0) < 1;
+    }
+
+    private function upgradeDetails(array $spot, string $hash, array $result): array
+    {
+        $metadata = $result['metadata'];
+        $warnings = [];
+        try {
+            // Refresh the existing identity, never run title matching just to add detail fields.
+            $type = $metadata['type'] === 'movie' ? 'movie' : 'series';
+            $id = $metadata['type'] === 'episode' ? $metadata['parent_id'] : $metadata['id'];
+            $context = ['season' => $metadata['season'], 'episode' => $metadata['episode'] ?? $metadata['requested_episode'] ?? null];
+            $metadata = $this->details($metadata['provider'], $type, $id, $context);
+            if (isset($metadata['artwork_warning'])) $warnings[] = $metadata['artwork_warning'];
+            $result['metadata'] = $this->complement($metadata['provider'], $metadata, $warnings);
+        } catch (\PDOException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            error_log('Metadata-detailaanvulling: ' . $exception->getMessage());
+            $warnings[] = 'Extra titelinformatie kon niet worden opgehaald. De bestaande match blijft behouden; probeer over vijf minuten opnieuw.';
+        }
+        $result['metadata']['detail_version'] = 1;
+        if ($warnings !== []) $result['warnings'] = $warnings;
+        else unset($result['warnings']);
+        $this->repo->result($spot['id'], $hash, $result, $warnings === [] ? 604800 : 300);
+        return $result;
     }
 
     private static function failureReason(Throwable $exception): string
@@ -242,7 +276,8 @@ final class Service
     private static function merge(array $primary, array $other): array
     {
         $used = false;
-        $fields = ['poster', 'fanart', 'genres', 'companies', 'score', 'certification', 'trailers'];
+        $fields = ['poster', 'fanart', 'genres', 'companies', 'score', 'certification', 'trailers',
+            'status', 'original_language', 'budget', 'revenue', 'keywords', 'recommendations'];
         // Episode-level data only complements the very same episode.
         if ($primary['type'] === $other['type']) array_push($fields, 'overview', 'date', 'runtime', 'people', 'still', 'episode_title', 'episode_score');
         foreach ($fields as $field) {
@@ -254,6 +289,14 @@ final class Service
                 $before = $primary[$field] ?? [];
                 $primary[$field] = array_values(array_unique(array_merge($before, $other[$field] ?? [])));
                 if ($primary[$field] !== $before) $used = true;
+            }
+        }
+        $directors = array_filter($primary['people'] ?? [], static fn (array $person): bool => ($person['type'] ?? '') === 'Director');
+        if ($directors === [] && $primary['type'] === $other['type']) {
+            foreach ($other['people'] ?? [] as $person) {
+                if (($person['type'] ?? '') !== 'Director') continue;
+                $primary['people'][] = $person;
+                $used = true;
             }
         }
         if (($primary['imdb_id'] ?? '') === '') $primary['imdb_id'] = $other['imdb_id'] ?? '';

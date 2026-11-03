@@ -181,7 +181,8 @@ final class View
         $provider = ($metadata['provider'] ?? 'tvdb') === 'tmdb' ? 'tmdb' : 'tvdb';
         $providerName = $provider === 'tmdb' ? 'TMDB' : 'TheTVDB';
         $copy = '<p class="text-body-secondary mb-2">' . $providerName . ' &middot; ' . h(['movie' => 'Film', 'series' => 'Serie', 'episode' => 'Aflevering'][$metadata['type']]) . '</p>'
-            . '<' . $heading . '>' . h($metadata['title']) . '</' . $heading . '>';
+            . '<' . $heading . '>' . ($preview ? h($metadata['title']) : '<a class="metadata-title-link" href="' . h(self::titleUrl($metadata['title'])) . '">'
+                . h($metadata['title']) . '</a>') . '</' . $heading . '>';
         if ($metadata['episode_title'] !== '') $copy .= '<' . $episodeHeading . ' class="h4">' . h($metadata['episode_title']) . '</' . $episodeHeading . '>';
         if ($metadata['season'] !== null && !$metadata['episode_missing']) $copy .= '<p>Seizoen ' . (int) $metadata['season'] . ($metadata['episode'] === null ? '' : ' &middot; Aflevering ' . (int) $metadata['episode']) . '</p>';
         $facts = array_filter([$metadata['date'], $metadata['runtime'] === null ? '' : $metadata['runtime'] . ' min',
@@ -192,7 +193,17 @@ final class View
         if ($metadata['episode_missing'] && !$preview) $copy .= '<p class="small text-body-secondary">Serie gevonden; seizoen ' . (int) $metadata['season']
             . ', aflevering ' . (int) $metadata['requested_episode']
             . ' is niet uniek beschikbaar in de officiële ' . $providerName . '-nummering. Seizoen en aflevering zijn uit de releasetitel, niet door ' . $providerName . ' bevestigd. Er worden alleen seriemetadata getoond; corrigeer de koppeling via Metadata link.</p>';
-        $copy .= $preview ? \NnSpotty\UI\SpotReleaseQuality::compact($spot['title']) : \NnSpotty\UI\SpotReleaseQuality::render($spot['title']);
+        $quality = $preview ? \NnSpotty\UI\SpotReleaseQuality::compact($spot['title']) : \NnSpotty\UI\SpotReleaseQuality::render($spot['title']);
+        $directors = '';
+        if (!$preview) {
+            foreach ($metadata['people'] ?? [] as $person) {
+                if (!str_contains(strtolower((string) ($person['type'] ?? '')), 'director')) continue;
+                $name = trim((string) ($person['name'] ?? ''));
+                if ($name !== '') $directors .= '<a href="' . h(self::entityUrl('director', $name)) . '">' . h($name) . '</a>';
+            }
+        }
+        $copy .= $preview ? $quality : '<div class="metadata-hero-details">' . $quality
+            . ($directors === '' ? '' : '<div class="metadata-directors"><small>Regie</small>' . $directors . '</div>') . '</div>';
         $galleries = '';
         $posterGallery = null;
         if ($images && !$preview) {
@@ -333,7 +344,7 @@ final class View
             . '<p class="small text-body-secondary mt-2 mb-0">De speler laadt pas na een klik, via youtube-nocookie.com of Vimeo.</p></div></dialog>';
     }
 
-    public static function people(array $metadata, bool $images): string
+    public static function people(array $metadata, bool $images, bool $preview = false): string
     {
         $html = '';
         if ($metadata['people'] !== []) {
@@ -357,17 +368,78 @@ final class View
             }
             $html .= '</div></section>';
         }
+        $taxonomy = '';
         if ($metadata['companies'] !== []) {
-            $html .= '<section class="card mb-3"><div class="card-header">Studio / netwerk</div><div class="card-body d-flex flex-wrap gap-3">';
+            $taxonomy .= '<section class="card"><div class="card-header">Studio / netwerk</div><div class="card-body d-flex flex-wrap gap-3">';
             foreach ($metadata['companies'] as $company) {
                 $name = trim((string) ($company['name'] ?? ''));
                 if ($name === '') continue;
-                $html .= '<span><a href="' . h(self::entityUrl('studio', $name)) . '" title="Alles tonen van studio/netwerk ' . h($name) . '">'
+                $taxonomy .= '<span><a href="' . h(self::entityUrl('studio', $name)) . '" title="Alles tonen van studio/netwerk ' . h($name) . '">'
                     . h($name) . '</a></span>';
             }
-            $html .= '</div></section>';
+            $taxonomy .= '</div></section>';
         }
-        return $html;
+        if (!$preview && !empty($metadata['keywords'])) {
+            $taxonomy .= '<section class="card"><div class="card-header">Trefwoorden</div><div class="card-body d-flex flex-wrap gap-2">';
+            foreach ($metadata['keywords'] as $keyword) {
+                $taxonomy .= '<a class="tag-chip" href="' . h(self::entityUrl('keyword', $keyword)) . '">' . h($keyword) . '</a>';
+            }
+            $taxonomy .= '</div></section>';
+        }
+        return $html . ($taxonomy === '' ? '' : '<div class="metadata-taxonomy mb-3">' . $taxonomy . '</div>');
+    }
+
+    public static function facts(array $metadata): string
+    {
+        $items = [];
+        $status = $metadata['status'] ?? '';
+        if ($status !== '') {
+            $label = ['Released' => 'Uitgebracht', 'Rumored' => 'Gerucht', 'Planned' => 'Gepland', 'In Production' => 'In productie',
+                'Post Production' => 'Postproductie', 'Canceled' => 'Geannuleerd', 'Returning Series' => 'Lopende serie',
+                'Ended' => 'Beëindigd', 'In Development' => 'In ontwikkeling', 'Pilot' => 'Pilot'][$status] ?? $status;
+            $items[] = ['Status', '<a href="' . h(self::entityUrl('status', $status)) . '">' . h($label) . '</a>', 'M5 12l4 4L19 6'];
+        }
+        $language = $metadata['original_language'] ?? '';
+        if ($language !== '') {
+            $label = ['en' => 'Engels', 'nl' => 'Nederlands', 'fr' => 'Frans', 'de' => 'Duits', 'es' => 'Spaans', 'it' => 'Italiaans',
+                'ja' => 'Japans', 'ko' => 'Koreaans', 'zh' => 'Chinees', 'pt' => 'Portugees', 'hi' => 'Hindi', 'ru' => 'Russisch'][$language] ?? strtoupper($language);
+            $items[] = ['Oorspronkelijke taal', '<a href="' . h(self::entityUrl('language', $language)) . '">' . h($label) . '</a>', 'M3 5h12M9 3v2m-4 0c0 6 6 10 9 10M13 5c0 6-6 10-10 10m12 6 4-10 4 10m-6-4h4'];
+        }
+        foreach (['budget' => 'Budget', 'revenue' => 'Opbrengst'] as $key => $label) {
+            if (is_int($metadata[$key] ?? null) && $metadata[$key] > 0) {
+                $items[] = [$label, '<span title="Amerikaanse dollar">US$ ' . number_format($metadata[$key], 0, ',', '.') . '</span>', 'M12 2v20m5-16H9a4 4 0 0 0 0 8h6a4 4 0 0 1 0 8H5'];
+            }
+        }
+        if ($items === []) return '';
+        $html = '<section class="metadata-strip metadata-facts-strip" aria-label="Titelinformatie">';
+        foreach ($items as [$label, $value, $path]) {
+            $html .= '<div><small><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="' . $path . '"/></svg>'
+                . h($label) . '</small>' . $value . '</div>';
+        }
+        return $html . '</section>';
+    }
+
+    public static function recommendations(array $metadata, bool $images): string
+    {
+        if (empty($metadata['recommendations'])) return '';
+        $html = '<section class="metadata-recommendations mt-4" aria-labelledby="recommendations-title"><h2 class="h4" id="recommendations-title">Meer zoals dit...</h2><div class="recommendation-list">';
+        foreach ($metadata['recommendations'] as $item) {
+            $html .= '<a class="recommendation-card" href="' . h(self::titleUrl($item['title'])) . '" title="Zoek spots voor ' . h($item['title']) . '">';
+            if ($images && ($image = Service::imageUrl((string) ($item['image'] ?? ''))) !== '') {
+                $html .= '<img src="' . h($image) . '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src=\'/assets/images/placeholder.png\'">';
+            } elseif ($images) {
+                $html .= '<img src="/assets/images/placeholder.png" alt="" loading="lazy">';
+            }
+            $score = $item['score']['value'] ?? null;
+            $html .= '<span class="recommendation-caption"><strong>' . h($item['title']) . ($item['year'] === '' ? '' : ' <small>(' . h($item['year']) . ')</small>') . '</strong>'
+                . (is_numeric($score) ? '<span>' . (int) round((float) $score * 10) . '%</span>' : '') . '</span></a>';
+        }
+        return $html . '</div></section>';
+    }
+
+    private static function titleUrl(string $title): string
+    {
+        return '/spots?' . http_build_query(['q' => $title]);
     }
 
     public static function message(array $result): string

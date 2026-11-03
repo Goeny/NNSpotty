@@ -4,6 +4,9 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
 ## [Unreleased]
 
+### Added
+- Film-/seriedetails met regie in de hero, compacte spot- en titelinformatie (status, oorspronkelijke taal, filmbudget/opbrengst), klikbare trefwoorden naast studio's en TMDB-suggesties boven de reacties. Regie, trefwoorden, status en taal filteren lokale spots; suggesties en titels starten een titelzoekopdracht. Quick details blijven compact.
+
 ## [0.3.0] - 2026-11-03 - RX-7 Spirit R
 
 ### Added

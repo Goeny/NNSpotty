@@ -12,6 +12,8 @@ final class TmdbFixture implements \NnSpotty\Metadata\Gateway
     public bool $missingEpisode = false;
     public bool $failImages = false;
     public ?array $images = null;
+    public array $movieExtras = [];
+    public array $seriesExtras = [];
 
     public function get(string $path, array $query = []): ?array
     {
@@ -30,7 +32,7 @@ final class TmdbFixture implements \NnSpotty\Metadata\Gateway
         if ($path === '/search/tv') return ['results' => $this->seriesResults ?? [['id' => 700, 'name' => 'Fixture Show', 'original_name' => 'Fixture Show', 'first_air_date' => '2017-01-01']]];
         if ($path === '/find/tt1234567') return ['movie_results' => [['id' => 603]], 'tv_results' => []];
         if ($path === '/find/10') return ['movie_results' => [], 'tv_results' => [['id' => 700]]];
-        if ($path === '/movie/603') return [
+        if ($path === '/movie/603') return array_replace([
             'id' => 603, 'title' => 'TMDB Fixture Film', 'overview' => ($query['language'] ?? '') === 'nl-NL' ? '' : 'TMDB English overview',
             'release_date' => '2020-05-01', 'runtime' => 117, 'genres' => [['id' => 1, 'name' => 'Actie']],
             'poster_path' => $this->moviePoster ? '/tmdb-poster.jpg' : null, 'backdrop_path' => '/tmdb-backdrop.jpg',
@@ -45,14 +47,14 @@ final class TmdbFixture implements \NnSpotty\Metadata\Gateway
             'release_dates' => ['results' => [['iso_3166_1' => 'US', 'release_dates' => [['certification' => 'PG-13']]],
                 ['iso_3166_1' => 'NL', 'release_dates' => [['certification' => ''], ['certification' => '12']]]]],
             'external_ids' => ['imdb_id' => 'tt1234567'],
-            'production_companies' => [['id' => 77, 'name' => 'TMDB Studio']]];
-        if ($path === '/tv/700') return [
+            'production_companies' => [['id' => 77, 'name' => 'TMDB Studio']]], $this->movieExtras);
+        if ($path === '/tv/700') return array_replace([
             'id' => 700, 'name' => 'TMDB Fixture Show', 'overview' => 'TMDB show overview', 'first_air_date' => '2017-01-01',
             'episode_run_time' => [44], 'genres' => [['id' => 2, 'name' => 'Drama']], 'poster_path' => '/show.jpg', 'backdrop_path' => null,
             'vote_average' => 8.1, 'vote_count' => 321, 'credits' => ['cast' => []], 'created_by' => [['id' => 12, 'name' => 'Show Creator']],
             'videos' => ['results' => [['site' => 'Vimeo', 'key' => '123456', 'type' => 'Trailer', 'official' => false, 'iso_639_1' => 'nl', 'name' => 'Seizoenstrailer']]],
             'content_ratings' => ['results' => [['iso_3166_1' => 'NL', 'rating' => '16']]],
-            'external_ids' => ['imdb_id' => 'tt7654321', 'tvdb_id' => 10], 'networks' => [['id' => 88, 'name' => 'TMDB Network']]];
+            'external_ids' => ['imdb_id' => 'tt7654321', 'tvdb_id' => 10], 'networks' => [['id' => 88, 'name' => 'TMDB Network']]], $this->seriesExtras);
         if ($path === '/tv/700/season/3/episode/2') return $this->missingEpisode ? null : [
             'id' => 7002, 'season_number' => 3, 'episode_number' => 2, 'name' => 'TMDB Episode', 'overview' => 'TMDB episode overview',
             'air_date' => '2020-02-01', 'runtime' => 43, 'still_path' => '/still.jpg', 'vote_average' => 9.0, 'vote_count' => 12,

@@ -17,6 +17,7 @@ Dit bestand blijft bewust kort en publiek.
 - NZB-download en SABnzbd-koppeling
 - Newznab API
 - Metadata-integraties (films/series/muziek)
+- Uitgebreide details: regie naast compacte video/audio-informatie; spotgegevens naast TMDB-status/taal/budget/opbrengst; studio's naast trefwoorden. Regie/trefwoorden/status/taal gebruiken metadata-entityfilters, titels en maximaal twaalf TMDB-suggesties boven reacties starten lokale titelzoekopdrachten. Suggesties garanderen geen lokale beschikbaarheid. Bestaande verse matches worden bij openen eenmalig aangevuld via hetzelfde provider-ID, zonder opnieuw op titel te matchen; geen schemawijziging.
 - Metadataqueue: nieuwste spotdatum eerst; errors met backoff en dagpauze, unmatched/ambiguous met instelbare herbeoordeling. Admin beheert extra letterlijke herkennings-/opschoonregels per type, alleen-lezen ingebouwde regels, bulkruns voor de volgende cron en live runstatus. Handmatige koppelingen/blokkeringen blijven behouden.
 - Posters en fanart van gekoppelde TVDB-/TMDB-records in aparte lightboxgalerijen; cover opent posters, media-icoon opent fanart. Alleen de bekeken afbeelding wordt geladen; hero-keuze blijft gelijk.
 - Gebruikers, rollen, rechten en preferences

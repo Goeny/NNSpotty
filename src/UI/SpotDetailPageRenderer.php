@@ -201,7 +201,7 @@ HTML;
                         || str_contains(strtolower((string) ($person['role'] ?? '')), 'actor'))), 0, 8);
                     $cast['companies'] = [];
                     if ($cast['people'] !== []) {
-                        $people = '<div class="quick-cast">' . \NnSpotty\Metadata\View::people($cast, $imagesEnabled) . '</div>';
+                        $people = '<div class="quick-cast">' . \NnSpotty\Metadata\View::people($cast, $imagesEnabled, true) . '</div>';
                     }
                 } else {
                     $people = \NnSpotty\Metadata\View::trailers($metadata) . \NnSpotty\Metadata\View::people($metadata, $imagesEnabled);
@@ -218,6 +218,10 @@ HTML;
         $spotMetadata = '<div class="metadata-strip"><div><small>Spotter</small>' . $spotter . \NnSpotty\Moderation\View::badge($spot)
             . '</div><div><small>Geplaatst (UTC)</small>' . h($spot['posted_at']) . '</div><div><small>Grootte</small>'
             . SpotPresentation::size((int) $spot['size']) . '</div></div>';
+        if ($metadata !== null && ($metadata['provider'] ?? '') !== 'musicbrainz') {
+            $facts = \NnSpotty\Metadata\View::facts($metadata);
+            if ($facts !== '') $spotMetadata = '<div class="metadata-info-grid">' . $spotMetadata . $facts . '</div>';
+        }
         $description = '<section class="card mb-3"><div class="card-header d-flex justify-content-between gap-2"><span>Omschrijving</span>' . $website
             . '</div><div class="card-body spot-description">' . SpotDescription::render($spot['description']) . '</div></section>';
         $technical = '<dt>Hoofdcategorie</dt><dd>' . h($spot['category']) . '</dd>';
@@ -243,6 +247,8 @@ HTML;
         $technical .= '<dt>Message-ID</dt><dd>' . h($spot['message_id']) . '</dd><dt>NZB</dt><dd>' . $nzb . '</dd>';
         $technical = '<section class="card mb-3"><div class="card-header">Technische details</div><div class="card-body"><dl class="technical">' . $technical . '</dl></div></section>';
         $notice = '<div class="alert alert-secondary small mb-0">Usenet-inhoud is onbevestigd. Spotterhandtekeningen worden nog niet geverifieerd. Alleen veilige omschrijvingsopmaak wordt weergegeven.</div>';
-        return $hero . $spotMetadata . $people . '<div class="detail-grid"><div>' . $description . '</div><div>' . $technical . '</div></div>' . $notice;
+        $recommendations = $metadata !== null && ($metadata['provider'] ?? '') !== 'musicbrainz'
+            ? \NnSpotty\Metadata\View::recommendations($metadata, $imagesEnabled) : '';
+        return $hero . $spotMetadata . $people . '<div class="detail-grid"><div>' . $description . '</div><div>' . $technical . '</div></div>' . $notice . $recommendations;
     }
 }

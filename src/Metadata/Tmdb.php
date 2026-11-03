@@ -56,7 +56,7 @@ final class Tmdb
         $videoLanguages = substr($language, 0, 2) . ',en,null';
         $path = ($type === 'movie' ? '/movie/' : '/tv/') . $id;
         $base = $this->cached($path, ['language' => $language, 'include_video_language' => $videoLanguages,
-            'append_to_response' => $type === 'movie' ? 'credits,videos,release_dates,external_ids' : 'credits,videos,content_ratings,external_ids']);
+            'append_to_response' => $type === 'movie' ? 'credits,videos,release_dates,external_ids,keywords,recommendations' : 'credits,videos,content_ratings,external_ids,keywords,recommendations']);
         $title = $base[$type === 'movie' ? 'title' : 'name'] ?? null;
         if (($base['id'] ?? null) !== $id || !is_string($title)) throw new RuntimeException('TMDB-record komt niet overeen met de gekozen titel.');
         $overview = self::text($base['overview'] ?? '', 12000);
@@ -88,14 +88,19 @@ final class Tmdb
         $people = [];
         $sources = [$episode['credits']['guest_stars'] ?? [], $base['credits']['cast'] ?? [], $episode['credits']['crew'] ?? [],
             $base['created_by'] ?? [], $base['credits']['crew'] ?? []];
+        $crew = array_merge($sources[2], array_map(static fn (array $person): array => $person + ['job' => 'Creator'], $sources[3]), $sources[4]);
+        usort($crew, static fn (array $a, array $b): int => (($a['job'] ?? '') === 'Director' ? 0 : 1) <=> (($b['job'] ?? '') === 'Director' ? 0 : 1));
+        $sources = [$sources[0], $sources[1], $crew];
         foreach ($sources as $index => $list) {
             if (!is_array($list)) throw new RuntimeException('TMDB gaf ongeldige castgegevens.');
             foreach ($list as $person) {
-                if (!is_array($person) || !is_int($person['id'] ?? null) || !is_string($person['name'] ?? null) || isset($people[$person['id']])) continue;
+                if (!is_array($person) || !is_int($person['id'] ?? null) || !is_string($person['name'] ?? null)) continue;
                 $crew = $index >= 2;
-                $job = $index === 3 ? 'Creator' : self::text($person['job'] ?? '');
+                $job = self::text($person['job'] ?? '');
                 if ($crew && !in_array($job, ['Director', 'Creator', 'Screenplay', 'Writer'], true)) continue;
-                $people[$person['id']] = ['id' => $person['id'], 'name' => self::text($person['name']),
+                $key = $person['id'] . ':' . ($crew ? $job : 'Actor');
+                if (isset($people[$key]) || (!$crew && count($people) >= 24)) continue;
+                $people[$key] = ['id' => $person['id'], 'name' => self::text($person['name']),
                     'role' => $crew ? $job : self::text($person['character'] ?? ''), 'type' => $crew ? $job : 'Actor',
                     'image' => self::imageUrl($person['profile_path'] ?? null, 'w185')];
                 if (count($people) === 30) break 2;
@@ -128,6 +133,12 @@ final class Tmdb
             'still' => $episode === null ? '' : self::imageUrl($episode['still_path'] ?? null, 'w780'),
             ...$artwork,
             'people' => array_values($people), 'companies' => array_slice(array_values($companies), 0, 20),
+            'status' => self::text($base['status'] ?? '', 80),
+            'original_language' => self::text($base['original_language'] ?? '', 10),
+            'budget' => $type === 'movie' && is_int($base['budget'] ?? null) && $base['budget'] > 0 ? $base['budget'] : null,
+            'revenue' => $type === 'movie' && is_int($base['revenue'] ?? null) && $base['revenue'] > 0 ? $base['revenue'] : null,
+            'keywords' => self::keywords($base['keywords'][$type === 'movie' ? 'keywords' : 'results'] ?? []),
+            'recommendations' => self::recommendations($base['recommendations']['results'] ?? [], $type, $id),
             'remote_ids' => [],
             'imdb_id' => is_string($imdb) && preg_match('/^tt\d{5,10}$/D', $imdb) ? $imdb : '',
             'tvdb_id' => is_int($tvdb) && $tvdb > 0 ? $tvdb : null,
@@ -136,6 +147,34 @@ final class Tmdb
             'trailers' => self::trailers(array_merge($episode['videos']['results'] ?? [], $base['videos']['results'] ?? []), substr($language, 0, 2)),
             'links' => ['tmdb' => $link],
         ];
+    }
+
+    private static function keywords(array $rows): array
+    {
+        $keywords = [];
+        foreach ($rows as $row) {
+            $name = is_array($row) ? self::text($row['name'] ?? '', 191) : '';
+            if ($name !== '') $keywords[$name] = $name;
+            if (count($keywords) >= 30) break;
+        }
+        return array_values($keywords);
+    }
+
+    private static function recommendations(array $rows, string $type, int $id): array
+    {
+        $items = [];
+        foreach ($rows as $row) {
+            if (!is_array($row) || !is_int($row['id'] ?? null) || $row['id'] < 1 || $row['id'] === $id || ($row['adult'] ?? false)) continue;
+            $title = self::text($row[$type === 'movie' ? 'title' : 'name'] ?? '');
+            if ($title === '') continue;
+            $date = $row[$type === 'movie' ? 'release_date' : 'first_air_date'] ?? '';
+            $items[$row['id']] = ['id' => $row['id'], 'title' => $title,
+                'year' => is_string($date) && preg_match('/^\d{4}/', $date) ? substr($date, 0, 4) : '',
+                'image' => self::imageUrl($row['backdrop_path'] ?? null, 'w780'),
+                'score' => self::score($row)];
+            if (count($items) >= 12) break;
+        }
+        return array_values($items);
     }
 
     private function artwork(string $path, array $base): array

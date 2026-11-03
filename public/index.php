@@ -826,7 +826,7 @@ $router->get('/spots', static function (Request $request) use ($auth, $csrf, $st
         $metadataKey = trim($request->queryScalar('meta_key') ?? '');
         $metadataEntity = null;
         if ($metadataType !== '' || $metadataKey !== '') {
-            if (!in_array($metadataType, ['actor', 'director', 'person', 'studio', 'artist'], true)
+            if (!in_array($metadataType, ['actor', 'director', 'person', 'studio', 'artist', 'keyword', 'language', 'status'], true)
                 || preg_match('/^[a-f0-9]{40}$/D', $metadataKey) !== 1) {
                 throw new InvalidArgumentException('Ongeldige metadatafilter.');
             }
@@ -917,7 +917,7 @@ $router->get('/spots/facets', static function (Request $request) use ($auth, $st
         $metadataKey = trim($request->queryScalar('meta_key') ?? '');
         $metadataEntity = null;
         if ($metadataType !== '' || $metadataKey !== '') {
-            if (!in_array($metadataType, ['actor', 'director', 'person', 'studio', 'artist'], true)
+            if (!in_array($metadataType, ['actor', 'director', 'person', 'studio', 'artist', 'keyword', 'language', 'status'], true)
                 || preg_match('/^[a-f0-9]{40}$/D', $metadataKey) !== 1) {
                 throw new InvalidArgumentException('Ongeldige metadatafilter.');
             }
