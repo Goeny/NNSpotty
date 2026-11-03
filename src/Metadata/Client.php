@@ -8,11 +8,8 @@ use RuntimeException;
 
 final class Client implements Gateway
 {
-    private readonly float $deadline;
-
     public function __construct(private readonly Repository $repo)
     {
-        $this->deadline = microtime(true) + 22;
     }
 
     public function get(string $path, array $query = []): ?array
@@ -60,8 +57,6 @@ final class Client implements Gateway
 
     private function request(string $path, ?string $token, ?array $body = null): array
     {
-        $remaining = (int) (($this->deadline - microtime(true)) * 1000);
-        if ($remaining < 1) throw new RuntimeException('TVDB-tijdslimiet bereikt. Probeer later opnieuw.');
         $this->repo->claimRequest();
         $curl = curl_init('https://api4.thetvdb.com/v4' . $path);
         if ($curl === false) throw new RuntimeException('TVDB HTTP-client kon niet starten.');
@@ -73,7 +68,7 @@ final class Client implements Gateway
             $options = [
                 CURLOPT_HTTPHEADER => $headers, CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
                 CURLOPT_FOLLOWLOCATION => false, CURLOPT_PROXY => '',
-                CURLOPT_CONNECTTIMEOUT_MS => min(3000, $remaining), CURLOPT_TIMEOUT_MS => min(8000, $remaining),
+                CURLOPT_CONNECTTIMEOUT_MS => 3000, CURLOPT_TIMEOUT_MS => 8000,
                 CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2,
                 CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$response): int {
                     if (strlen($response) + strlen($chunk) > 4 * 1024 * 1024) return 0;

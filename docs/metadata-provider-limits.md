@@ -56,6 +56,8 @@ Onderstaande defaults zijn bewust conservatief en bedoeld als veilige startwaard
 | MusicBrainz | 1 request per seconde (runtime gepaced op minimaal ~1.25s tussen calls) | Bij `503`: vaste vertraging + retry met oplopende wachttijd |
 | Fanart.tv | 30 requests/min | Bij `429`/`503`: exponential backoff met jitter, daarna retry |
 
+TVDB, TMDB en MusicBrainz hebben per HTTP-aanvraag een verbindingstimeout van 3 seconden en een totale netwerktimeout van 8 seconden. Wachttijd voor installatiebrede throttling staat daar los van; er geldt geen gedeelde clientdeadline voor de volledige cronbatch.
+
 ### Backoff-richtlijn
 
 - Maximaal 5 retries per request.

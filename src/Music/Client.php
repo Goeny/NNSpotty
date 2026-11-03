@@ -8,11 +8,8 @@ use RuntimeException;
 
 final class Client implements Gateway
 {
-    private readonly float $deadline;
-
     public function __construct(private readonly Repository $repo, private readonly string $contact)
     {
-        $this->deadline = microtime(true) + 22;
     }
 
     public function get(string $type, ?string $id, array $query = []): ?array
@@ -28,8 +25,6 @@ final class Client implements Gateway
         }
         if (!$this->repo->enabled()) throw new RuntimeException('Muziekmetadata is uitgeschakeld.');
         $this->repo->claimRequest();
-        $remaining = (int) (($this->deadline - microtime(true)) * 1000);
-        if ($remaining < 1) throw new RuntimeException('MusicBrainz-tijdslimiet bereikt.');
         $curl = curl_init('https://musicbrainz.org/ws/2/' . $type . ($id === null ? '' : '/' . $id)
             . '?' . http_build_query(['fmt' => 'json'] + $query));
         if ($curl === false) throw new RuntimeException('MusicBrainz HTTP-client kon niet starten.');
@@ -39,7 +34,7 @@ final class Client implements Gateway
                 CURLOPT_HTTPHEADER => ['Accept: application/json', 'User-Agent: NNSpotty/0.0.1 (' . $this->contact . ')'],
                 CURLOPT_PROTOCOLS => CURLPROTO_HTTPS, CURLOPT_FOLLOWLOCATION => false, CURLOPT_PROXY => '',
                 CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2,
-                CURLOPT_CONNECTTIMEOUT_MS => min(3000, $remaining), CURLOPT_TIMEOUT_MS => min(8000, $remaining),
+                CURLOPT_CONNECTTIMEOUT_MS => 3000, CURLOPT_TIMEOUT_MS => 8000,
                 CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$body): int {
                     if (strlen($body) + strlen($chunk) > 4 * 1024 * 1024) return 0;
                     $body .= $chunk;

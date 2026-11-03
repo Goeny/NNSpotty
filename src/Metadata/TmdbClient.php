@@ -8,11 +8,8 @@ use RuntimeException;
 
 final class TmdbClient implements Gateway
 {
-    private readonly float $deadline;
-
     public function __construct(private readonly Repository $repo)
     {
-        $this->deadline = microtime(true) + 22;
     }
 
     public function get(string $path, array $query = []): ?array
@@ -26,8 +23,6 @@ final class TmdbClient implements Gateway
         // A 32-character hex value is a v3 API key; anything else is a v4 Read Access Token.
         if (preg_match('/^[a-f0-9]{32}$/D', $settings['token'])) $query['api_key'] = $settings['token'];
         else $headers[] = 'Authorization: Bearer ' . $settings['token'];
-        $remaining = (int) (($this->deadline - microtime(true)) * 1000);
-        if ($remaining < 1) throw new RuntimeException('TMDB-tijdslimiet bereikt. Probeer later opnieuw.');
         $this->repo->claimRequest('tmdb');
         $curl = curl_init('https://api.themoviedb.org/3' . $path . ($query === [] ? '' : '?' . http_build_query($query)));
         if ($curl === false) throw new RuntimeException('TMDB HTTP-client kon niet starten.');
@@ -36,7 +31,7 @@ final class TmdbClient implements Gateway
             if (!curl_setopt_array($curl, [
                 CURLOPT_HTTPHEADER => $headers, CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
                 CURLOPT_FOLLOWLOCATION => false, CURLOPT_PROXY => '',
-                CURLOPT_CONNECTTIMEOUT_MS => min(3000, $remaining), CURLOPT_TIMEOUT_MS => min(8000, $remaining),
+                CURLOPT_CONNECTTIMEOUT_MS => 3000, CURLOPT_TIMEOUT_MS => 8000,
                 CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2,
                 CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$response): int {
                     if (strlen($response) + strlen($chunk) > 4 * 1024 * 1024) return 0;
