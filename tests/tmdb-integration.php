@@ -59,10 +59,10 @@ check(str_contains($tmdbMeta['poster'], 'artworks.thetvdb.com') && str_contains(
 $tmdbHtml = \NnSpotty\UI\SpotDetailPageRenderer::summary($tmdbMovie, false, true, true, $tmdbMeta);
 check(str_contains($tmdbHtml, 'TMDB &middot; Film') && str_contains($tmdbHtml, 'TMDB 78%') && str_contains($tmdbHtml, 'NL 12')
     && str_contains($tmdbHtml, 'href="https://www.themoviedb.org/movie/603"') && str_contains($tmdbHtml, 'href="https://thetvdb.com/dereferrer/movies/1"')
-    && str_contains($tmdbHtml, 'This website uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.')
+    && !str_contains($tmdbHtml, 'This website uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.')
     && str_contains($tmdbHtml, 'data-trailer-key="trailerKEY1"') && str_contains($tmdbHtml, 'Official Trailer &lt;b&gt;')
     && str_contains($tmdbHtml, 'data-trailer-frame hidden') && !str_contains($tmdbHtml, '<iframe'),
-    'Detail toont score, classificatie, beide attributies, TMDB-vermelding en trailers die pas na klik laden');
+    'Detail toont score, classificatie, beide bronlinks zonder disclaimer en trailers die pas na klik laden');
 $tmdbDom = new DOMDocument();
 $tmdbDom->loadHTML('<?xml encoding="UTF-8">' . \NnSpotty\UI\SpotDetailPageRenderer::summary($tmdbMovie, false, true, true, $tmdbMeta, true), LIBXML_NOERROR | LIBXML_NOWARNING);
 $tmdbXpath = new DOMXPath($tmdbDom);

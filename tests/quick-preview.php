@@ -83,15 +83,15 @@ foreach ([null, $metadata] as $data) {
 expectPreview(str_contains($preview, 'hero-backdrop') && str_contains($preview, $metadata['poster'])
     && str_contains($preview, $metadata['fanart']) && str_contains($preview, 'metadata-overview'),
     'Matched hero retains fanart, poster and synopsis');
-expectPreview(str_contains($preview, 'TMDB') && str_contains($preview, 'not endorsed')
-    && !str_contains($preview, 'Horror, Mysterie, Thriller'), 'Provider attribution and required notice remain; genres are limited');
+expectPreview(str_contains($preview, 'TMDB') && !str_contains($preview, 'not endorsed')
+    && !str_contains($preview, 'Horror, Mysterie, Thriller'), 'Provider attribution remains without disclaimer; genres are limited');
 $dom = new DOMDocument();
 $dom->loadHTML('<?xml encoding="UTF-8">' . $preview, LIBXML_NOERROR | LIBXML_NOWARNING);
 $xpath = new DOMXPath($dom);
 expectPreview($xpath->query('//section[contains(@class,"quick-hero")]//div[@class="quick-sources"]')->length === 0
     && $xpath->query('//div[@class="quick-sources"]/preceding-sibling::section[contains(@class,"quick-hero")]')->length === 1
     && $xpath->query('//div[@class="quick-sources"]//a')->length === 2,
-    'Both providers and their notice appear below the hero, never on the fanart');
+    'Both providers appear below the hero, never on the fanart');
 expectPreview($xpath->query('//div[@class="quick-cast"]/preceding-sibling::section[contains(@class,"quick-hero")]')->length === 1
     && str_contains($preview, 'Fixture Actor'), 'Actor list uses the space below the hero');
 $largeCast = $metadata;
@@ -105,6 +105,8 @@ foreach (['metadata-people', 'metadata-release', 'Technische details', 'Full spo
     expectPreview(str_contains($detail, $included), 'Full detail still contains ' . $included);
 }
 expectPreview(str_contains($detail, $metadata['overview']) && !str_contains($detail, 'quick-hero'), 'Full detail keeps the complete synopsis');
+expectPreview(!str_contains($detail, 'not endorsed') && str_contains($detail, 'tmdb-logo'),
+    'Full detail retains TMDB logo and source without the disclaimer');
 $episode = $metadata;
 $episode['episode_missing'] = true;
 $episode['season'] = 2;

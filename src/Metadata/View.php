@@ -290,8 +290,7 @@ final class View
             } elseif ($source === 'tmdb') {
                 $html .= '<a class="metadata-attribution small" href="https://www.themoviedb.org/' . h($path)
                     . '" target="_blank" rel="noopener noreferrer"><span>Metadata van TMDB</span>'
-                    . '<img class="tmdb-logo" src="/assets/images/tmdb.svg" width="56" height="14" alt="" aria-hidden="true"></a>'
-                    . '<p class="metadata-notice small text-body-secondary">' . self::TMDB_NOTICE . '</p>';
+                    . '<img class="tmdb-logo" src="/assets/images/tmdb.svg" width="56" height="14" alt="" aria-hidden="true"></a>';
             }
         }
         return '<div class="metadata-attributions">' . $html . '</div>';

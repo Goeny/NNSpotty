@@ -300,7 +300,7 @@
 .preview .spot-hero h2 { font-size: 1.3rem; }
 .preview .quick-hero { align-items: start; gap: 14px; margin-bottom: 0; }
 .quick-actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-bottom: 10px; }
-.quick-actions .btn, .quick-actions .send-button, .quick-actions .send-menu > summary { min-height: 24px; padding: 2px 6px; font-size: .64rem; line-height: 1.2; }
+.quick-actions .btn, .quick-actions .send-button, .quick-actions .send-menu > summary { display: inline-flex; align-items: center; justify-content: center; min-height: 24px; padding: 2px 6px; font-size: .64rem; line-height: 1.2; }
 .quick-actions .send-group { min-height: 24px; }
 .quick-actions .send-button { display: inline-flex; align-items: center; gap: 4px; }
 .quick-actions .send-menu { position: static; }
