@@ -1,5 +1,28 @@
 (() => {
     'use strict';
+    const indicator = document.querySelector('[data-metadata-run-status]');
+    if (!indicator) return;
+    async function refresh() {
+        try {
+            const response = await fetch('/admin/metadata-run-status', {headers: {'Accept': 'application/json'}, credentials: 'same-origin', cache: 'no-store'});
+            const data = await response.json();
+            if (!response.ok || typeof data.message !== 'string') throw new Error(data.error || 'Runstatus ophalen mislukt.');
+            indicator.textContent = data.message;
+            indicator.classList.remove('alert-warning');
+            indicator.classList.add('alert-info');
+        } catch (exception) {
+            indicator.textContent = 'Runstatus kon niet worden vernieuwd: ' + exception.message;
+            indicator.classList.remove('alert-info');
+            indicator.classList.add('alert-warning');
+        } finally {
+            setTimeout(refresh, 10000);
+        }
+    }
+    setTimeout(refresh, 10000);
+})();
+
+(() => {
+    'use strict';
     const dialog = document.getElementById('download-drawer');
     if (!dialog || typeof dialog.showModal !== 'function') return;
     const connection = dialog.querySelector('#download-connection');

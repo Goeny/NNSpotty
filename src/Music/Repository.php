@@ -9,7 +9,19 @@ use RuntimeException;
 
 final class Repository
 {
+    private ?\NnSpotty\Metadata\MatchRules $rules = null;
     public function __construct(private readonly PDO $pdo) {}
+
+    public function matchRules(): \NnSpotty\Metadata\MatchRules
+    {
+        return $this->rules ??= new \NnSpotty\Metadata\MatchRules($this->pdo);
+    }
+
+    public function matchSignature(array $spot, bool $negative = false): string
+    {
+        $hash = Release::matchSignature($spot);
+        return $negative ? hash('sha256', $hash . $this->matchRules()->revision()) : $hash;
+    }
 
     public function enabled(): bool
     {
@@ -111,7 +123,7 @@ final class Repository
         $this->pdo->prepare('INSERT INTO music_matches (spot_id, input_hash, result_json, expires_at)
             VALUES (?, ?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? SECOND))
             ON DUPLICATE KEY UPDATE input_hash = VALUES(input_hash), result_json = VALUES(result_json), expires_at = VALUES(expires_at)')
-            ->execute([$spot['id'], Release::matchSignature($spot), json_encode($value, JSON_THROW_ON_ERROR), $seconds]);
+            ->execute([$spot['id'], $this->matchSignature($spot, !in_array($value['state'], ['matched', 'blocked'], true)), json_encode($value, JSON_THROW_ON_ERROR), $seconds]);
     }
 
     public function choose(array $spot, ?array $choice): void
@@ -125,7 +137,7 @@ final class Repository
     {
         if (!$this->allowed($username) || Release::parse($spot) === null) return null;
         $row = $this->match($spot['id']);
-        $metadata = $row !== null && $row['fresh'] && $row['input_hash'] === Release::matchSignature($spot)
+        $metadata = $row !== null && $row['fresh'] && $row['input_hash'] === $this->matchSignature($spot)
             && !(($row['choice_json']['input'] ?? '') === Release::signature($spot) && ($row['choice_json']['blocked'] ?? false))
             && ($row['result_json']['state'] ?? '') === 'matched'
             ? $row['result_json']['metadata'] : null;

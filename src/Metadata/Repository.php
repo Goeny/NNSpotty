@@ -9,6 +9,7 @@ use PDO;
 
 final class Repository
 {
+    private ?MatchRules $rules = null;
     public function __construct(private readonly PDO $pdo)
     {
     }
@@ -131,6 +132,11 @@ final class Repository
         }
         return implode('|', [$tvdb['language'], $tmdb['language'], ...$effective,
             $enabled['tvdb'] ? 'tvdb' : '', $enabled['tmdb'] ? 'tmdb' : '']);
+    }
+
+    public function matchRules(): MatchRules
+    {
+        return $this->rules ??= new MatchRules($this->pdo);
     }
 
     public function token(string $key, string $pin, ?string $token): void

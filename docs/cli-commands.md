@@ -104,7 +104,7 @@ php bin/console retrieve --days=7 --comments-only --verbose
 
 ---
 
-## Metadata-cron (alleen nieuwe spots)
+## Metadata-cron
 
 - `php bin/console metadata status`  
   Toont metadataqueue-instellingen en queue-aantallen.
@@ -116,7 +116,13 @@ php bin/console retrieve --days=7 --comments-only --verbose
   Schakelt automatische metadataqueue uit.
 
 - `php bin/console metadata run --limit=25`  
-  Verwerkt een queuebatch (bedoeld voor cron).
+  Verwerkt een queuebatch van nieuw naar oud (bedoeld voor cron). Een installatiebrede lock voorkomt overlappende metadata-runs.
+
+Nieuwe spots worden vanaf het ingestelde startmoment ingepland; oudere spots alleen met expliciete backfill of een admin-bulkactie voor eerdere negatieve resultaten. Onder Admin > Metadata > Providers staan herbeoordeling, regels, bulkruns en de live runstatus. Bulkruns vullen de queue met maximaal 500 kandidaten per cron-run; de normale batchlimiet blijft gelden.
+
+Errors wachten minimaal vijf minuten tussen pogingen, oplopend tot een uur. Na de ingestelde retrylimiet volgt standaard een dag pauze, waarna een nieuwe reeks begint. Unmatched wordt standaard na zeven dagen opnieuw geprobeerd, ambiguous na dertig dagen. Deze lange pauzes zijn instelbaar in admin. Bij gewijzigde ingebouwde/extra matchregels worden negatieve resultaten eerder opnieuw beoordeeld. Geslaagde matches en handmatige keuzes/blokkeringen worden niet door bulkacties gereset.
+
+Na deze uitbreiding is `php bin/console db migrate` nodig. Bestaande negatieve queue-resultaten worden meegenomen; oude foutresultaten hoeven niet handmatig uit de database verwijderd te worden.
 
 ### Los cronvoorbeeld (metadata-only)
 

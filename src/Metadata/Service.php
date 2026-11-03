@@ -56,17 +56,24 @@ final class Service
         return $results;
     }
 
-    public function lookup(array $spot): array
+    public function lookup(array $spot, bool $refresh = false): array
     {
-        $release = Release::parse($spot);
-        if ($release === null) return ['state' => 'unsupported'];
+        $categoryType = \NnSpotty\Usenet\SpotCategories::classify($spot['category'], $spot['subcategories'])['type'];
+        if (!in_array($categoryType, ['Films', 'Series'], true)) return ['state' => 'unsupported'];
         $hash = self::matchSignature($spot, $this->repo->profile());
+        $negativeHash = hash('sha256', $hash . $this->repo->matchRules()->revision());
         $old = $this->repo->match($spot['id']);
-        if ($old !== null && $old['input_hash'] === $hash && $old['fresh'] && $old['result_json'] !== null) return $old['result_json'];
+        if (!$refresh && $old !== null && $old['input_hash'] === (in_array($old['result_json']['state'] ?? '', ['matched', 'blocked'], true) ? $hash : $negativeHash)
+            && $old['fresh'] && $old['result_json'] !== null) return $old['result_json'];
+        $type = Release::parse($spot)['type'] ?? ($categoryType === 'Series' ? 'series' : 'movie');
+        $manual = ($old['choice_json']['input'] ?? null) === self::signature($spot, '');
+        $release = Release::parse($manual ? $spot : $this->repo->matchRules()->apply($spot, $type));
+        if ($release === null) return ['state' => 'unsupported'];
         if (!$this->repo->lock($spot['id'])) return ['state' => 'busy'];
         try {
             $old = $this->repo->match($spot['id']);
-            if ($old !== null && $old['input_hash'] === $hash && $old['fresh'] && $old['result_json'] !== null) return $old['result_json'];
+            if (!$refresh && $old !== null && $old['input_hash'] === (in_array($old['result_json']['state'] ?? '', ['matched', 'blocked'], true) ? $hash : $negativeHash)
+                && $old['fresh'] && $old['result_json'] !== null) return $old['result_json'];
             // A manual choice survives language changes, but not changed spot input.
             $choice = $old !== null ? $old['choice_json'] : null;
             if ($choice !== null && ($choice['input'] ?? '') !== self::signature($spot, '')) $choice = null;
@@ -138,14 +145,15 @@ final class Service
                 }
                 if ($warnings !== []) $result['warnings'] = $warnings;
             }
-            $this->repo->result($spot['id'], $hash, $result, !empty($result['warnings']) ? 300 : ($result['state'] === 'matched' ? 604800 : 86400));
+            $this->repo->result($spot['id'], in_array($result['state'], ['matched', 'blocked'], true) ? $hash : $negativeHash,
+                $result, !empty($result['warnings']) ? 300 : ($result['state'] === 'matched' ? 604800 : 86400));
             return $result;
         } catch (\PDOException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
             error_log('Film-/seriemetadata: ' . $exception->getMessage());
             $result = ['state' => 'error', 'message' => 'Metadata kon niet worden opgehaald. De oorspronkelijke spot blijft beschikbaar. Probeer over vijf minuten opnieuw.'];
-            $this->repo->result($spot['id'], $hash, $result, 300);
+            $this->repo->result($spot['id'], $negativeHash, $result, 300);
             return $result;
         } finally {
             $this->repo->unlock($spot['id']);

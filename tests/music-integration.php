@@ -38,7 +38,7 @@ $pdo->prepare('UPDATE music_matches SET input_hash = ?, result_json = ? WHERE sp
 ]);
 check($musicRepo->previewMetadata($musicDbSpot, 'music-reader') === null
     && $musicService->lookup($musicDbSpot)['state'] === 'matched'
-    && $musicRepo->match($musicDbSpot['id'])['input_hash'] === \NnSpotty\Music\Release::matchSignature($musicDbSpot),
+    && $musicRepo->match($musicDbSpot['id'])['input_hash'] === $musicRepo->matchSignature($musicDbSpot),
     'Oude negatieve parsercache wordt bij detail opnieuw beoordeeld zonder previewfetch of databaseflush');
 foreach ([
     ['Paul McCartney - The Boys of Dungeon Lane DeLuxe in DTS-HD-*HRA*. ( OV )', 'artist:"Paul McCartney" AND releasegroup:"The Boys of Dungeon Lane"'],

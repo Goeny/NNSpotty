@@ -236,7 +236,9 @@ $router->get('/admin', static function (Request $request) use ($state, $auth, $c
         metadataSettings: AdminPageRenderer::metadataPanel(
             \NnSpotty\Metadata\View::settings($metadataRepo = new \NnSpotty\Metadata\Repository($pdo), $csrf->field(), enrichment: (new \NnSpotty\Metadata\EnrichmentRepository($pdo))->settings(), backfill: $state->metadataBackfillSettings())
                 . \NnSpotty\Metadata\View::tmdbSettings($metadataRepo, $csrf->field())
-                . \NnSpotty\Music\View::fanartCard($musicRepo = new \NnSpotty\Music\Repository($pdo), $csrf->field()),
+                . \NnSpotty\Music\View::fanartCard($musicRepo = new \NnSpotty\Music\Repository($pdo), $csrf->field())
+                . \NnSpotty\Metadata\OperationsView::render(new \NnSpotty\Metadata\Operations($pdo), $csrf->field())
+                . \NnSpotty\Metadata\RulesView::render(new \NnSpotty\Metadata\MatchRules($pdo), $csrf->field()),
             \NnSpotty\Metadata\View::providerForm($metadataRepo, $csrf->field(), 'movie'),
             \NnSpotty\Metadata\View::providerForm($metadataRepo, $csrf->field(), 'series'),
             \NnSpotty\Music\View::settings($musicRepo, $csrf->field(), includeFanart: false),
@@ -322,6 +324,64 @@ $router->post('/admin/spot-content', static function (Request $request) use ($st
     }
     $auditLogs->log($auth->user()['username'], 'admin.spot_content.updated', 'settings', 'spot_content', $settings + ['comment_retrieval' => $commentRetrieval], $request->clientIp());
     return Response::redirect('/admin?status=' . rawurlencode('Inhoudsinstellingen opgeslagen.') . '#spot-content');
+});
+
+$router->get('/admin/metadata-run-status', static function (Request $request) use ($auth, $pdo): Response {
+    if (!$auth->can('settings.manage')) return Response::privateJson(['error' => 'Admin login vereist.'], 403);
+    session_write_close();
+    try {
+        return Response::privateJson(['message' => \NnSpotty\Metadata\OperationsView::statusText((new \NnSpotty\Metadata\Operations($pdo))->status())]);
+    } catch (Throwable $exception) {
+        error_log('Metadata-runstatus: ' . $exception->getMessage());
+        return Response::privateJson(['error' => 'Runstatus ophalen mislukt. Controleer de serverlog.'], 500);
+    }
+});
+
+$router->post('/admin/metadata-operations', static function (Request $request) use ($auth, $csrf, $pdo, $auditLogs): Response {
+    if (!$auth->can('settings.manage')) return new Response(403, 'Admin login vereist.');
+    $location = '/admin?status=';
+    if (!$csrf->verify($request->input('_csrf'))) return Response::redirect($location . rawurlencode('Ongeldige CSRF token.') . '#metadata-providers');
+    try {
+        $action = $request->inputScalar('action') ?? '';
+        $operations = new \NnSpotty\Metadata\Operations($pdo);
+        $rules = new \NnSpotty\Metadata\MatchRules($pdo);
+        $integer = static function (string $key) use ($request): int {
+            $value = $request->inputScalar($key) ?? '';
+            if (preg_match('/^[1-9]\d{0,8}$/D', $value) !== 1) throw new InvalidArgumentException('Ongeldig getal voor ' . $key . '.');
+            return (int) $value;
+        };
+        if ($action === 'policy') {
+            $operations->savePolicy($integer('error_days'), $integer('unmatched_days'), $integer('ambiguous_days'));
+        } elseif ($action === 'bulk') {
+            $operations->bulk($request->inputScalar('media_kind') ?? '', $request->inputScalar('result_state') ?? '',
+                $request->inputScalar('oldest_date') ?? '', $request->inputScalar('newest_date') ?? '');
+        } elseif ($action === 'rule-add') {
+            $rules->add($request->inputScalar('media_type') ?? '', $request->inputScalar('operation') ?? '', $request->inputScalar('term') ?? '');
+        } elseif ($action === 'rule-delete') {
+            $rules->delete($integer('id'));
+        } elseif ($action === 'rule-preview') {
+            $type = $request->inputScalar('media_type') ?? '';
+            $title = $request->inputScalar('title') ?? '';
+            if (!in_array($type, ['movie', 'series', 'music'], true) || strlen($title) < 2 || strlen($title) > 512 || preg_match('//u', $title) !== 1) {
+                throw new InvalidArgumentException('Kies een geldig type en een titel van 2 tot 512 bytes.');
+            }
+            $spot = $rules->apply(['title' => $title, 'category' => $type === 'music' ? 'Geluid' : 'Beeld',
+                'subcategories' => $type === 'series' ? ['1d11'] : ['1d0']], $type);
+            $parsed = $type === 'music' ? \NnSpotty\Music\Release::parse($spot) : \NnSpotty\Metadata\Release::parse($spot);
+            return Response::redirect($location . rawurlencode('Regeltest (geen provider-aanvraag): ' . $spot['title']
+                . ' | Parser: ' . json_encode($parsed, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)) . '#metadata-providers');
+        } else {
+            throw new InvalidArgumentException('Onbekende metadata-actie.');
+        }
+        $auditLogs->log($auth->user()['username'], 'admin.metadata.' . $action, 'settings', 'metadata', [], $request->clientIp());
+        $message = $action === 'bulk' ? 'Bulkrun klaargezet voor cron.' : 'Metadata-instellingen opgeslagen.';
+    } catch (InvalidArgumentException $exception) {
+        $message = $exception->getMessage();
+    } catch (Throwable $exception) {
+        error_log('Metadata-beheer: ' . $exception->getMessage());
+        $message = 'Metadata-actie mislukt. Controleer de serverlog.';
+    }
+    return Response::redirect($location . rawurlencode($message) . '#metadata-providers');
 });
 
 $router->post('/admin/metadata-enrichment', static function (Request $request) use ($auth, $csrf, $pdo, $auditLogs, $state): Response {

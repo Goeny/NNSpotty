@@ -179,17 +179,20 @@ final class Service
         return $message;
     }
 
-    public function lookup(array $spot): array
+    public function lookup(array $spot, bool $refresh = false): array
     {
-        $release = Release::parse($spot);
-        if ($release === null) return ['state' => 'unsupported'];
+        if ($spot['category'] !== 'Geluid') return ['state' => 'unsupported'];
         $old = $this->repo->match($spot['id']);
-        $hash = Release::matchSignature($spot);
-        if ($old !== null && $old['input_hash'] === $hash && $old['fresh'] && $old['result_json'] !== null) return $old['result_json'];
+        $hash = $this->repo->matchSignature($spot, !in_array($old['result_json']['state'] ?? '', ['matched', 'blocked'], true));
+        if (!$refresh && $old !== null && $old['input_hash'] === $hash && $old['fresh'] && $old['result_json'] !== null) return $old['result_json'];
+        $manual = ($old['choice_json']['input'] ?? null) === Release::signature($spot);
+        $release = Release::parse($manual ? $spot : $this->repo->matchRules()->apply($spot, 'music'));
+        if ($release === null) return ['state' => 'unsupported'];
         if (!$this->repo->lock('spot:' . $spot['id'])) return ['state' => 'busy'];
         try {
             $old = $this->repo->match($spot['id']);
-            if ($old !== null && $old['input_hash'] === $hash && $old['fresh'] && $old['result_json'] !== null) return $old['result_json'];
+            $hash = $this->repo->matchSignature($spot, !in_array($old['result_json']['state'] ?? '', ['matched', 'blocked'], true));
+            if (!$refresh && $old !== null && $old['input_hash'] === $hash && $old['fresh'] && $old['result_json'] !== null) return $old['result_json'];
             $choice = $old !== null && ($old['choice_json']['input'] ?? '') === Release::signature($spot) ? $old['choice_json'] : null;
             if ($choice['blocked'] ?? false) {
                 $result = ['state' => 'blocked'];

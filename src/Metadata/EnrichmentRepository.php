@@ -121,21 +121,23 @@ final class EnrichmentRepository
     /**
      * @return list<array{id: int, spot_id: string, media_kind: string, attempts: int, spot: array{id: string, title: string, category: string, subcategories: array}}>
      */
-    public function claim(int $limit): array
+    public function claim(int $limit, string $revision = ''): array
     {
         $limit = max(1, min(500, $limit));
         $select = $this->pdo->prepare('SELECT q.id, q.spot_id, q.media_kind, q.attempts, s.title, s.category, s.subcategories
             FROM metadata_enrichment_queue q
             JOIN spotnet_spots s ON s.id = q.spot_id
-            WHERE q.status IN (\'pending\', \'failed\') AND (q.next_retry_at IS NULL OR q.next_retry_at <= UTC_TIMESTAMP(6))
-            ORDER BY q.id ASC LIMIT ' . $limit);
-        $select->execute();
+            WHERE ((q.status IN (\'pending\', \'failed\') AND (q.next_retry_at IS NULL OR q.next_retry_at <= UTC_TIMESTAMP(6)))
+                OR (q.status = \'done\' AND q.result_state IN (\'unmatched\', \'ambiguous\')
+                    AND (q.next_retry_at <= UTC_TIMESTAMP(6) OR q.rule_revision <> ?)))
+            ORDER BY s.posted_at DESC, s.id DESC LIMIT ' . $limit);
+        $select->execute([$revision]);
         $rows = $select->fetchAll();
         $claimed = [];
         $claim = $this->pdo->prepare('UPDATE metadata_enrichment_queue
             SET status = \'processing\', attempts = attempts + 1, started_at = UTC_TIMESTAMP(6),
                 updated_at = UTC_TIMESTAMP(6), last_error = NULL
-            WHERE id = ? AND status IN (\'pending\', \'failed\') AND (next_retry_at IS NULL OR next_retry_at <= UTC_TIMESTAMP(6))');
+            WHERE id = ? AND status <> \'processing\'');
         foreach ($rows as $row) {
             $claim->execute([(int) $row['id']]);
             if ($claim->rowCount() !== 1) {
@@ -165,9 +167,28 @@ final class EnrichmentRepository
                 WHERE id = ?')->execute([$retryAfter, self::truncate($error ?? 'Tijdelijke fout.', 500), $id]);
             return;
         }
+
         $this->pdo->prepare('UPDATE metadata_enrichment_queue
             SET status = ?, next_retry_at = NULL, last_error = ?, finished_at = UTC_TIMESTAMP(6), updated_at = UTC_TIMESTAMP(6)
             WHERE id = ?')->execute([$state, $error === null ? null : self::truncate($error, 500), $id]);
+    }
+
+    public function recordOutcome(int $id, string $state, string $revision, int $days): void
+    {
+        $retry = in_array($state, ['unmatched', 'ambiguous'], true) ? gmdate('Y-m-d H:i:s', time() + $days * 86400) : null;
+        $this->pdo->prepare('UPDATE metadata_enrichment_queue SET status = \'done\', result_state = ?, rule_revision = ?, next_retry_at = ?,
+            attempts = 0, last_error = NULL, finished_at = UTC_TIMESTAMP(6), updated_at = UTC_TIMESTAMP(6)
+            WHERE id = ?')->execute([$state, $revision, $retry, $id]);
+    }
+
+    public function deferError(int $id, int $attempt, int $maximum, int $days, string $message, string $revision): void
+    {
+        $exhausted = $attempt >= $maximum;
+        $seconds = $exhausted ? $days * 86400 : min(3600, (int) (300 * (2 ** min(10, max(0, $attempt - 1)))));
+        $this->pdo->prepare('UPDATE metadata_enrichment_queue SET status = \'failed\', result_state = \'error\',
+            rule_revision = ?, attempts = ?, next_retry_at = ?, last_error = ?, finished_at = UTC_TIMESTAMP(6),
+            updated_at = UTC_TIMESTAMP(6) WHERE id = ?')
+            ->execute([$revision, $exhausted ? 0 : $attempt, gmdate('Y-m-d H:i:s', time() + $seconds), self::truncate($message, 500), $id]);
     }
 
     /** @return array{pending: int, processing: int, done: int, failed: int} */

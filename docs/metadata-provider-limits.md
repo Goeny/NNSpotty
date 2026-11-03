@@ -58,6 +58,16 @@ Onderstaande defaults zijn bewust conservatief en bedoeld als veilige startwaard
 
 TVDB, TMDB en MusicBrainz hebben per HTTP-aanvraag een verbindingstimeout van 3 seconden en een totale netwerktimeout van 8 seconden. Wachttijd voor installatiebrede throttling staat daar los van; er geldt geen gedeelde clientdeadline voor de volledige cronbatch.
 
+### Herbeoordeling en matchregels
+
+- Admin > Metadata > Providers: wachttijden voor errors (na de korte retryreeks), unmatched en ambiguous; standaard 1, 7 en 30 dagen.
+- Korte foutretries beginnen op 5 minuten en lopen op tot maximaal 1 uur. De retrylimiet veroorzaakt een langere pauze, geen onbeperkte directe herhaling.
+- Alle queuewerk loopt van nieuw naar oud. Bulkruns selecteren eerdere negatieve resultaten op type, status en spotdatum; cron zet maximaal 500 kandidaten per run klaar en verwerkt de normale batchgrootte.
+- Een database-runlock voorkomt parallelle workers; admin toont activiteit, voortgang en laatste heartbeat (iedere 10 seconden vernieuwd). Na een verbroken run worden achtergebleven jobs hervat.
+- Extra regels herkennen letterlijke jaar-/seizoen-/afleveringmarkeringen of verwijderen specifieke woorden, prefixes, suffixes en bracket-/haakjesteksten. Geen uitvoerbare code of vrije regex. Test titels eerst in admin: onjuiste verwijderregels kunnen titelidentiteit verliezen.
+- Ingebouwde regels staan alleen-lezen in uitklapbare panelen per type. Gewijzigde regels geven een nieuwe matchrevisie, waardoor negatieve queue-resultaten herbeoordeeld worden; providerzoekcaches blijven gelden.
+- Handmatige keuzes en blokkeringen blijven intact; oorspronkelijke spottitels worden nooit overschreven.
+
 ### Backoff-richtlijn
 
 - Maximaal 5 retries per request.

@@ -772,6 +772,57 @@ final class Migrator
                     INDEX idx_metadata_fetch_username (username, created_at, id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             ],
+            '20261103_0030_metadata_operations' => [
+                self::addColumn('metadata_enrichment_queue', 'result_state', 'VARCHAR(16) NOT NULL DEFAULT \'\''),
+                self::addColumn('metadata_enrichment_queue', 'rule_revision', 'VARCHAR(64) NOT NULL DEFAULT \'\''),
+                self::addIndex('metadata_enrichment_queue', 'idx_metadata_reassessment', 'status, result_state, next_retry_at, rule_revision'),
+                'CREATE TABLE IF NOT EXISTS metadata_match_rules (
+                    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    media_type VARCHAR(16) NOT NULL,
+                    operation VARCHAR(24) NOT NULL,
+                    term VARCHAR(160) NOT NULL,
+                    enabled BOOLEAN NOT NULL DEFAULT 1
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'CREATE TABLE IF NOT EXISTS metadata_retry_policy (
+                    id TINYINT PRIMARY KEY,
+                    error_days SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+                    unmatched_days SMALLINT UNSIGNED NOT NULL DEFAULT 7,
+                    ambiguous_days SMALLINT UNSIGNED NOT NULL DEFAULT 30
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'INSERT IGNORE INTO metadata_retry_policy (id) VALUES (1)',
+                'CREATE TABLE IF NOT EXISTS metadata_run_state (
+                    id TINYINT PRIMARY KEY,
+                    started_at DATETIME(6) NULL,
+                    heartbeat_at DATETIME(6) NULL,
+                    finished_at DATETIME(6) NULL,
+                    processed INT UNSIGNED NOT NULL DEFAULT 0,
+                    total INT UNSIGNED NOT NULL DEFAULT 0,
+                    current_title VARCHAR(255) NOT NULL DEFAULT \'\'
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'INSERT IGNORE INTO metadata_run_state (id) VALUES (1)',
+                'CREATE TABLE IF NOT EXISTS metadata_bulk_requests (
+                    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    media_kind VARCHAR(16) NOT NULL,
+                    result_state VARCHAR(16) NOT NULL,
+                    oldest_date DATE NOT NULL,
+                    newest_date DATE NOT NULL,
+                    status VARCHAR(16) NOT NULL DEFAULT \'pending\',
+                    cursor_date DATETIME NULL,
+                    cursor_id CHAR(64) CHARACTER SET ascii NULL,
+                    queued INT UNSIGNED NOT NULL DEFAULT 0,
+                    created_at DATETIME(6) NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'UPDATE metadata_enrichment_queue q
+                    LEFT JOIN tvdb_matches v ON v.spot_id = q.spot_id AND q.media_kind = \'video\'
+                    LEFT JOIN music_matches m ON m.spot_id = q.spot_id AND q.media_kind = \'music\'
+                    SET q.result_state = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(v.result_json, \'$.state\')),
+                        JSON_UNQUOTE(JSON_EXTRACT(m.result_json, \'$.state\')), \'\'),
+                        q.next_retry_at = IF(q.status = \'done\' AND COALESCE(
+                            JSON_UNQUOTE(JSON_EXTRACT(v.result_json, \'$.state\')),
+                            JSON_UNQUOTE(JSON_EXTRACT(m.result_json, \'$.state\')), \'\') IN (\'unmatched\', \'ambiguous\'),
+                            DATE_ADD(UTC_TIMESTAMP(), INTERVAL 7 DAY), q.next_retry_at)
+                    WHERE q.result_state = \'\'',
+            ],
         ];
     }
 }
