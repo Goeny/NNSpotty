@@ -19,6 +19,8 @@ Referentie voor `php bin/console`.
 - `php bin/console db migrate`  
   Voert alle nog openstaande migraties uit.
 
+  Migratie `20261104_0031_search_performance` berekent NZB-beschikbaarheid voor bestaande spots en bouwt zoekindexen. Plan dit bij grote databases in een onderhoudsvenster met cron en webverkeer gepauzeerd; tabel-/indexopbouw kan tijd, extra schijfruimte en DDL-locks vereisen. Een aparte `db reindex-spots` is hiervoor niet nodig.
+
 - `php bin/console db health`  
   Controleert databaseconnectie en server-tijd.
 
@@ -32,6 +34,22 @@ Referentie voor `php bin/console`.
 
 - `php bin/console db reindex-spots`  
   Herbouwt de spot-overzichtsindex.
+
+---
+
+## Zoekperformance testen
+
+Alleen op een afzonderlijke MySQL/MariaDB-testserver:
+
+```bash
+NNSPOTTY_TEST_DSN='mysql:host=127.0.0.1;port=3306;charset=utf8mb4' \
+NNSPOTTY_TEST_USER=tester NNSPOTTY_TEST_PASSWORD='...' \
+NNSPOTTY_PERF_SPOTS=650000 php tests/search-performance.php
+```
+
+Maakt een tijdelijk `nnspotty_perf_*`-schema en verwijdert dat na afloop. Controleert migratie/herhaalbaarheid, zoekresultaten, toegangsfilters, queryplannen en lezen tijdens open importtransacties. Vergelijkt de oude JSON-telling met de geindexeerde telling; gemeten zoekopdrachten hebben een testbudget van twee seconden per aanroep op de gekozen testmachine. Dit is geen responstijdgarantie voor productie. Standaard 10.000 spots; maximaal 5 miljoen. Geen productiegegevens nodig.
+
+Voor herhaalde metingen kan `NNSPOTTY_PERF_KEEP=1` het afgedrukte testschema bewaren; `NNSPOTTY_PERF_REUSE=<schemanaam>` hergebruikt het zonder opnieuw te vullen en bewaart het eveneens. Verwijder zo'n testschema zelf na afloop.
 
 ---
 

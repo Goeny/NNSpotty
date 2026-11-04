@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/Fixtures.php';
 
-$options = getopt('', ['depth:', 'count:', 'delay-ms:', 'fail-at:', 'disconnect-at:', 'missing-at:', 'skip-first:']);
+$options = getopt('', ['depth:', 'count:', 'delay-ms:', 'fail-at:', 'disconnect-at:', 'missing-at:', 'skip-first:', 'transaction-marker:']);
 $depth = (int) ($options['depth'] ?? 32);
 $count = (int) ($options['count'] ?? 131);
 $delay = (int) ($options['delay-ms'] ?? 0);
@@ -22,6 +22,7 @@ $served = 0;
 $remaining = $count;
 $group = '';
 $trace = [];
+$transactionDuringNetwork = false;
 function pipelineMultiline($socket, string $status, string $body): void
 {
     $wire = $status . "\r\n";
@@ -50,6 +51,10 @@ while (($line = fgets($socket)) !== false) {
         $remaining = max(0, min($count, (int) $match[2]) - max((int) $match[1] - 1, (int) ($options['skip-first'] ?? 0)));
         pipelineMultiline($socket, '224 Overview', implode("\r\n", $rows));
     } elseif (preg_match('/^(HEAD|ARTICLE) <([^>]+)>$/', $command, $match)) {
+        if (isset($options['transaction-marker'])) {
+            clearstatcache(true, $options['transaction-marker']);
+            $transactionDuringNetwork = $transactionDuringNetwork || is_file($options['transaction-marker']);
+        }
         $queued[] = [$match[1], $match[2]];
         if (count($queued) < min($depth, $remaining)) continue;
         $windows[] = count($queued);
@@ -76,4 +81,5 @@ while (($line = fgets($socket)) !== false) {
 }
 fclose($socket);
 fclose($server);
-echo json_encode(['windows' => $windows, 'served' => $served, 'trace' => $trace], JSON_THROW_ON_ERROR) . PHP_EOL;
+echo json_encode(['windows' => $windows, 'served' => $served, 'trace' => $trace,
+    'transaction_during_network' => $transactionDuringNetwork], JSON_THROW_ON_ERROR) . PHP_EOL;

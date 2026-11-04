@@ -5,6 +5,42 @@ declare(strict_types=1);
 use NnSpotty\Usenet\NntpClientFactory;
 use NnSpotty\Usenet\PipelineConnection;
 
+final class RetrieveTransactionProbe extends PDO
+{
+    public function __construct(private readonly string $marker)
+    {
+        parent::__construct(getenv('NNSPOTTY_TEST_DSN'), getenv('NNSPOTTY_TEST_USER') ?: 'root',
+            getenv('NNSPOTTY_TEST_PASSWORD') ?: '', [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ]);
+    }
+
+    public function beginTransaction(): bool
+    {
+        $result = parent::beginTransaction();
+        if (file_put_contents($this->marker, 'transaction') === false) {
+            throw new RuntimeException('Kon transactieprobe niet schrijven.');
+        }
+        return $result;
+    }
+
+    public function commit(): bool
+    {
+        $result = parent::commit();
+        unlink($this->marker);
+        return $result;
+    }
+
+    public function rollBack(): bool
+    {
+        $result = parent::rollBack();
+        unlink($this->marker);
+        return $result;
+    }
+}
+
 function withPipelineServer(array $options, callable $test): mixed
 {
     $pipes = [];
@@ -70,6 +106,26 @@ foreach ($timings as $verb => $measurements) {
     echo 'BENCHMARK ' . $verb . ': ' . json_encode($measurements, JSON_THROW_ON_ERROR) . ' seconden voor 131 artikelen; synthetische 20ms per venster.' . PHP_EOL;
 }
 try {
+    $marker = tempnam(sys_get_temp_dir(), 'nns-txn-');
+    if ($marker === false) throw new RuntimeException('Kon transactieprobe niet maken.');
+    unlink($marker);
+    try {
+        $probe = new RetrieveTransactionProbe($marker);
+        $probe->exec('USE `' . $pdo->query('SELECT DATABASE()')->fetchColumn() . '`');
+        $probeState = new \NnSpotty\State\AppStateRepository($probe);
+        [, $trace] = withPipelineServer(['depth' => 32, 'count' => 65, 'delay-ms' => 5, 'transaction-marker' => $marker],
+            static function (int $port) use ($probe, $probeState, $pipelineSettings): void {
+                $probeState->saveUsenetSettings(array_merge($pipelineSettings, ['server' => '127.0.0.1', 'port' => $port,
+                    'username' => '', 'password' => '', 'encryption' => 'none', 'pipeline_depth' => 32,
+                    'explicit_groups' => 'spots:pipeline.spots', 'retrieve_after' => null, 'retention' => 30]));
+                (new \NnSpotty\Usenet\RetrieveService($probe, $probeState))->run(
+                    'since-last', null, false, static function (string $line): void {});
+            });
+        check(!$trace['transaction_during_network'] && $trace['served'] === 65,
+            'Retrieve houdt geen databasetransactie open tijdens NNTP-netwerkvensters');
+    } finally {
+        if (is_file($marker)) unlink($marker);
+    }
     foreach ([1, 32, 128] as $depth) {
         $pdo->exec("DELETE FROM spotnet_spots WHERE message_id LIKE 'pipe-%@example.invalid'");
         $pdo->exec("DELETE FROM retrieval_cursors WHERE group_name LIKE 'spotnet:spots:pipeline.%'");

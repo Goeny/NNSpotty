@@ -30,10 +30,11 @@ final class SpotBrowseIndex
         $old->execute(['id' => $spotId]);
         $previous = $old->fetchColumn();
         $upsert = $this->pdo->prepare(
-            'INSERT INTO spot_browse (spot_id, combo_id, category, browse_type, is_erotica, posted_at, created_at, title)
-             SELECT id, :combo, :category, :type, :adult, posted_at, created_at, title FROM spotnet_spots WHERE id = :id
+            'INSERT INTO spot_browse (spot_id, combo_id, category, browse_type, is_erotica, posted_at, created_at, title, has_nzb)
+             SELECT id, :combo, :category, :type, :adult, posted_at, created_at, title, JSON_LENGTH(nzb_segments) > 0
+             FROM spotnet_spots WHERE id = :id
              ON DUPLICATE KEY UPDATE combo_id = VALUES(combo_id), category = VALUES(category), browse_type = VALUES(browse_type),
-                is_erotica = VALUES(is_erotica), posted_at = VALUES(posted_at), title = VALUES(title)'
+                is_erotica = VALUES(is_erotica), posted_at = VALUES(posted_at), title = VALUES(title), has_nzb = VALUES(has_nzb)'
         );
         $upsert->execute(['id' => $spotId, 'combo' => $combo, 'category' => $category,
             'type' => $classification['type'], 'adult' => (int) $classification['adult']]);
@@ -92,7 +93,8 @@ final class SpotBrowseIndex
             if ($keys === []) {
                 break;
             }
-            $select = $this->pdo->prepare('SELECT id, category, subcategories, posted_at, created_at, title FROM spotnet_spots
+            $select = $this->pdo->prepare('SELECT id, category, subcategories, posted_at, created_at, title,
+                JSON_LENGTH(nzb_segments) > 0 AS has_nzb FROM spotnet_spots
                 WHERE id IN (' . implode(',', array_fill(0, count($keys), '?')) . ')');
             $select->execute(array_column($keys, 'id'));
             $byId = array_column($select->fetchAll(PDO::FETCH_ASSOC), null, 'id');
@@ -121,15 +123,16 @@ final class SpotBrowseIndex
                 $this->resolve(array_column($described, 1));
                 foreach ($rows as $index => $row) {
                     [$classification, $combo] = $described[$index];
-                    $values[] = '(?, ?, ?, ?, ?, ?, ?, ?)';
+                    $values[] = '(?, ?, ?, ?, ?, ?, ?, ?, ?)';
                     array_push($parameters, $row['id'], $this->combos[$combo['signature']], $row['category'],
-                        $classification['type'], (int) $classification['adult'], $row['posted_at'], $row['created_at'], $row['title']);
+                        $classification['type'], (int) $classification['adult'], $row['posted_at'], $row['created_at'], $row['title'],
+                        (int) $row['has_nzb']);
                     $last = $row['id'];
                 }
-                $this->pdo->prepare('INSERT INTO spot_browse (spot_id, combo_id, category, browse_type, is_erotica, posted_at, created_at, title)
+                $this->pdo->prepare('INSERT INTO spot_browse (spot_id, combo_id, category, browse_type, is_erotica, posted_at, created_at, title, has_nzb)
                     VALUES ' . implode(',', $values) . '
                     ON DUPLICATE KEY UPDATE combo_id = VALUES(combo_id), category = VALUES(category), browse_type = VALUES(browse_type),
-                        is_erotica = VALUES(is_erotica), posted_at = VALUES(posted_at), title = VALUES(title)')
+                        is_erotica = VALUES(is_erotica), posted_at = VALUES(posted_at), title = VALUES(title), has_nzb = VALUES(has_nzb)')
                     ->execute($parameters);
                 if ($own) {
                     $this->pdo->commit();
@@ -163,6 +166,28 @@ final class SpotBrowseIndex
         } finally {
             $this->pdo->exec('SET SESSION innodb_ft_enable_stopword = 1');
         }
+
+    }
+
+    public function backfillNzbAvailability(?callable $progress = null): void
+    {
+        $after = 0;
+        $select = $this->pdo->prepare('SELECT id FROM spot_browse WHERE id > :after_id ORDER BY id LIMIT ' . self::REBUILD_BATCH);
+        $update = $this->pdo->prepare('UPDATE spot_browse b JOIN spotnet_spots s ON s.id = b.spot_id
+            SET b.has_nzb = JSON_LENGTH(s.nzb_segments) > 0 WHERE b.id > :after_id AND b.id <= :last_id');
+        do {
+            $select->execute(['after_id' => $after]);
+            $ids = $select->fetchAll(PDO::FETCH_COLUMN);
+            if ($ids === []) {
+                break;
+            }
+            $last = (int) $ids[count($ids) - 1];
+            $update->execute(['after_id' => $after, 'last_id' => $last]);
+            $after = $last;
+            if ($progress !== null) {
+                $progress('NZB-beschikbaarheid bijgewerkt t/m browse-ID ' . $after . '.');
+            }
+        } while (count($ids) === self::REBUILD_BATCH);
     }
 
     /** Clears cached combination ids after a rollback may have discarded freshly inserted combinations. */

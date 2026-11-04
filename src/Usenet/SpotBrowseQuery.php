@@ -326,15 +326,8 @@ final class SpotBrowseQuery
             return;
         }
         if ($fulltext) {
-            $extra = $this->metadataSearchEnabled()
-                ? ' OR EXISTS (SELECT 1 FROM metadata_search_index m
-                    WHERE m.spot_id = b.spot_id AND MATCH (m.search_text) AGAINST (:search_ft_meta IN BOOLEAN MODE))'
-                : '';
-            $where[] = '(MATCH (b.title) AGAINST (:search_ft IN BOOLEAN MODE)' . $extra . ')';
-            $parameters['search_ft'] = $this->fulltextQuery($terms);
-            if ($extra !== '') {
-                $parameters['search_ft_meta'] = $parameters['search_ft'];
-            }
+            $where[] = SearchCandidates::condition('b.spot_id', $this->fulltextQuery($terms),
+                $this->metadataSearchEnabled(), $parameters);
         }
         $extra = $this->metadataSearchEnabled()
             ? ' OR EXISTS (SELECT 1 FROM metadata_search_index m

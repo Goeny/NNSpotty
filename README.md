@@ -11,7 +11,7 @@ NNSpotty is een moderne Spotnet-webapplicatie voor het ophalen, browsen en downl
 - Spots en reacties ophalen via NNTP (php-nntp)
 - Reacties schrijven en citeren in een ruime modal, direct vanuit de detailpagina
 - Spot-overzicht met zoeken, filters, compacte hero-preview en uitgebreide detailpagina’s
-- Newznab API ondersteuning
+- Newznab API ondersteuning met geindexeerde NZB-selectie en gedeelde titel-/metadatazoekindexen
 - NZB downloaden en versturen naar SABnzbd of NZBGet: kies in Voorkeuren je standaard downloadclient, of eenmalig een andere via "Verzenden naar..."; wachtrij en snelheid in het Downloads-paneel
 - Metadata-koppelingen (o.a. TMDB, TheTVDB, MusicBrainz, Fanart)
 - Film-/seriedetails met regie, beschikbare TMDB-titelinformatie, doorzoekbare trefwoorden en suggesties onder "Meer zoals dit..."

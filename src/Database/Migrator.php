@@ -42,6 +42,9 @@ final class Migrator
                 if ($name === '20261023_0024_spot_browse_index') {
                     (new \NnSpotty\Usenet\SpotRepository($this->pdo))->rebuildBrowseIndex($progress);
                 }
+                if ($name === '20261104_0031_search_performance') {
+                    (new \NnSpotty\Usenet\SpotBrowseIndex($this->pdo))->backfillNzbAvailability($progress);
+                }
                 $insert = $this->pdo->prepare('INSERT INTO migrations (name, executed_at) VALUES (:name, UTC_TIMESTAMP())');
                 $insert->execute(['name' => $name]);
             } catch (\Throwable $throwable) {
@@ -145,9 +148,9 @@ final class Migrator
         return static fn (Schema $schema) => $schema->addColumn($table, $column, $definition);
     }
 
-    private static function addIndex(string $table, string $index, string $columns): \Closure
+    private static function addIndex(string $table, string $index, string $columns, string $kind = 'INDEX'): \Closure
     {
-        return static fn (Schema $schema) => $schema->addIndex($table, $index, $columns);
+        return static fn (Schema $schema) => $schema->addIndex($table, $index, $columns, $kind);
     }
 
     private static function dropIndex(string $table, string $index): \Closure
@@ -605,6 +608,7 @@ final class Migrator
                     category VARCHAR(32) NOT NULL,
                     browse_type VARCHAR(32) NOT NULL,
                     is_erotica TINYINT(1) NOT NULL,
+                    has_nzb TINYINT NOT NULL DEFAULT 0,
                     posted_at DATETIME NOT NULL,
                     created_at DATETIME(6) NOT NULL,
                     title TEXT NOT NULL,
@@ -621,7 +625,8 @@ final class Migrator
                     codes TEXT NOT NULL,
                     expires_at DATETIME NOT NULL
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
-                // Superseded by spot_browse; idx_spotnet_spots_date and idx_spotnet_visible_date stay for retention and Newznab.
+                self::addColumn('spot_browse', 'has_nzb', 'TINYINT NOT NULL DEFAULT 0'),
+                // Superseded by spot_browse; the source-table date indexes stay for retention and maintenance.
                 self::dropIndex('spotnet_spots', 'idx_spotnet_visibility'),
                 self::dropIndex('spotnet_spots', 'idx_spotnet_type_date'),
                 self::dropIndex('spotnet_spots', 'idx_spotnet_spots_category_date'),
@@ -738,7 +743,9 @@ final class Migrator
                     INDEX idx_metadata_index_year (year, provider),
                     FOREIGN KEY (spot_id) REFERENCES spotnet_spots(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                'SET SESSION innodb_ft_enable_stopword = 0',
                 self::addIndex('metadata_search_index', 'ft_metadata_search', 'search_text', 'FULLTEXT INDEX'),
+                'SET SESSION innodb_ft_enable_stopword = 1',
                 'CREATE TABLE IF NOT EXISTS spot_metadata_entities (
                     spot_id CHAR(64) CHARACTER SET ascii NOT NULL,
                     entity_type VARCHAR(16) CHARACTER SET ascii NOT NULL,
@@ -822,6 +829,30 @@ final class Migrator
                             JSON_UNQUOTE(JSON_EXTRACT(m.result_json, \'$.state\')), \'\') IN (\'unmatched\', \'ambiguous\'),
                             DATE_ADD(UTC_TIMESTAMP(), INTERVAL 7 DAY), q.next_retry_at)
                     WHERE q.result_state = \'\'',
+            ],
+            '20261104_0031_search_performance' => [
+                self::addColumn('spot_browse', 'has_nzb', 'TINYINT NOT NULL DEFAULT 0'),
+                self::addIndex('spot_browse', 'idx_browse_nzb_date', 'has_nzb, posted_at, spot_id'),
+                self::addIndex('spot_browse', 'idx_browse_nzb_visible_date', 'has_nzb, is_erotica, posted_at, spot_id'),
+                // Migration 0028 passed an index kind that the old helper ignored, creating a regular index.
+                function (Schema $schema): void {
+                    $kind = $this->pdo->query("SELECT INDEX_TYPE FROM information_schema.STATISTICS
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'metadata_search_index'
+                            AND INDEX_NAME = 'ft_metadata_search' LIMIT 1")->fetchColumn();
+                    if ($kind === 'FULLTEXT') {
+                        return;
+                    }
+                    $this->pdo->exec('SET SESSION innodb_ft_enable_stopword = 0');
+                    try {
+                        $schema->dropIndex('metadata_search_index', 'ft_metadata_search');
+                        $schema->addIndex('metadata_search_index', 'ft_metadata_search', 'search_text', 'FULLTEXT INDEX');
+                    } finally {
+                        $this->pdo->exec('SET SESSION innodb_ft_enable_stopword = 1');
+                    }
+                },
+                self::addIndex('metadata_search_index', 'idx_metadata_imdb', 'imdb_id'),
+                self::addIndex('metadata_search_index', 'idx_metadata_tvdb', 'tvdb_id'),
+                self::addIndex('metadata_search_index', 'idx_metadata_tmdb', 'tmdb_id'),
             ],
         ];
     }

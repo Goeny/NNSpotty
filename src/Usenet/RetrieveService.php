@@ -258,7 +258,9 @@ final class RetrieveService
                             'refresh' => $refreshSpots || $identityPending,
                         ];
                     }
-                    $this->pdo->beginTransaction();
+                    // Parse one bounded overview batch before holding database write locks.
+                    $spotRows = [];
+                    $articleError = null;
                     try {
                         foreach ($connection->articles(array_column($pending, 'message_id'), $role === 'spots', $settings['pipeline_depth']) as $index => $article) {
                             $messageId = $pending[$index]['message_id'];
@@ -280,7 +282,7 @@ final class RetrieveService
                                         $counts['blacklist']++;
                                         continue;
                                     }
-                                    $repository->saveSpot($spot, $groupName, $pending[$index]['refresh']);
+                                    $spotRows[] = [$spot, $pending[$index]['refresh']];
                                 } else {
                                     $commentRows[] = SpotnetParser::comment($messageId, $article);
                                 }
@@ -303,6 +305,17 @@ final class RetrieveService
                                 $counts['verdwenen']++;
                                 $log($groupName . ' artikel ' . $number . ' niet meer beschikbaar: ' . $exception->getMessage());
                             }
+                        }
+                    } catch (Throwable $exception) {
+                        $articleError = $exception;
+                    }
+                    $this->pdo->beginTransaction();
+                    try {
+                        foreach ($spotRows as [$spot, $refresh]) {
+                            $repository->saveSpot($spot, $groupName, $refresh);
+                        }
+                        if ($articleError !== null) {
+                            throw $articleError;
                         }
                         $repository->saveComments($commentRows);
                         // Backfills do not move the incremental cursor past unprocessed articles.
