@@ -25,6 +25,30 @@ NNSpotty is een moderne Spotnet-webapplicatie voor het ophalen, browsen en downl
 - Gecontroleerde Spotnet-ID’s naast spotter- en reactienamen; reacties publiceren met een persoonlijke accountsleutel en Spotweb-compatibele message-ID-handtekening
 - Light en dark thema (Plex-geïnspireerde UX)
 
+## Screenshots
+
+Klik op een preview voor de originele screenshot op volledige grootte.
+
+| Donker thema | Licht thema | Spotdetails |
+| --- | --- | --- |
+| [![Spotoverzicht in donker thema](docs/screenshots/thumbs/overview-dark.png)](docs/screenshots/overview-dark.png) | [![Spotoverzicht in licht thema](docs/screenshots/thumbs/overview-light.png)](docs/screenshots/overview-light.png) | [![Spotdetails](docs/screenshots/thumbs/detail.png)](docs/screenshots/detail.png) |
+
+| Postergalerij | Fanartgalerij | Trailer |
+| --- | --- | --- |
+| [![Postergalerij](docs/screenshots/thumbs/poster-gallery.png)](docs/screenshots/poster-gallery.png) | [![Fanartgalerij](docs/screenshots/thumbs/fanart-gallery.png)](docs/screenshots/fanart-gallery.png) | [![Trailer](docs/screenshots/thumbs/trailer.png)](docs/screenshots/trailer.png) |
+
+| Downloads | Voorkeuren | Statistieken |
+| --- | --- | --- |
+| [![SABnzbd en NZBGet](docs/screenshots/thumbs/SABNZBD-NZBGET.png)](docs/screenshots/SABNZBD-NZBGET.png) | [![Gebruikersvoorkeuren](docs/screenshots/thumbs/preferences.png)](docs/screenshots/preferences.png) | [![Statistieken](docs/screenshots/thumbs/statistics.png)](docs/screenshots/statistics.png) |
+
+| Admin: Usenet | Admin: inhoud | Admin: downloadclients |
+| --- | --- | --- |
+| [![Usenet-instellingen](docs/screenshots/thumbs/admin-usenet.png)](docs/screenshots/admin-usenet.png) | [![Inhoud en weergave](docs/screenshots/thumbs/admin-inhoud.png)](docs/screenshots/admin-inhoud.png) | [![Downloadclient-instellingen](docs/screenshots/thumbs/admin-client.png)](docs/screenshots/admin-client.png) |
+
+| Admin: metadata |
+| --- |
+| [![Metadata-instellingen](docs/screenshots/thumbs/admin-metadata.png)](docs/screenshots/admin-metadata.png) |
+
 ## Vereisten
 
 - PHP 8.2+

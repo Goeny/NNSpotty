@@ -4,6 +4,9 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
 ## [Unreleased]
 
+### Documentation
+- README met klikbare screenshots en uniforme thumbnails van 320x180 pixels voor GitLab en GitHub.
+
 ### Fixed
 - Snellere Newznab-tellingen en paginering via geindexeerde NZB-beschikbaarheid; titel-/metadatazoeken gebruikt beide FULLTEXT-indexen. Migratie herstelt de onbedoeld gewone metadata-index en voegt externe-ID-indexen toe. Retrieve houdt geen schrijftransactie meer open tijdens NNTP-netwerkverkeer.
 - "Meer zoals dit..." toont de TMDB-fanart van voorgestelde titels; geldige afbeeldingen worden niet meer door de TVDB-URL-controle vervangen door placeholders.
