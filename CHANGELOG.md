@@ -4,6 +4,8 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-05 - Alpine A110 S
+
 ### Documentation
 - README met klikbare screenshots en uniforme thumbnails van 320x180 pixels voor GitLab en GitHub.
 
@@ -13,6 +15,9 @@ Alle noemenswaardige wijzigingen worden hier bijgehouden.
 
 ### Added
 - Film-/seriedetails met regie in de hero, compacte spot- en titelinformatie (status, oorspronkelijke taal, filmbudget/opbrengst), klikbare trefwoorden naast studio's en TMDB-suggesties boven de reacties. Regie, trefwoorden, status en taal filteren lokale spots; suggesties en titels starten een titelzoekopdracht. Quick details blijven compact.
+
+### Upgrade
+- Migratie `20261104_0031_search_performance` bouwt de zoekindexen en geindexeerde NZB-beschikbaarheid bij. Voer de upgrade in onderhoudsmodus uit met cron tijdelijk gepauzeerd; indexopbouw kan bij grote databases langer duren.
 
 ## [0.3.0] - 2026-11-03 - RX-7 Spirit R
 

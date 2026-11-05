@@ -6,6 +6,6 @@ namespace NnSpotty\Config;
 
 final class Release
 {
-    public const VERSION = '0.3.0';
-    public const CODENAME = 'RX-7 Spirit R';
+    public const VERSION = '0.4.0';
+    public const CODENAME = 'Alpine A110 S';
 }
